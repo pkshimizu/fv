@@ -1,0 +1,16 @@
+name: "test: テストコードの追加・変更"
+description: テストの追加や修正
+labels: ["test"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: テストの追加・変更の概要を記述してください
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 詳細
+      description: 対象のテストケースや変更内容を記述してください

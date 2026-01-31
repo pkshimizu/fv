@@ -1,0 +1,16 @@
+name: "chore: ビルドプロセス、ツール、ライブラリの変更"
+description: ビルド設定、CI/CD、依存関係などの変更
+labels: ["chore"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: 変更の概要を記述してください
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 詳細
+      description: 変更内容や理由を記述してください

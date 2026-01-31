@@ -3,3 +3,7 @@
 # for IntelliJ
 .idea
 *.iml
+
+# MCP settings (contains secrets)
+.mcp.json
+.claude/settings.local.json
