@@ -1,0 +1,16 @@
+name: "style: コードフォーマットの修正"
+description: コードスタイルやフォーマットの修正
+labels: ["style"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: フォーマット修正の概要を記述してください
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 詳細
+      description: 対象箇所や修正内容を記述してください

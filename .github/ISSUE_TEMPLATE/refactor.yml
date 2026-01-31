@@ -1,0 +1,23 @@
+name: "refactor: リファクタリング"
+description: 機能変更を伴わないコードの改善
+labels: ["refactor"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要
+      description: リファクタリングの概要を記述してください
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 動機・背景
+      description: なぜリファクタリングが必要なのかを記述してください
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: 詳細
+      description: 変更方針や対象箇所を記述してください
