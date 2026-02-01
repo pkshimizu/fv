@@ -12,6 +12,7 @@ GitHubのプルリクエストを作成してください。
 6. `.github/pull_request_template.md` のテンプレートに沿ってPR本文を作成する
 7. リモートにブランチをpushする（未pushの場合）
 8. `gh pr create` でプルリクエストを作成する
+9. `gh pr edit --add-reviewer copilot` でCopilotをレビュアーに設定する
 
 ## PRテンプレートの埋め方
 
