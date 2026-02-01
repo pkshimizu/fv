@@ -12,11 +12,12 @@ GitHubのプルリクエストを作成してください。
 6. `.github/pull_request_template.md` のテンプレートに沿ってPR本文を作成する
 7. リモートにブランチをpushする（未pushの場合）
 8. `gh pr create` でプルリクエストを作成する
+9. `gh pr edit --add-reviewer copilot` でCopilotをレビュアーに設定する
 
 ## PRテンプレートの埋め方
 
 - **概要**: コミット履歴と差分から変更内容を要約（1〜3文）
-- **対応Issue**: issue IDが取得できた場合は `- https://github.com/{owner}/{repo}/issues/{issue_id}` のように箇条書きでURLを記載。取得できない場合は「対応issueなし」と記載
+- **対応Issue**: issue IDが取得できた場合は `- fixes: https://github.com/{owner}/{repo}/issues/{issue_id}` のように箇条書きでURLを記載。取得できない場合は「対応issueなし」と記載
 - **変更内容**: コミット履歴と差分から箇条書きで記載
 - **テスト**: 差分からテストコードの追加・変更内容を確認し箇条書きで記載。テストコードの変更がない場合は「なし」と記載
 
