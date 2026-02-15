@@ -1,4 +1,4 @@
-use crate::Config;
+use crate::config::Config;
 
 #[derive(Debug)]
 pub struct AppState {
