@@ -1,12 +1,17 @@
-use crossterm::event;
+mod app;
+mod cmd;
+mod config;
+mod event;
+mod fs;
+mod state;
+mod ui;
+
+use app::App;
+use config::Config;
 
 fn main() -> std::io::Result<()> {
-    ratatui::run(|terminal| {
-        loop {
-            terminal.draw(|frame| frame.render_widget("Hello World!", frame.area()))?;
-            if event::read()?.is_key_press() {
-                break Ok(());
-            }
-        }
-    })
+    let mut terminal = ratatui::init();
+    let result = App::new(Config::default()).run(&mut terminal);
+    ratatui::restore();
+    result
 }
