@@ -1,9 +1,11 @@
 use crate::config::Config;
+use crate::state::FilerState;
 
 #[derive(Debug)]
 pub struct AppState {
     pub config: Config,
     pub running: bool,
+    pub filer: FilerState,
 }
 
 impl AppState {
@@ -11,6 +13,7 @@ impl AppState {
         Self {
             config,
             running: true,
+            filer: FilerState::new(),
         }
     }
 }
