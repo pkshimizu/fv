@@ -2,12 +2,20 @@ use ratatui::layout::Constraint;
 use ratatui::widgets::{Block, Cell, Row, Table};
 use std::fs::DirEntry;
 
-pub fn build_file_table(block: Block, files: Vec<std::io::Result<DirEntry>>) -> Table {
+pub fn build_file_table(
+    block: Block<'static>,
+    files: &Vec<std::io::Result<DirEntry>>,
+) -> Table<'static> {
     let rows: Vec<Row> = files
         .into_iter()
         .map(|file| {
             Row::new(vec![Cell::from(
-                file.unwrap().file_name().to_str().unwrap().to_string(),
+                file.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
             )])
         })
         .collect();

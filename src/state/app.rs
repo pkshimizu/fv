@@ -16,4 +16,8 @@ impl AppState {
             filer: FilerState::new(),
         }
     }
+
+    pub fn quit(&mut self) {
+        self.running = false;
+    }
 }
