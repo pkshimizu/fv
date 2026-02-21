@@ -23,7 +23,7 @@ impl App {
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while self.state.running {
             // UI を描画
-            terminal.draw(|frame| ui::render_main_view(frame, &self.state))?;
+            terminal.draw(|frame| ui::render_main_view(frame, &mut self.state))?;
 
             // イベントを取得してコマンドに変換
             let command = self.event_handler.next()?;

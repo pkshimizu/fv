@@ -1,5 +1,5 @@
 mod filer;
 mod header;
 
-pub use filer::*;
+pub use filer::build_filer;
 pub use header::*;
