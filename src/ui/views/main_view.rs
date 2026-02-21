@@ -9,12 +9,9 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
     let [header_area, filter_area] =
         Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
 
-    let current_path = state.filer.current_dir_path.to_str().unwrap();
-    state.filer.file_table_state.select(Some(0));
-
     frame.render_widget(build_header(state), header_area);
     frame.render_stateful_widget(
-        build_filer(current_path),
+        build_filer(state.filer.current_dir_path.as_str()),
         filter_area,
         &mut state.filer.file_table_state,
     );
