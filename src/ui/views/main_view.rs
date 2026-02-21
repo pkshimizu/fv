@@ -11,7 +11,7 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
 
     frame.render_widget(build_header(state), header_area);
     frame.render_stateful_widget(
-        build_filer(state.filer.current_dir_path.as_str()),
+        build_filer(&state.filer),
         filter_area,
         &mut state.filer.file_table_state,
     );

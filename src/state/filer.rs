@@ -1,10 +1,11 @@
 use ratatui::widgets::TableState;
 use std::fs;
+use std::fs::DirEntry;
 
 #[derive(Debug)]
 pub struct FilerState {
     pub current_dir_path: String,
-    pub current_dir_file_count: usize,
+    pub current_dir_files: Vec<std::io::Result<DirEntry>>,
     pub file_table_state: TableState,
 }
 
@@ -16,7 +17,7 @@ impl FilerState {
 
         let mut state = Self {
             current_dir_path: current_dir_path.to_string(),
-            current_dir_file_count: files.len(),
+            current_dir_files: files,
             file_table_state: TableState::default(),
         };
         state.file_table_state.select(Some(0));
@@ -25,7 +26,7 @@ impl FilerState {
 
     pub fn next(&mut self) {
         if let Some(selected) = self.file_table_state.selected() {
-            if selected < self.current_dir_file_count - 1 {
+            if selected < self.current_dir_files.len() - 1 {
                 self.file_table_state.select(Some(selected + 1));
             }
         }
@@ -45,6 +46,6 @@ impl FilerState {
 
     pub fn last(&mut self) {
         self.file_table_state
-            .select(Some(self.current_dir_file_count - 1));
+            .select(Some(self.current_dir_files.len() - 1));
     }
 }
