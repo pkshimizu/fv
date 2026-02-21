@@ -11,5 +11,7 @@ pub fn build_file_table(block: Block, files: Vec<std::io::Result<DirEntry>>) -> 
             )])
         })
         .collect();
-    Table::new(rows, [Constraint::Fill(1)]).block(block)
+    Table::new(rows, [Constraint::Fill(1)])
+        .block(block)
+        .highlight_symbol("> ")
 }

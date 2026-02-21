@@ -1,18 +1,11 @@
 mod file_table;
 
-use crate::state::AppState;
 use crate::ui::features::filer::file_table::build_file_table;
-use ratatui::prelude::Widget;
-use ratatui::widgets::Block;
+use ratatui::widgets::{Block, Table};
 use std::fs;
 
-pub fn build_filer(state: &AppState) -> impl Widget {
-    let current_path = state.filer.current_dir_path.to_str().unwrap();
+pub fn build_filer(current_path: &str) -> Table {
     let files = fs::read_dir(current_path).unwrap().collect::<Vec<_>>();
-    let block = Block::bordered().title(format!(
-        "{} ({})",
-        state.filer.current_dir_path.to_str().unwrap(),
-        files.len()
-    ));
+    let block = Block::bordered().title(format!("{} ({})", current_path, files.len()));
     build_file_table(block, files)
 }
