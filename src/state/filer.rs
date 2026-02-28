@@ -1,11 +1,10 @@
+use crate::fs::VFile;
 use ratatui::widgets::TableState;
-use std::fs;
-use std::fs::DirEntry;
 
 #[derive(Debug)]
 pub struct FilerState {
-    pub current_dir_path: String,
-    pub current_dir_files: Vec<std::io::Result<DirEntry>>,
+    pub current_dir: VFile,
+    pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
 }
 
@@ -13,11 +12,12 @@ impl FilerState {
     pub fn new() -> Self {
         let home_dir = dirs::home_dir().unwrap();
         let current_dir_path = home_dir.to_str().unwrap();
-        let files = fs::read_dir(current_dir_path).unwrap().collect::<Vec<_>>();
+        let current_dir = VFile::new(current_dir_path.to_string());
+        let current_dir_files = current_dir.list();
 
         let mut state = Self {
-            current_dir_path: current_dir_path.to_string(),
-            current_dir_files: files,
+            current_dir,
+            current_dir_files,
             file_table_state: TableState::default(),
         };
         state.file_table_state.select(Some(0));
