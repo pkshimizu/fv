@@ -1,3 +1,3 @@
 mod file;
 
-use file::File;
+pub use file::VFile;

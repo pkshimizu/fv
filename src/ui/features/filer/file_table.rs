@@ -1,29 +1,19 @@
+use crate::fs::VFile;
 use ratatui::layout::{Alignment, Constraint};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
-use std::fs::DirEntry;
 
-pub fn build_file_table(
-    block: Block<'static>,
-    files: &Vec<std::io::Result<DirEntry>>,
-) -> Table<'static> {
+pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'static> {
     let rows: Vec<Row> = files
         .into_iter()
         .map(|file| {
             Row::new(vec![
+                Cell::from(file.file_name()),
                 Cell::from(
-                    file.as_ref()
-                        .unwrap()
-                        .file_name()
-                        .to_str()
-                        .unwrap()
-                        .to_string(),
-                ),
-                Cell::from(
-                    Text::from(if file.as_ref().unwrap().metadata().unwrap().is_dir() {
+                    Text::from(if file.is_dir() {
                         "<dir>".to_string()
                     } else {
-                        file.as_ref().unwrap().metadata().unwrap().len().to_string()
+                        file.file_size().to_string()
                     })
                     .alignment(Alignment::Right),
                 ),

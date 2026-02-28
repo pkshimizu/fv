@@ -1,24 +1,38 @@
 use std::fs::read_dir;
+use std::path::Path;
 
 #[derive(Debug)]
-pub struct File {
+pub struct VFile {
     pub path: String,
 }
 
-impl File {
-    pub fn new(path: String) -> File {
+impl VFile {
+    pub fn new(path: String) -> Self {
         Self { path }
     }
 
-    pub fn list(self) -> Vec<File> {
-        let result = read_dir(self.path.to_string());
+    pub fn absolute_path(&self) -> String {
+        self.path.clone()
+    }
+
+    pub fn file_name(&self) -> String {
+        Path::new(&self.path)
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+
+    pub fn list(&self) -> Vec<VFile> {
+        let result = read_dir(&self.path);
         if result.is_ok() {
             let entries = result.unwrap().collect::<Vec<_>>();
-            let mut files: Vec<File> = Vec::new();
+            let mut files: Vec<VFile> = Vec::new();
             for entry in entries {
                 if entry.is_ok() {
                     let path = entry.unwrap().path();
-                    files.push(File::new(path.to_str().unwrap().to_string()));
+                    files.push(VFile::new(path.to_str().unwrap().to_string()));
                 }
             }
             return files;
@@ -26,15 +40,27 @@ impl File {
         Vec::new()
     }
 
-    pub fn size(self) -> u64 {
-        std::fs::metadata(self.path).unwrap().len()
+    pub fn list_size(&self) -> usize {
+        let result = read_dir(&self.path);
+        if result.is_ok() {
+            return result.unwrap().count();
+        }
+        0
     }
 
-    pub fn is_file(self) -> bool {
-        std::fs::metadata(self.path.clone()).unwrap().is_file()
+    pub fn file_size(&self) -> u64 {
+        let result = std::fs::metadata(&self.path);
+        if result.is_ok() {
+            return result.unwrap().len();
+        }
+        0
     }
 
-    pub fn is_dir(self) -> bool {
-        std::fs::metadata(self.path.clone()).unwrap().is_dir()
+    pub fn is_dir(&self) -> bool {
+        let result = std::fs::metadata(&self.path);
+        if result.is_ok() {
+            return result.unwrap().is_dir();
+        }
+        false
     }
 }

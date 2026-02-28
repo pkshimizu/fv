@@ -7,8 +7,8 @@ use ratatui::widgets::{Block, Table};
 pub fn build_filer(state: &FilerState) -> Table<'static> {
     let block = Block::bordered().title(format!(
         "{} ({})",
-        state.current_dir_path,
-        state.current_dir_files.len()
+        state.current_dir.absolute_path(),
+        state.current_dir.list_size()
     ));
     build_file_table(block, &state.current_dir_files)
 }
