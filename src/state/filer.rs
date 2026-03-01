@@ -48,4 +48,12 @@ impl FilerState {
         self.file_table_state
             .select(Some(self.current_dir_files.len() - 1));
     }
+
+    pub fn change_dir_in_select_file(&mut self) {
+        if let Some(selected) = self.file_table_state.selected() {
+            let selected_file_path = self.current_dir_files[selected].absolute_path();
+            self.current_dir = VFile::new(selected_file_path.to_string());
+            self.current_dir_files = self.current_dir.list();
+        }
+    }
 }

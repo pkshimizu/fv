@@ -25,10 +25,11 @@ impl EventHandler {
     fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
             (_, KeyCode::Char('q')) => Command::Quit,
-            (_, KeyCode::Up) => Command::FilerCursorUp,
-            (_, KeyCode::Down) => Command::FilerCursorDown,
-            (_, KeyCode::Left) => Command::FilerCursorLeft,
-            (_, KeyCode::Right) => Command::FilerCursorRight,
+            (_, KeyCode::Up) => Command::MoveCursorUp,
+            (_, KeyCode::Down) => Command::MoveCursorDown,
+            (_, KeyCode::Left) => Command::MoveCursorLeft,
+            (_, KeyCode::Right) => Command::MoveCursorRight,
+            (_, KeyCode::Enter) => Command::ChangeDir,
             _ => Command::None,
         }
     }

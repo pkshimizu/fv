@@ -1,3 +1,4 @@
+mod change_dir;
 pub mod command;
-mod filer_cursor;
+mod move_cursor;
 mod quit;
