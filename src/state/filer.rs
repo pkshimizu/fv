@@ -49,11 +49,20 @@ impl FilerState {
             .select(Some(self.current_dir_files.len() - 1));
     }
 
-    pub fn change_dir_in_select_file(&mut self) {
+    pub fn change_dir_in_select_dir(&mut self) {
         if let Some(selected) = self.file_table_state.selected() {
             let selected_file_path = self.current_dir_files[selected].absolute_path();
-            self.current_dir = VFile::new(selected_file_path.to_string());
-            self.current_dir_files = self.current_dir.list();
+            let selected_file = VFile::new(selected_file_path.to_string());
+            if selected_file.is_dir() {
+                self.current_dir = selected_file;
+                self.current_dir_files = self.current_dir.list();
+            }
         }
+    }
+
+    pub fn change_dir_in_parent_dir(&mut self) {
+        let parent_dir = self.current_dir.parent_dir();
+        self.current_dir = parent_dir;
+        self.current_dir_files = self.current_dir.list();
     }
 }
