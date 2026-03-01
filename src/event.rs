@@ -30,6 +30,7 @@ impl EventHandler {
             (_, KeyCode::Left) => Command::MoveCursorLeft,
             (_, KeyCode::Right) => Command::MoveCursorRight,
             (_, KeyCode::Enter) => Command::ChangeDir,
+            (_, KeyCode::Backspace) => Command::ChangeParentDir,
             _ => Command::None,
         }
     }

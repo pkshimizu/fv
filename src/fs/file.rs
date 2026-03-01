@@ -24,6 +24,11 @@ impl VFile {
             .to_string()
     }
 
+    pub fn parent_dir(&self) -> VFile {
+        let path = Path::new(&self.path);
+        VFile::new(path.parent().unwrap().to_str().unwrap().to_string())
+    }
+
     pub fn list(&self) -> Vec<VFile> {
         let result = read_dir(&self.path);
         if result.is_ok() {

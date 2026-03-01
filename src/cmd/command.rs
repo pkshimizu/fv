@@ -7,6 +7,7 @@ pub enum Command {
     MoveCursorLeft,
     MoveCursorRight,
     ChangeDir,
+    ChangeParentDir,
     Quit,
     None,
 }
@@ -18,7 +19,8 @@ impl Command {
             Command::MoveCursorDown => move_cursor::down(state),
             Command::MoveCursorLeft => move_cursor::first(state),
             Command::MoveCursorRight => move_cursor::last(state),
-            Command::ChangeDir => change_dir::exec(state),
+            Command::ChangeDir => change_dir::select_dir(state),
+            Command::ChangeParentDir => change_dir::parent_dir(state),
             Command::Quit => quit::exec(state),
             Command::None => {}
         }
