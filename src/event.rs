@@ -29,6 +29,7 @@ impl EventHandler {
             (_, KeyCode::Down) => Command::FilerCursorDown,
             (_, KeyCode::Left) => Command::FilerCursorLeft,
             (_, KeyCode::Right) => Command::FilerCursorRight,
+            (_, KeyCode::Enter) => Command::ChangeDir,
             _ => Command::None,
         }
     }
