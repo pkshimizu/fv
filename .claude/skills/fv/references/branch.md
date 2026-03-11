@@ -1,4 +1,6 @@
-GitHub Issueに対応するfeatureブランチを作成してください。
+# /fv branch - featureブランチ作成
+
+GitHub Issueに対応するfeatureブランチを作成する。
 
 引数: $ARGUMENTS（GitHub Issue ID）
 
