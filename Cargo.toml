@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 crossterm = "0.29.0"
 dirs = "6.0.0"
+num-format = "0.4.4"
 ratatui = "0.30.0"

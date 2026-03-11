@@ -2,6 +2,7 @@ use crate::fs::VFile;
 use ratatui::layout::{Alignment, Constraint};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
+use num_format::{Locale, ToFormattedString};
 
 pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'static> {
     let rows: Vec<Row> = files
@@ -13,7 +14,7 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
                     Text::from(if file.is_dir() {
                         "<dir>".to_string()
                     } else {
-                        file.file_size().to_string()
+                        file.file_size().to_formatted_string(&Locale::en)
                     })
                     .alignment(Alignment::Right),
                 ),
