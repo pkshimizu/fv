@@ -1,3 +1,4 @@
+use crate::fs::permissions::VPermissions;
 use std::fs::read_dir;
 use std::io;
 use std::path::Path;
@@ -74,5 +75,10 @@ impl VFile {
     pub fn modified(&self) -> io::Result<SystemTime> {
         let result = std::fs::metadata(&self.path)?;
         result.modified()
+    }
+
+    pub fn permissions(&self) -> io::Result<VPermissions> {
+        let result = std::fs::metadata(&self.path)?;
+        Ok(VPermissions::new(result.permissions()))
     }
 }

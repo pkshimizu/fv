@@ -20,7 +20,7 @@ fn format_system_time(time: io::Result<SystemTime>) -> String {
             utc_time.second()
         );
     }
-    "<error>".to_string()
+    "____-__-__ --:--:--".to_string()
 }
 
 pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'static> {
@@ -29,6 +29,11 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
         .map(|file| {
             Row::new(vec![
                 Cell::from(file.file_name()),
+                Cell::from(if let Ok(permissions) = file.permissions() {
+                    permissions.to_rwx_string()
+                } else {
+                    "------".to_string()
+                }),
                 Cell::from(
                     Text::from(if file.is_dir() {
                         "<dir>".to_string()
@@ -45,6 +50,7 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
         rows,
         [
             Constraint::Fill(1),
+            Constraint::Max(6),
             Constraint::Max(10),
             Constraint::Max(19),
         ],
