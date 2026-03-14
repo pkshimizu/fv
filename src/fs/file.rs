@@ -1,5 +1,7 @@
 use std::fs::read_dir;
+use std::io;
 use std::path::Path;
+use std::time::SystemTime;
 
 #[derive(Debug)]
 pub struct VFile {
@@ -67,5 +69,10 @@ impl VFile {
             return result.unwrap().is_dir();
         }
         false
+    }
+
+    pub fn modified(&self) -> io::Result<SystemTime> {
+        let result = std::fs::metadata(&self.path)?;
+        result.modified()
     }
 }
