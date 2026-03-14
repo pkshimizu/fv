@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.44"
 crossterm = "0.29.0"
 dirs = "6.0.0"
 num-format = "0.4.4"
