@@ -56,6 +56,7 @@ impl FilerState {
             if selected_file.is_dir() {
                 self.current_dir = selected_file;
                 self.current_dir_files = self.current_dir.list();
+                self.file_table_state.select(Some(0));
             }
         }
     }
@@ -64,5 +65,6 @@ impl FilerState {
         let parent_dir = self.current_dir.parent_dir();
         self.current_dir = parent_dir;
         self.current_dir_files = self.current_dir.list();
+        self.file_table_state.select(Some(0));
     }
 }
