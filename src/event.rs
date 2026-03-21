@@ -1,25 +1,75 @@
-use std::io;
+use std::path::Path;
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
+use std::{io, thread};
 
 use crate::cmd::command::Command;
+use crate::fs::VFile;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
+use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+
+pub enum AppEvent {
+    Key(KeyEvent),
+    FileChange,
+}
 
 pub struct EventHandler {
-    tick_rate: Duration,
+    rx: Receiver<AppEvent>,
+    tx: Sender<AppEvent>,
+    watcher: Option<RecommendedWatcher>,
 }
 
 impl EventHandler {
     pub fn new(tick_rate: Duration) -> Self {
-        Self { tick_rate }
+        let (tx, rx) = mpsc::channel();
+        let key_tx = tx.clone();
+
+        thread::spawn(move || {
+            loop {
+                if event::poll(tick_rate).unwrap_or(false) {
+                    if let Ok(Event::Key(event)) = event::read() {
+                        if key_tx.send(AppEvent::Key(event)).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+
+        Self {
+            rx,
+            tx,
+            watcher: None,
+        }
     }
 
     pub fn next(&self) -> io::Result<Command> {
-        if event::poll(self.tick_rate)? {
-            if let Event::Key(key_event) = event::read()? {
-                return Ok(Self::key_to_command(key_event));
-            }
+        match self.rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(AppEvent::Key(key)) => Ok(Self::key_to_command(key)),
+            Ok(AppEvent::FileChange) => Ok(Command::RefreshFiles),
+            Err(_) => Ok(Command::None),
         }
-        Ok(Command::None)
+    }
+
+    pub fn watch_directory(&mut self, path: &String) {
+        let tx = self.tx.clone();
+
+        let watcher = RecommendedWatcher::new(
+            move |res: notify::Result<notify::Event>| {
+                if res.is_ok() {
+                    let _ = tx.send(AppEvent::FileChange);
+                }
+            },
+            Config::default(),
+        );
+
+        self.watcher = Some(watcher.unwrap());
+        let _ = self
+            .watcher
+            .as_mut()
+            .unwrap()
+            .watch(Path::new(path.as_str()), RecursiveMode::NonRecursive);
     }
 
     fn key_to_command(key: KeyEvent) -> Command {
