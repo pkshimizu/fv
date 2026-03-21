@@ -67,4 +67,26 @@ impl FilerState {
         self.current_dir_files = self.current_dir.list();
         self.file_table_state.select(Some(0));
     }
+
+    pub fn refresh_files(&mut self) {
+        let selected_index = self.file_table_state.selected();
+        let selected_name = selected_index
+            .and_then(|i| self.current_dir_files.get(i))
+            .map(|f| f.file_name());
+
+        self.current_dir_files = self.current_dir.list();
+
+        if let Some(name) = selected_name {
+            let new_index = self
+                .current_dir_files
+                .iter()
+                .position(|f| f.file_name() == name)
+                .unwrap_or(0);
+            self.file_table_state.select(Some(
+                new_index.min(self.current_dir_files.len().saturating_sub(1)),
+            ));
+        } else {
+            self.file_table_state.select(Some(0));
+        }
+    }
 }
