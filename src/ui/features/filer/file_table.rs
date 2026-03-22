@@ -4,8 +4,9 @@ use ratatui::layout::{Alignment, Constraint};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
+use anyhow::Result;
 
-fn format_time(time: Result<VFileTime, ()>) -> String {
+fn format_time(time: Result<VFileTime>) -> String {
     if let Ok(time) = time {
         return time.to_string()
     }
