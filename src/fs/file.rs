@@ -2,7 +2,7 @@ use crate::fs::permissions::VPermissions;
 use std::fs::read_dir;
 use std::io;
 use std::path::Path;
-use std::time::SystemTime;
+use crate::fs::file_time::VFileTime;
 
 #[derive(Debug)]
 pub struct VFile {
@@ -72,9 +72,14 @@ impl VFile {
         false
     }
 
-    pub fn modified(&self) -> io::Result<SystemTime> {
-        let result = std::fs::metadata(&self.path)?;
-        result.modified()
+    pub fn modified(&self) -> Result<VFileTime, ()> {
+        let result = std::fs::metadata(&self.path);
+        if let Ok(result) = result {
+            if let Ok(modified) = result.modified() {
+                return Ok(VFileTime::new(modified))
+            }
+        }
+        Err(())
     }
 
     pub fn permissions(&self) -> io::Result<VPermissions> {
