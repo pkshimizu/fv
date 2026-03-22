@@ -1,25 +1,13 @@
-use crate::fs::VFile;
-use chrono::{DateTime, Datelike, Local, Timelike};
+use crate::fs::{VFile, VFileTime};
 use num_format::{Locale, ToFormattedString};
 use ratatui::layout::{Alignment, Constraint};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
-use std::io;
-use std::time::SystemTime;
 
-fn format_system_time(time: io::Result<SystemTime>) -> String {
+fn format_time(time: Result<VFileTime, ()>) -> String {
     if let Ok(time) = time {
-        let utc_time: DateTime<Local> = time.into();
-        return format!(
-            "{}-{:02}-{:02} {:02}:{:02}:{:02}",
-            utc_time.year(),
-            utc_time.month(),
-            utc_time.day(),
-            utc_time.hour(),
-            utc_time.minute(),
-            utc_time.second()
-        );
+        return time.to_string()
     }
     "____-__-__ --:--:--".to_string()
 }
@@ -43,7 +31,7 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
                     })
                     .alignment(Alignment::Right),
                 ),
-                Cell::from(format_system_time(file.modified())),
+                Cell::from(format_time(file.modified())),
             ])
         })
         .collect();
