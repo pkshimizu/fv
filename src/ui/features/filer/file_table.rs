@@ -2,6 +2,7 @@ use crate::fs::VFile;
 use chrono::{DateTime, Datelike, Local, Timelike};
 use num_format::{Locale, ToFormattedString};
 use ratatui::layout::{Alignment, Constraint};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
 use std::io;
@@ -57,4 +58,5 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
     )
     .block(block)
     .highlight_symbol("> ")
+    .row_highlight_style(Style::default().add_modifier(Modifier::UNDERLINED))
 }
