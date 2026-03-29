@@ -6,12 +6,16 @@ mod fs;
 mod state;
 mod ui;
 
+use anyhow::Result;
 use app::App;
 use config::Config;
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     let mut terminal = ratatui::init();
-    let result = App::new(Config::default()).run(&mut terminal);
+    let mut app = App::new(Config::default());
+    app.init()?;
+    let result = app.run(&mut terminal);
+
     ratatui::restore();
     result
 }

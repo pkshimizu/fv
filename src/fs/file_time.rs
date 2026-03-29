@@ -1,5 +1,5 @@
+use chrono::{DateTime, Datelike, Local, Timelike};
 use std::time::SystemTime;
-use chrono::{DateTime, Local, Datelike, Timelike};
 
 pub struct VFileTime {
     time: SystemTime,
@@ -7,9 +7,7 @@ pub struct VFileTime {
 
 impl VFileTime {
     pub fn new(time: SystemTime) -> VFileTime {
-        Self{
-            time,
-        }
+        Self { time }
     }
 
     pub fn to_string(&self) -> String {
@@ -22,6 +20,7 @@ impl VFileTime {
             utc_time.hour(),
             utc_time.minute(),
             utc_time.second()
-        ).to_string()
+        )
+        .to_string()
     }
 }

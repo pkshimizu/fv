@@ -1,5 +1,6 @@
 use crate::cmd::{change_dir, move_cursor, quit, refresh_files};
 use crate::state::AppState;
+use anyhow::Result;
 
 pub enum Command {
     MoveCursorUp,
@@ -14,7 +15,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn exec(self, state: &mut AppState) {
+    pub fn exec(self, state: &mut AppState) -> Result<()> {
         match self {
             Command::MoveCursorUp => move_cursor::up(state),
             Command::MoveCursorDown => move_cursor::down(state),
@@ -24,7 +25,7 @@ impl Command {
             Command::ChangeParentDir => change_dir::parent_dir(state),
             Command::RefreshFiles => refresh_files::exec(state),
             Command::Quit => quit::exec(state),
-            Command::None => {}
+            Command::None => Ok(()),
         }
     }
 }

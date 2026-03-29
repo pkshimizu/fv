@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::state::FilerState;
+use anyhow::Result;
 
 #[derive(Debug)]
 pub struct AppState {
@@ -10,11 +11,17 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(config: Config) -> Self {
+        let filer_state = FilerState::new();
         Self {
             config,
             running: true,
-            filer: FilerState::new(),
+            filer: filer_state,
         }
+    }
+
+    pub fn init(&mut self) -> Result<()> {
+        self.filer.init()?;
+        Ok(())
     }
 
     pub fn quit(&mut self) {
