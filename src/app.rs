@@ -19,6 +19,11 @@ impl App {
         }
     }
 
+    pub fn init(&mut self) -> Result<()> {
+        self.state.init()?;
+        Ok(())
+    }
+
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut watching_dir_path = self.state.filer.current_dir.absolute_path();
 
@@ -28,7 +33,7 @@ impl App {
 
             // イベントを取得してコマンドに変換
             let command = self.event_handler.next()?;
-            command.exec(&mut self.state);
+            let _ = command.exec(&mut self.state);
 
             // カレントディレクトリの監視
             let current_dir_path = self.state.filer.current_dir.absolute_path();

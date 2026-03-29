@@ -18,17 +18,19 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
         .into_iter()
         .map(|file| {
             Row::new(vec![
-                Cell::from(file.file_name()),
+                Cell::from(file.file_name().unwrap_or_default()),
                 Cell::from(if let Ok(permissions) = file.permissions() {
                     permissions.to_rwx_string()
                 } else {
                     "------".to_string()
                 }),
                 Cell::from(
-                    Text::from(if file.is_dir() {
+                    Text::from(if file.is_dir().unwrap_or_else(|_| false) {
                         "<dir>".to_string()
                     } else {
-                        file.file_size().to_formatted_string(&Locale::en)
+                        file.file_size()
+                            .unwrap_or_else(|_| 0)
+                            .to_formatted_string(&Locale::en)
                     })
                     .alignment(Alignment::Right),
                 ),
