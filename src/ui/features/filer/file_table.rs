@@ -1,14 +1,14 @@
 use crate::fs::{VFile, VFileTime};
+use anyhow::Result;
 use num_format::{Locale, ToFormattedString};
 use ratatui::layout::{Alignment, Constraint};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
-use anyhow::Result;
 
 fn format_time(time: Result<VFileTime>) -> String {
     if let Ok(time) = time {
-        return time.to_string()
+        return time.to_string();
     }
     "____-__-__ --:--:--".to_string()
 }

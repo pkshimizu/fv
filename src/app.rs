@@ -1,11 +1,10 @@
-use std::io;
-
 use ratatui::DefaultTerminal;
 
 use crate::config::Config;
 use crate::event::EventHandler;
 use crate::state::AppState;
 use crate::ui;
+use anyhow::Result;
 
 pub struct App {
     state: AppState,
@@ -20,7 +19,7 @@ impl App {
         }
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut watching_dir_path = self.state.filer.current_dir.absolute_path();
 
         while self.state.running {

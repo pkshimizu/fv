@@ -1,11 +1,11 @@
 use std::path::Path;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
 use std::time::Duration;
-use std::{io, thread};
 
 use crate::cmd::command::Command;
-use crate::fs::VFile;
+use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
@@ -44,7 +44,7 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self) -> io::Result<Command> {
+    pub fn next(&self) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => Ok(Self::key_to_command(key)),
             Ok(AppEvent::FileChange) => Ok(Command::RefreshFiles),
@@ -52,7 +52,7 @@ impl EventHandler {
         }
     }
 
-    pub fn watch_directory(&mut self, path: &String) {
+    pub fn watch_directory(&mut self, path: &String) -> Result<()> {
         let tx = self.tx.clone();
 
         let watcher = RecommendedWatcher::new(
@@ -62,14 +62,13 @@ impl EventHandler {
                 }
             },
             Config::default(),
-        );
+        )?;
 
-        self.watcher = Some(watcher.unwrap());
-        let _ = self
-            .watcher
-            .as_mut()
-            .unwrap()
-            .watch(Path::new(path.as_str()), RecursiveMode::NonRecursive);
+        self.watcher = Option::from(watcher);
+        if let Some(mut_watcher) = self.watcher.as_mut() {
+            mut_watcher.watch(Path::new(path.as_str()), RecursiveMode::NonRecursive)?;
+        }
+        Ok(())
     }
 
     fn key_to_command(key: KeyEvent) -> Command {
