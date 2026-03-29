@@ -32,9 +32,8 @@ impl VFile {
 
     pub fn list(&self) -> Result<Vec<VFile>> {
         let result = read_dir(&self.path)?;
-        let entries = result.collect::<Vec<_>>();
         let mut files: Vec<VFile> = Vec::new();
-        for entry in entries {
+        for entry in result {
             let path = entry?.path();
             if let Some(path_str) = path.to_str() {
                 files.push(VFile::new(path_str.to_string()));
