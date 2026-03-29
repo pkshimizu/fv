@@ -33,7 +33,7 @@ impl App {
 
             // イベントを取得してコマンドに変換
             let command = self.event_handler.next()?;
-            let _ = command.exec(&mut self.state);
+            command.exec(&mut self.state)?;
 
             // カレントディレクトリの監視
             let current_dir_path = self.state.filer.current_dir.absolute_path();

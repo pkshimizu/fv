@@ -52,10 +52,10 @@ impl EventHandler {
         }
     }
 
-    pub fn watch_directory(&mut self, path: &String) -> Result<()> {
+    pub fn watch_directory(&mut self, path: &str) -> Result<()> {
         let tx = self.tx.clone();
 
-        let watcher = RecommendedWatcher::new(
+        let mut watcher = RecommendedWatcher::new(
             move |res: notify::Result<notify::Event>| {
                 if res.is_ok() {
                     let _ = tx.send(AppEvent::FileChange);
@@ -64,10 +64,8 @@ impl EventHandler {
             Config::default(),
         )?;
 
-        self.watcher = Option::from(watcher);
-        if let Some(mut_watcher) = self.watcher.as_mut() {
-            mut_watcher.watch(Path::new(path.as_str()), RecursiveMode::NonRecursive)?;
-        }
+        watcher.watch(Path::new(path), RecursiveMode::NonRecursive)?;
+        self.watcher = Some(watcher);
         Ok(())
     }
 

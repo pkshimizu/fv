@@ -32,16 +32,10 @@ impl VFile {
     }
 
     pub fn list(&self) -> Result<Vec<VFile>> {
-        let result = read_dir(&self.path);
-        if result.is_err() {
-            tracing::error!("Failed to list for {:?}", &self.path);
-        }
-        let entries = result?.collect::<Vec<_>>();
+        let result = read_dir(&self.path)?;
+        let entries = result.collect::<Vec<_>>();
         let mut files: Vec<VFile> = Vec::new();
         for entry in entries {
-            if entry.is_err() {
-                tracing::error!("Failed to get list entry for {:?}", &self.path);
-            }
             let path = entry?.path();
             if let Some(path_str) = path.to_str() {
                 files.push(VFile::new(path_str.to_string()));
@@ -51,46 +45,28 @@ impl VFile {
     }
 
     pub fn list_size(&self) -> Result<usize> {
-        let result = read_dir(&self.path);
-        if result.is_err() {
-            tracing::error!("Failed to count list size for {:?}", &self.path);
-        }
-        Ok(result?.count())
+        let result = read_dir(&self.path)?;
+        Ok(result.count())
     }
 
     pub fn file_size(&self) -> Result<u64> {
-        let result = std::fs::metadata(&self.path);
-        if result.is_err() {
-            tracing::error!("Failed to get file metadata for {:?}", &self.path);
-        }
-        Ok(result?.len())
+        let result = std::fs::metadata(&self.path)?;
+        Ok(result.len())
     }
 
     pub fn is_dir(&self) -> Result<bool> {
-        let result = std::fs::metadata(&self.path);
-        if result.is_err() {
-            tracing::error!("Failed to get file metadata for {:?}", &self.path);
-        }
-        Ok(result?.is_dir())
+        let result = std::fs::metadata(&self.path)?;
+        Ok(result.is_dir())
     }
 
     pub fn modified(&self) -> Result<VFileTime> {
-        let result = std::fs::metadata(&self.path);
-        if result.is_err() {
-            tracing::error!("Failed to get file metadata for {:?}", &self.path);
-        }
-        let modified = result?.modified();
-        if modified.is_err() {
-            tracing::error!("Failed to get file metadata for {:?}", &self.path);
-        }
-        Ok(VFileTime::new(modified?))
+        let result = std::fs::metadata(&self.path)?;
+        let modified = result.modified()?;
+        Ok(VFileTime::new(modified))
     }
 
     pub fn permissions(&self) -> Result<VPermissions> {
-        let result = std::fs::metadata(&self.path);
-        if result.is_err() {
-            tracing::error!("Failed to get file metadata for {:?}", &self.path);
-        }
-        Ok(VPermissions::new(result?.permissions()))
+        let result = std::fs::metadata(&self.path)?;
+        Ok(VPermissions::new(result.permissions()))
     }
 }
