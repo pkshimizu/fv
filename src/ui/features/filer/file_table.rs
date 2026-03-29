@@ -16,26 +16,21 @@ fn format_time(time: Result<VFileTime>) -> String {
 pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'static> {
     let rows: Vec<Row> = files
         .into_iter()
-        .map(|file| {
-            Row::new(vec![
+        .filter_map(|file| {
+            let metadata = file.metadata().ok()?;
+            Some(Row::new(vec![
                 Cell::from(file.file_name().unwrap_or_default()),
-                Cell::from(if let Ok(permissions) = file.permissions() {
-                    permissions.to_rwx_string()
-                } else {
-                    "------".to_string()
-                }),
+                Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
-                    Text::from(if file.is_dir().unwrap_or_else(|_| false) {
+                    Text::from(if metadata.is_dir() {
                         "<dir>".to_string()
                     } else {
-                        file.file_size()
-                            .unwrap_or_else(|_| 0)
-                            .to_formatted_string(&Locale::en)
+                        metadata.file_size().to_formatted_string(&Locale::en)
                     })
                     .alignment(Alignment::Right),
                 ),
-                Cell::from(format_time(file.modified())),
-            ])
+                Cell::from(format_time(metadata.modified())),
+            ]))
         })
         .collect();
     Table::new(
