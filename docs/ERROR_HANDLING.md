@@ -22,14 +22,13 @@
 ### 基本ルール
 
 1. 戻り値の型は `anyhow::Result<T>` を使用
-2. `.context()` でエラーにコンテキストを追加
-3. `?` 演算子でエラー伝播
-4. ライブラリ層ではログ出力しない（UI層に委譲）
+2. `?` 演算子でエラー伝播
+3. ライブラリ層ではログ出力しない（UI層に委譲）
 
 ### 実装例: fs/file.rs
 
 ```rust
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::fs::read_dir;
 use std::path::Path;
 
@@ -45,43 +44,36 @@ impl VFile {
 
     /// ディレクトリ内のファイル一覧を取得
     pub fn list(&self) -> Result<Vec<VFile>> {
-        let entries = read_dir(&self.path)
-            .with_context(|| format!("ディレクトリの読み取りに失敗: {}", self.path))?;
+        let entries = read_dir(&self.path)?;
 
         let mut files = Vec::new();
         for entry in entries {
-            let entry = entry.context("エントリの取得に失敗")?;
+            let entry = entry?;
             let path = entry.path();
-            let path_str = path
-                .to_str()
-                .context("パスの変換に失敗")?
-                .to_string();
-            files.push(VFile::new(path_str));
+            if let Some(path_str) = path.to_str() {
+                files.push(VFile::new(path_str.to_string()));
+            }
         }
         Ok(files)
     }
 
     /// ファイルサイズを取得
     pub fn file_size(&self) -> Result<u64> {
-        let metadata = std::fs::metadata(&self.path)
-            .with_context(|| format!("メタデータの取得に失敗: {}", self.path))?;
+        let metadata = std::fs::metadata(&self.path)?;
         Ok(metadata.len())
     }
 
     /// ディレクトリかどうかを判定
     pub fn is_dir(&self) -> Result<bool> {
-        let metadata = std::fs::metadata(&self.path)
-            .with_context(|| format!("メタデータの取得に失敗: {}", self.path))?;
+        let metadata = std::fs::metadata(&self.path)?;
         Ok(metadata.is_dir())
     }
 
     /// ファイル名を取得
-    pub fn file_name(&self) -> Result<String> {
+    pub fn file_name(&self) -> Option<String> {
         Path::new(&self.path)
-            .file_name()
-            .context("ファイル名の取得に失敗")?
+            .file_name()?
             .to_str()
-            .context("ファイル名の変換に失敗")
             .map(|s| s.to_string())
     }
 }
