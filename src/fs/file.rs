@@ -1,5 +1,4 @@
-use crate::fs::file_time::VFileTime;
-use crate::fs::permissions::VPermissions;
+use crate::fs::file_metadata::VFileMetadata;
 use anyhow::Result;
 use std::fs::read_dir;
 use std::path::Path;
@@ -44,28 +43,7 @@ impl VFile {
         Ok(files)
     }
 
-    pub fn file_size(&self) -> Result<u64> {
-        let result = self.metadata()?;
-        Ok(result.len())
-    }
-
-    pub fn is_dir(&self) -> Result<bool> {
-        let result = self.metadata()?;
-        Ok(result.is_dir())
-    }
-
-    pub fn modified(&self) -> Result<VFileTime> {
-        let result = self.metadata()?;
-        let modified = result.modified()?;
-        Ok(VFileTime::new(modified))
-    }
-
-    pub fn permissions(&self) -> Result<VPermissions> {
-        let result = self.metadata()?;
-        Ok(VPermissions::new(result.permissions()))
-    }
-
-    fn metadata(&self) -> Result<std::fs::Metadata> {
-        Ok(std::fs::metadata(&self.path)?)
+    pub fn metadata(&self) -> Result<VFileMetadata> {
+        Ok(VFileMetadata::new(std::fs::metadata(&self.path)?))
     }
 }

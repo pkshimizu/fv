@@ -1,4 +1,5 @@
 mod file;
+mod file_metadata;
 mod file_time;
 mod permissions;
 
