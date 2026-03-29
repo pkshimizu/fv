@@ -44,11 +44,6 @@ impl VFile {
         Ok(files)
     }
 
-    pub fn list_size(&self) -> Result<usize> {
-        let result = read_dir(&self.path)?;
-        Ok(result.count())
-    }
-
     pub fn file_size(&self) -> Result<u64> {
         let result = std::fs::metadata(&self.path)?;
         Ok(result.len())
