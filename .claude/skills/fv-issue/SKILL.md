@@ -1,5 +1,5 @@
 ---
-name: issue
+name: fv-issue
 description: GitHub Issueを作成する
 ---
 

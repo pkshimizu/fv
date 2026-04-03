@@ -1,5 +1,5 @@
 ---
-name: commit
+name: fv-commit
 description: gitコミットを作成する
 ---
 

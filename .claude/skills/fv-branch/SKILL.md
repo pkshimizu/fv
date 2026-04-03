@@ -1,5 +1,5 @@
 ---
-name: branch
+name: fv-branch
 description: GitHub Issueに対応するfeatureブランチを作成する
 ---
 

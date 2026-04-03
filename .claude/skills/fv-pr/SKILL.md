@@ -1,5 +1,5 @@
 ---
-name: pr
+name: fv-pr
 description: GitHubプルリクエストを作成する
 ---
 

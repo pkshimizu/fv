@@ -1,5 +1,5 @@
 ---
-name: review
+name: fv-review
 description: 現在のブランチのコード変更をレビューする
 ---
 
