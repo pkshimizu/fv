@@ -1,6 +1,6 @@
 ---
 name: branch
-description: GitHub Issueに対応するfeatureブランチを作成する。ユーザーが「/fv branch」と入力した場合、またはfvプロジェクトでブランチ作成を依頼された場合にこのスキルを使用すること。
+description: GitHub Issueに対応するfeatureブランチを作成する
 ---
 
 # featureブランチ作成

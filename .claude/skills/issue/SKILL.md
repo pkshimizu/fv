@@ -1,6 +1,6 @@
 ---
 name: issue
-description: GitHub Issueを作成する。ユーザーの要望をINVEST原則に基づいて適切な粒度に分割し、テンプレートを選択して作成する。ユーザーが「/fv issue」と入力した場合、またはfvプロジェクトでissue作成を依頼された場合にこのスキルを使用すること。
+description: GitHub Issueを作成する
 ---
 
 # GitHub Issue作成
