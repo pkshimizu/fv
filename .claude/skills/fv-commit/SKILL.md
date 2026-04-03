@@ -1,6 +1,6 @@
 ---
-name: commit
-description: gitコミットを作成する。日本語でコミットメッセージを作成し、適切なprefixを付ける。ユーザーが「/fv commit」と入力した場合、またはfvプロジェクトでコミットを依頼された場合にこのスキルを使用すること。
+name: fv-commit
+description: gitコミットを作成する
 ---
 
 # コミット作成
