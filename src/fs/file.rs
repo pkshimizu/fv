@@ -1,16 +1,18 @@
 use crate::fs::file_metadata::VFileMetadata;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::fs::read_dir;
 use std::path::Path;
 
 #[derive(Debug)]
 pub struct VFile {
-    pub path: String,
+    path: String,
+    metadata: Option<VFileMetadata>,
 }
 
 impl VFile {
     pub fn new(path: String) -> Self {
-        Self { path }
+        let metadata = std::fs::metadata(&path).ok().map(VFileMetadata::new);
+        Self { path, metadata }
     }
 
     pub fn absolute_path(&self) -> String {
@@ -42,7 +44,7 @@ impl VFile {
         Ok(files)
     }
 
-    pub fn metadata(&self) -> Result<VFileMetadata> {
-        Ok(VFileMetadata::new(std::fs::metadata(&self.path)?))
+    pub fn metadata(&self) -> Result<&VFileMetadata> {
+        self.metadata.as_ref().context("no metadata")
     }
 }
