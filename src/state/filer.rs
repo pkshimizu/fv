@@ -42,6 +42,9 @@ impl FilerState {
     }
 
     pub fn prev(&mut self) {
+        if self.current_dir_files.is_empty() {
+            return;
+        }
         if let Some(selected) = self.file_table_state.selected() {
             if selected > 0 {
                 self.file_table_state.select(Some(selected - 1));
@@ -50,6 +53,9 @@ impl FilerState {
     }
 
     pub fn first(&mut self) {
+        if self.current_dir_files.is_empty() {
+            return;
+        }
         self.file_table_state.select(Some(0));
     }
 
