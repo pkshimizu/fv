@@ -11,17 +11,8 @@ pub struct VFile {
 
 impl VFile {
     pub fn new(path: String) -> Self {
-        let metadata = std::fs::metadata(&path);
-        if let Ok(metadata) = metadata {
-            return Self {
-                path,
-                metadata: Some(VFileMetadata::new(metadata)),
-            };
-        }
-        Self {
-            path,
-            metadata: None,
-        }
+        let metadata = std::fs::metadata(&path).ok().map(VFileMetadata::new);
+        Self { path, metadata }
     }
 
     pub fn absolute_path(&self) -> String {
