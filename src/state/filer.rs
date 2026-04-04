@@ -71,8 +71,8 @@ impl FilerState {
         if let Some(selected) = self.file_table_state.selected() {
             let selected_file_path = self.current_dir_files[selected].absolute_path();
             let selected_file = VFile::new(selected_file_path.to_string());
-            let files = selected_file.list()?;
             if selected_file.metadata()?.is_dir() {
+                let files = selected_file.list()?;
                 self.current_dir = selected_file;
                 self.current_dir_files = files;
                 self.file_table_state.select(Some(0));
