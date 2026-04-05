@@ -1,4 +1,4 @@
-use crate::cmd::{change_dir, enter_file, move_cursor, quit, refresh_files};
+use crate::cmd::{app, file, filer};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -17,14 +17,14 @@ pub enum Command {
 impl Command {
     pub fn exec(self, state: &mut AppState) -> Result<()> {
         match self {
-            Command::MoveCursorUp => move_cursor::up(state),
-            Command::MoveCursorDown => move_cursor::down(state),
-            Command::MoveCursorLeft => move_cursor::first(state),
-            Command::MoveCursorRight => move_cursor::last(state),
-            Command::EnterFile => enter_file::exec(state),
-            Command::ChangeParentDir => change_dir::parent_dir(state),
-            Command::RefreshFiles => refresh_files::exec(state),
-            Command::Quit => quit::exec(state),
+            Command::MoveCursorUp => filer::up_cursor(state),
+            Command::MoveCursorDown => filer::down_cursor(state),
+            Command::MoveCursorLeft => filer::first_cursor(state),
+            Command::MoveCursorRight => filer::last_cursor(state),
+            Command::EnterFile => file::enter_file(state),
+            Command::ChangeParentDir => filer::change_to_parent(state),
+            Command::RefreshFiles => filer::refresh_files(state),
+            Command::Quit => app::quit(state),
             Command::None => Ok(()),
         }
     }

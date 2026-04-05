@@ -1,6 +1,7 @@
 use crate::state::AppState;
+use anyhow::Result;
 
-pub fn exec(state: &mut AppState) -> anyhow::Result<()> {
+pub fn enter_file(state: &mut AppState) -> Result<()> {
     let Some(file) = state.filer.selected_file() else {
         return Ok(());
     };
