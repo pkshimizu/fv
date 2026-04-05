@@ -93,10 +93,7 @@ impl FilerState {
     }
 
     pub fn refresh_files(&mut self) -> Result<()> {
-        let selected_index = self.file_table_state.selected();
-        let selected_name = selected_index
-            .and_then(|i| self.current_dir_files.get(i))
-            .and_then(|f| f.file_name());
+        let selected_name = self.selected_file().and_then(|f| f.file_name());
 
         self.current_dir_files = self.current_dir.list()?;
 
@@ -113,5 +110,10 @@ impl FilerState {
             self.file_table_state.select(Some(0));
         }
         Ok(())
+    }
+
+    pub fn selected_file(&self) -> Option<&VFile> {
+        let selected_index = self.file_table_state.selected();
+        selected_index.and_then(|i| self.current_dir_files.get(i))
     }
 }
