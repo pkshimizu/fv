@@ -15,8 +15,8 @@ impl VFile {
         Self { path, metadata }
     }
 
-    pub fn absolute_path(&self) -> String {
-        self.path.to_string()
+    pub fn absolute_path(&self) -> &str {
+        &self.path
     }
 
     pub fn file_name(&self) -> Option<String> {

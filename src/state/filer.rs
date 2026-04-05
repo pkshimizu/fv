@@ -67,8 +67,8 @@ impl FilerState {
             .select(Some(self.current_dir_files.len() - 1));
     }
 
-    pub fn change_to(&mut self, path: String) -> Result<()> {
-        let file = VFile::new(path);
+    pub fn change_to(&mut self, path: &str) -> Result<()> {
+        let file = VFile::new(path.to_string());
         let files = file.list()?;
         self.current_dir = file;
         self.current_dir_files = files;

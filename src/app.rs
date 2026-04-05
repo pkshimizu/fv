@@ -25,7 +25,7 @@ impl App {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut watching_dir_path = self.state.filer.current_dir.absolute_path();
+        let mut watching_dir_path = self.state.filer.current_dir.absolute_path().to_string();
 
         while self.state.running {
             // UI を描画
@@ -36,7 +36,7 @@ impl App {
             command.exec(&mut self.state)?;
 
             // カレントディレクトリの監視
-            let current_dir_path = self.state.filer.current_dir.absolute_path();
+            let current_dir_path = self.state.filer.current_dir.absolute_path().to_string();
             if current_dir_path != watching_dir_path {
                 self.event_handler.watch_directory(&current_dir_path)?;
                 watching_dir_path = current_dir_path;

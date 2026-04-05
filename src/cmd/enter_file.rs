@@ -5,9 +5,9 @@ pub fn exec(state: &mut AppState) -> anyhow::Result<()> {
         return Ok(());
     };
     let is_dir = file.metadata()?.is_dir();
-    let path = file.absolute_path();
+    let path = file.absolute_path().to_string();
     if is_dir {
-        state.filer.change_to(path)?;
+        state.filer.change_to(&path)?;
     } else {
         open::that(path)?;
     }
