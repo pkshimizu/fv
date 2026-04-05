@@ -1,13 +1,15 @@
 use crate::state::AppState;
 
 pub fn exec(state: &mut AppState) -> anyhow::Result<()> {
-    let file = state.filer.selected_file();
-    if let Some(file) = file {
-        if file.metadata()?.is_dir() {
-            state.filer.change_dir_in_select_dir()?
-        } else {
-            open::that(file.absolute_path())?
-        }
+    let Some(file) = state.filer.selected_file() else {
+        return Ok(());
+    };
+    let is_dir = file.metadata()?.is_dir();
+    let path = file.absolute_path();
+    if is_dir {
+        state.filer.change_to(path)?;
+    } else {
+        open::that(path)?;
     }
     Ok(())
 }

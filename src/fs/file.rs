@@ -16,7 +16,7 @@ impl VFile {
     }
 
     pub fn absolute_path(&self) -> String {
-        self.path.clone()
+        self.path.to_string()
     }
 
     pub fn file_name(&self) -> Option<String> {

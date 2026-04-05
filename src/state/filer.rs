@@ -67,17 +67,12 @@ impl FilerState {
             .select(Some(self.current_dir_files.len() - 1));
     }
 
-    pub fn change_dir_in_select_dir(&mut self) -> Result<()> {
-        if let Some(selected) = self.file_table_state.selected() {
-            let selected_file_path = self.current_dir_files[selected].absolute_path();
-            let selected_file = VFile::new(selected_file_path.to_string());
-            if selected_file.metadata()?.is_dir() {
-                let files = selected_file.list()?;
-                self.current_dir = selected_file;
-                self.current_dir_files = files;
-                self.file_table_state.select(Some(0));
-            }
-        }
+    pub fn change_to(&mut self, path: String) -> Result<()> {
+        let file = VFile::new(path.to_string());
+        let files = file.list()?;
+        self.current_dir = file;
+        self.current_dir_files = files;
+        self.file_table_state.select(Some(0));
         Ok(())
     }
 
