@@ -50,4 +50,8 @@ impl VFile {
             .as_ref()
             .with_context(|| format!("{}: no metadata", self.path))
     }
+
+    pub fn is_dir(&self) -> Result<bool> {
+        Ok(self.metadata()?.is_dir())
+    }
 }
