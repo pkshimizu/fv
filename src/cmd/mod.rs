@@ -1,6 +1,4 @@
-mod change_dir;
+mod app;
 pub mod command;
-mod enter_file;
-mod move_cursor;
-mod quit;
-mod refresh_files;
+mod file;
+mod filer;
