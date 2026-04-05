@@ -68,7 +68,7 @@ impl FilerState {
     }
 
     pub fn change_to(&mut self, path: String) -> Result<()> {
-        let file = VFile::new(path.to_string());
+        let file = VFile::new(path);
         let files = file.list()?;
         self.current_dir = file;
         self.current_dir_files = files;
@@ -79,10 +79,7 @@ impl FilerState {
     pub fn change_dir_in_parent_dir(&mut self) -> Result<()> {
         let parent_dir = self.current_dir.parent_dir();
         if let Some(parent_dir) = parent_dir {
-            let files = parent_dir.list()?;
-            self.current_dir = parent_dir;
-            self.current_dir_files = files;
-            self.file_table_state.select(Some(0));
+            self.change_to(parent_dir.absolute_path())?;
         }
         Ok(())
     }
