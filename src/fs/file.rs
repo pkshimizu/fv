@@ -10,7 +10,8 @@ pub struct VFile {
 }
 
 impl VFile {
-    pub fn new(path: String) -> Self {
+    pub fn new(path: impl Into<String>) -> Self {
+        let path = path.into();
         let metadata = std::fs::metadata(&path).ok().map(VFileMetadata::new);
         Self { path, metadata }
     }
@@ -29,7 +30,7 @@ impl VFile {
         let path = Path::new(&self.path);
         let parent = path.parent()?;
         let parent_path = parent.to_str()?;
-        Some(VFile::new(parent_path.to_string()))
+        Some(VFile::new(parent_path))
     }
 
     pub fn list(&self) -> Result<Vec<VFile>> {
@@ -38,7 +39,7 @@ impl VFile {
         for entry in result {
             let path = entry?.path();
             if let Some(path_str) = path.to_str() {
-                files.push(VFile::new(path_str.to_string()));
+                files.push(VFile::new(path_str));
             }
         }
         Ok(files)

@@ -12,7 +12,7 @@ pub struct FilerState {
 impl FilerState {
     pub fn new() -> Self {
         Self {
-            current_dir: VFile::new("".to_string()),
+            current_dir: VFile::new(""),
             current_dir_files: Vec::new(),
             file_table_state: TableState::default(),
         }
@@ -21,7 +21,7 @@ impl FilerState {
     pub fn init(&mut self) -> Result<()> {
         let home_dir = dirs::home_dir().context("Failed to get home directory")?;
         let current_dir_path = home_dir.to_str().context("Failed to get path string")?;
-        let current_dir = VFile::new(current_dir_path.to_string());
+        let current_dir = VFile::new(current_dir_path);
         let current_dir_files = current_dir.list()?;
 
         self.current_dir = current_dir;
@@ -68,7 +68,7 @@ impl FilerState {
     }
 
     pub fn change_to(&mut self, path: &str) -> Result<()> {
-        let file = VFile::new(path.to_string());
+        let file = VFile::new(path);
         let files = file.list()?;
         self.current_dir = file;
         self.current_dir_files = files;
