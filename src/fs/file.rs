@@ -46,6 +46,8 @@ impl VFile {
     }
 
     pub fn metadata(&self) -> Result<&VFileMetadata> {
-        self.metadata.as_ref().context("no metadata")
+        self.metadata
+            .as_ref()
+            .with_context(|| format!("{}: no metadata", self.path))
     }
 }
