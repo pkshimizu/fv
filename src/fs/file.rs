@@ -10,13 +10,14 @@ pub struct VFile {
 }
 
 impl VFile {
-    pub fn new(path: String) -> Self {
+    pub fn new(path: impl Into<String>) -> Self {
+        let path = path.into();
         let metadata = std::fs::metadata(&path).ok().map(VFileMetadata::new);
         Self { path, metadata }
     }
 
-    pub fn absolute_path(&self) -> String {
-        self.path.clone()
+    pub fn absolute_path(&self) -> &str {
+        &self.path
     }
 
     pub fn file_name(&self) -> Option<String> {
@@ -29,7 +30,7 @@ impl VFile {
         let path = Path::new(&self.path);
         let parent = path.parent()?;
         let parent_path = parent.to_str()?;
-        Some(VFile::new(parent_path.to_string()))
+        Some(VFile::new(parent_path))
     }
 
     pub fn list(&self) -> Result<Vec<VFile>> {
@@ -38,13 +39,19 @@ impl VFile {
         for entry in result {
             let path = entry?.path();
             if let Some(path_str) = path.to_str() {
-                files.push(VFile::new(path_str.to_string()));
+                files.push(VFile::new(path_str));
             }
         }
         Ok(files)
     }
 
     pub fn metadata(&self) -> Result<&VFileMetadata> {
-        self.metadata.as_ref().context("no metadata")
+        self.metadata
+            .as_ref()
+            .with_context(|| format!("{}: no metadata", self.path))
+    }
+
+    pub fn is_dir(&self) -> Result<bool> {
+        Ok(self.metadata()?.is_dir())
     }
 }

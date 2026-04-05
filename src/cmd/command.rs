@@ -1,4 +1,4 @@
-use crate::cmd::{change_dir, move_cursor, quit, refresh_files};
+use crate::cmd::{change_dir, enter_file, move_cursor, quit, refresh_files};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -7,7 +7,7 @@ pub enum Command {
     MoveCursorDown,
     MoveCursorLeft,
     MoveCursorRight,
-    ChangeDir,
+    EnterFile,
     ChangeParentDir,
     RefreshFiles,
     Quit,
@@ -21,7 +21,7 @@ impl Command {
             Command::MoveCursorDown => move_cursor::down(state),
             Command::MoveCursorLeft => move_cursor::first(state),
             Command::MoveCursorRight => move_cursor::last(state),
-            Command::ChangeDir => change_dir::select_dir(state),
+            Command::EnterFile => enter_file::exec(state),
             Command::ChangeParentDir => change_dir::parent_dir(state),
             Command::RefreshFiles => refresh_files::exec(state),
             Command::Quit => quit::exec(state),

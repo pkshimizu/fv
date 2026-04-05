@@ -8,16 +8,16 @@ pub struct VFileTime {
 
 impl Display for VFileTime {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let utc_time: DateTime<Local> = self.time.into();
+        let local_time: DateTime<Local> = self.time.into();
         write!(
             f,
             "{}-{:02}-{:02} {:02}:{:02}:{:02}",
-            utc_time.year(),
-            utc_time.month(),
-            utc_time.day(),
-            utc_time.hour(),
-            utc_time.minute(),
-            utc_time.second()
+            local_time.year(),
+            local_time.month(),
+            local_time.day(),
+            local_time.hour(),
+            local_time.minute(),
+            local_time.second()
         )
     }
 }
