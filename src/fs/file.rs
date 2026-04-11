@@ -1,5 +1,6 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
+use std::fs;
 use std::fs::read_dir;
 use std::path::Path;
 
@@ -53,5 +54,15 @@ impl VFile {
 
     pub fn is_dir(&self) -> Result<bool> {
         Ok(self.metadata()?.is_dir())
+    }
+
+    pub fn delete(&self) -> Result<()> {
+        let path = self.absolute_path().to_string();
+        if self.is_dir()? {
+            fs::remove_dir_all(&path)?;
+        } else {
+            fs::remove_file(&path)?;
+        }
+        Ok(())
     }
 }
