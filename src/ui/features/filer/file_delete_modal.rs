@@ -35,7 +35,7 @@ fn generate_title(files: &[VFile]) -> String {
         let file_name = files[0]
             .file_name()
             .unwrap_or_else(|| "(unknown)".to_string());
-        return format!("Delete \"{}\"?", &file_name);
+        return format!("Delete \"{}\"?", file_name);
     }
     format!("Delete \"{}\" files?", files_len)
 }

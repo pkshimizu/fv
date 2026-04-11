@@ -17,7 +17,7 @@ pub fn modal_confirm(state: &mut AppState) -> Result<()> {
             let mut error = None;
             for file in files {
                 if let Err(e) = file.delete() {
-                    error = Some(e);
+                    error.get_or_insert(e);  // 最初のエラーのみ保持
                 }
             }
             state.filer.refresh_files()?;

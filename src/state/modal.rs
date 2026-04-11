@@ -1,15 +1,10 @@
 use crate::fs::VFile;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum ModalState {
+    # [default]
     None,
     DeleteConfirm { files: Vec<VFile> },
-}
-
-impl Default for ModalState {
-    fn default() -> Self {
-        ModalState::None
-    }
 }
 
 impl ModalState {
