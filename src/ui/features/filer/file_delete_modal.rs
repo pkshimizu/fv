@@ -8,7 +8,8 @@ use std::cmp::max;
 pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, files: &[VFile]) {
     let title = generate_title(files);
 
-    let modal_area = centered_rect(max(32, (title.len() + 2) as u16), 6, area);
+    let width = (title.len() + 2).min(u16::MAX as usize) as u16;
+    let modal_area = centered_rect(max(32, width), 6, area);
     frame.render_widget(Clear, modal_area);
 
     let block = Block::bordered().title("Confirm Delete");

@@ -20,14 +20,6 @@ impl VFileMetadata {
         self.metadata.is_dir()
     }
 
-    pub fn is_file(&self) -> bool {
-        self.metadata.is_file()
-    }
-
-    pub fn is_symlink(&self) -> bool {
-        self.metadata.is_symlink()
-    }
-
     pub fn modified(&self) -> anyhow::Result<VFileTime> {
         let modified = self.metadata.modified()?;
         Ok(VFileTime::new(modified))
