@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::state::FilerState;
+use crate::state::ModalState;
 use anyhow::Result;
 
 #[derive(Debug)]
@@ -7,6 +8,7 @@ pub struct AppState {
     pub config: Config,
     pub running: bool,
     pub filer: FilerState,
+    pub modal: ModalState,
 }
 
 impl AppState {
@@ -16,6 +18,7 @@ impl AppState {
             config,
             running: true,
             filer: filer_state,
+            modal: ModalState::None,
         }
     }
 

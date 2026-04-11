@@ -1,4 +1,4 @@
-use crate::cmd::{app, file, filer};
+use crate::cmd::{app, file, filer, modal};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -10,6 +10,9 @@ pub enum Command {
     EnterFile,
     ChangeParentDir,
     RefreshFiles,
+    OpenDeleteModal,
+    ModalConfirm,
+    ModalCancel,
     Quit,
     None,
 }
@@ -24,6 +27,9 @@ impl Command {
             Command::EnterFile => file::enter_file(state),
             Command::ChangeParentDir => filer::change_to_parent(state),
             Command::RefreshFiles => filer::refresh_files(state),
+            Command::OpenDeleteModal => modal::open_delete_modal(state),
+            Command::ModalConfirm => modal::modal_confirm(state),
+            Command::ModalCancel => modal::modal_cancel(state),
             Command::Quit => app::quit(state),
             Command::None => Ok(()),
         }

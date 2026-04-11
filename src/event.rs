@@ -5,6 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::Command;
+use crate::state::ModalState;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -44,9 +45,15 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self) -> Result<Command> {
+    pub fn next(&self, modal: &ModalState) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(AppEvent::Key(key)) => Ok(Self::key_to_command(key)),
+            Ok(AppEvent::Key(key)) => {
+                if modal.is_active() {
+                    Ok(Self::modal_key_to_command(key))
+                } else {
+                    Ok(Self::key_to_command(key))
+                }
+            }
             Ok(AppEvent::FileChange) => Ok(Command::RefreshFiles),
             Err(_) => Ok(Command::None),
         }
@@ -72,12 +79,21 @@ impl EventHandler {
     fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
             (_, KeyCode::Char('q')) => Command::Quit,
+            (_, KeyCode::Char('d')) => Command::OpenDeleteModal,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,
             (_, KeyCode::Left) => Command::MoveCursorLeft,
             (_, KeyCode::Right) => Command::MoveCursorRight,
             (_, KeyCode::Enter) => Command::EnterFile,
             (_, KeyCode::Backspace) => Command::ChangeParentDir,
+            _ => Command::None,
+        }
+    }
+
+    fn modal_key_to_command(key: KeyEvent) -> Command {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter => Command::ModalConfirm,
+            KeyCode::Char('n') | KeyCode::Esc => Command::ModalCancel,
             _ => Command::None,
         }
     }
