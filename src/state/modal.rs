@@ -2,9 +2,11 @@ use crate::fs::VFile;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum ModalState {
-    # [default]
+    #[default]
     None,
-    DeleteConfirm { files: Vec<VFile> },
+    DeleteConfirm {
+        files: Vec<VFile>,
+    },
 }
 
 impl ModalState {
