@@ -16,6 +16,8 @@ impl PartialEq for VFile {
     }
 }
 
+impl Eq for VFile {}
+
 impl VFile {
     pub fn new(path: impl Into<String>) -> Self {
         let path = path.into();

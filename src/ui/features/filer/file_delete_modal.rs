@@ -5,7 +5,7 @@ use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::widgets::{Block, Clear, Paragraph};
 use std::cmp::max;
 
-pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, files: &Vec<VFile>) {
+pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, files: &[VFile]) {
     let title = generate_title(files);
 
     let modal_area = centered_rect(max(32, (title.len() + 2) as u16), 6, area);
@@ -29,7 +29,7 @@ pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, files: &Vec<VF
     frame.render_widget(actions, action_area);
 }
 
-fn generate_title(files: &Vec<VFile>) -> String {
+fn generate_title(files: &[VFile]) -> String {
     let files_len = files.len();
     if files_len == 1 {
         let file_name = files[0]
@@ -37,5 +37,5 @@ fn generate_title(files: &Vec<VFile>) -> String {
             .unwrap_or_else(|| "(unknown)".to_string());
         return format!("Delete \"{}\"?", &file_name);
     }
-    format!("Delete \"{}\" files?", &files_len)
+    format!("Delete \"{}\" files?", files_len)
 }

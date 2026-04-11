@@ -12,11 +12,14 @@ pub fn open_delete_modal(state: &mut AppState) -> Result<()> {
 
 pub fn modal_confirm(state: &mut AppState) -> Result<()> {
     let modal = std::mem::replace(&mut state.modal, ModalState::None);
-    if let ModalState::DeleteConfirm { files } = modal {
-        for file in files {
-            file.delete()?;
+    match modal {
+        ModalState::DeleteConfirm { files } => {
+            for file in files {
+                file.delete()?;
+            }
+            state.filer.refresh_files()?;
         }
-        state.filer.refresh_files()?;
+        ModalState::None => {}
     }
     Ok(())
 }
