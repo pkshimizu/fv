@@ -4,10 +4,16 @@ use std::fs;
 use std::fs::read_dir;
 use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VFile {
     path: String,
     metadata: Option<VFileMetadata>,
+}
+
+impl PartialEq for VFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
 }
 
 impl VFile {

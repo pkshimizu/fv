@@ -18,11 +18,8 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
 
     match &state.modal {
         ModalState::None => {}
-        ModalState::DeleteConfirm => {
-            let file = state.filer.selected_file();
-            if let Some(file) = file {
-                render_delete_confirm_modal(frame, area, &file);
-            }
+        ModalState::DeleteConfirm { files } => {
+            render_delete_confirm_modal(frame, area, files);
         }
     }
 }

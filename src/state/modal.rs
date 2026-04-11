@@ -1,7 +1,9 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+use crate::fs::VFile;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ModalState {
     None,
-    DeleteConfirm,
+    DeleteConfirm { files: Vec<VFile> },
 }
 
 impl ModalState {

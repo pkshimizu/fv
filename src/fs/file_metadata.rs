@@ -2,7 +2,7 @@ use crate::fs::VFileTime;
 use crate::fs::permissions::VPermissions;
 use std::fs::Metadata;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VFileMetadata {
     metadata: Metadata,
 }
