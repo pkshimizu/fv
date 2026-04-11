@@ -6,9 +6,10 @@ use ratatui::widgets::{Block, Clear, Paragraph};
 use std::cmp::max;
 
 pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, file: &VFile) {
-    let file_name = file.file_name().unwrap_or_default();
+    let file_name = file.file_name().unwrap_or_else(|| "(unknown)".to_string());
+    let title = format!("Delete \"{}\"?", &file_name);
 
-    let modal_area = centered_rect(max(50, (file_name.len() + 16) as u16), 6, area);
+    let modal_area = centered_rect(max(32, (title.len() + 2) as u16), 6, area);
     frame.render_widget(Clear, modal_area);
 
     let block = Block::bordered().title("Confirm Delete");
@@ -22,7 +23,7 @@ pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, file: &VFile) 
     ])
     .areas(inner_area);
 
-    let message = Paragraph::new(format!("Delete \"{file_name}\"?")).alignment(Alignment::Center);
+    let message = Paragraph::new(title).alignment(Alignment::Center);
     frame.render_widget(message, message_area);
 
     let actions = Paragraph::new("[y] Yes  [n] No").alignment(Alignment::Center);

@@ -49,7 +49,7 @@ impl VFile {
     pub fn metadata(&self) -> Result<&VFileMetadata> {
         self.metadata
             .as_ref()
-            .with_context(|| format!("{}: no metadata", self.path))
+            .with_context(|| format!("{}: No metadata", self.path))
     }
 
     pub fn is_dir(&self) -> Result<bool> {
@@ -57,11 +57,12 @@ impl VFile {
     }
 
     pub fn delete(&self) -> Result<()> {
-        let path = self.absolute_path().to_string();
+        let path = self.absolute_path();
         if self.is_dir()? {
-            fs::remove_dir_all(&path)?;
+            fs::remove_dir_all(&path)
+                .with_context(|| format!("{}: Failed to delete", self.path))?;
         } else {
-            fs::remove_file(&path)?;
+            fs::remove_file(&path).with_context(|| format!("{}: Failed to delete", self.path))?;
         }
         Ok(())
     }
