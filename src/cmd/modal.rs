@@ -20,7 +20,9 @@ pub fn modal_confirm(state: &mut AppState) -> Result<()> {
                     error.get_or_insert(e); // 最初のエラーのみ保持
                 }
             }
-            state.filer.refresh_files()?;
+            if let Err(e) = state.filer.refresh_files() {
+                error.get_or_insert(e);
+            }
             if let Some(e) = error {
                 return Err(e);
             }

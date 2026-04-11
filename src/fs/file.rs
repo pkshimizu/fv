@@ -68,7 +68,8 @@ impl VFile {
     pub fn delete(&self) -> Result<()> {
         let path = self.absolute_path();
         let metadata = self.metadata()?;
-        if metadata.is_file() || metadata.is_symlink() {
+        let symlink_metadata = fs::symlink_metadata(&path)?;
+        if metadata.is_file() || symlink_metadata.is_symlink() {
             fs::remove_file(&path).with_context(|| format!("{}: Failed to delete", self.path))?;
         } else if metadata.is_dir() {
             fs::remove_dir_all(&path)

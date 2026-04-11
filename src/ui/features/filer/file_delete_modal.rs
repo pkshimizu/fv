@@ -37,5 +37,5 @@ fn generate_title(files: &[VFile]) -> String {
             .unwrap_or_else(|| "(unknown)".to_string());
         return format!("Delete \"{}\"?", file_name);
     }
-    format!("Delete \"{}\" files?", files_len)
+    format!("Delete {} files?", files_len)
 }
