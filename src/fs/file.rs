@@ -10,6 +10,7 @@ pub struct VFile {
     metadata: Option<VFileMetadata>,
 }
 
+// VFileMetadataのMetadataがPartialEqを実装していないため、pathのみでeqを実装
 impl PartialEq for VFile {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path
