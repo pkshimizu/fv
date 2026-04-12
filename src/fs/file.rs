@@ -1,6 +1,5 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
-use std::fs;
 use std::fs::read_dir;
 use std::path::Path;
 
@@ -67,7 +66,7 @@ impl VFile {
 
     pub fn delete(&self) -> Result<()> {
         let path = self.absolute_path();
-        trash::delete(path)?;
+        trash::delete(path).with_context(|| format!("{}: Failed to trash", self.path))?;
         Ok(())
     }
 }
