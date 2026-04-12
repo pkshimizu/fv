@@ -80,6 +80,7 @@ impl EventHandler {
         match (key.modifiers, key.code) {
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char('d')) => Command::OpenDeleteModal,
+            (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,
             (_, KeyCode::Left) => Command::MoveCursorLeft,
