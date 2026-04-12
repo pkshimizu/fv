@@ -1,4 +1,4 @@
-use crate::fs::{VFile, VFileTime};
+use crate::fs::VFileTime;
 use crate::state::FilerState;
 use anyhow::Result;
 use num_format::{Locale, ToFormattedString};
