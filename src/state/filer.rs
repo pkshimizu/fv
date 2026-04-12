@@ -116,7 +116,7 @@ impl FilerState {
         self.is_checked_path(file.absolute_path())
     }
 
-    pub fn is_checked_path(&self, path: &str) -> bool {
+    fn is_checked_path(&self, path: &str) -> bool {
         self.checked_paths.contains(path)
     }
 
@@ -124,8 +124,7 @@ impl FilerState {
         if let Some(selected_file) = self.selected_file() {
             let path = selected_file.absolute_path().to_string();
             if self.is_checked_path(&path) {
-                self.checked_paths
-                    .retain(|checked_path| checked_path != &path);
+                self.checked_paths.remove(&path);
             } else {
                 self.checked_paths.insert(path);
             }

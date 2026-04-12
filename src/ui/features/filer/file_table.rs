@@ -17,7 +17,7 @@ fn format_time(time: Result<VFileTime>) -> String {
 pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Table<'static> {
     let files = &filer_state.current_dir_files;
     let rows: Vec<Row> = files
-        .into_iter()
+        .iter()
         .filter_map(|file| {
             let metadata = file.metadata().ok()?;
             let checked = if filer_state.is_checked(&file) {
