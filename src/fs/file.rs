@@ -1,13 +1,23 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
+use std::fs;
 use std::fs::read_dir;
 use std::path::Path;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VFile {
     path: String,
     metadata: Option<VFileMetadata>,
 }
+
+// VFileMetadataのMetadataがPartialEqを実装していないため、pathのみでeqを実装
+impl PartialEq for VFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl Eq for VFile {}
 
 impl VFile {
     pub fn new(path: impl Into<String>) -> Self {
@@ -48,10 +58,22 @@ impl VFile {
     pub fn metadata(&self) -> Result<&VFileMetadata> {
         self.metadata
             .as_ref()
-            .with_context(|| format!("{}: no metadata", self.path))
+            .with_context(|| format!("{}: No metadata", self.path))
     }
 
     pub fn is_dir(&self) -> Result<bool> {
         Ok(self.metadata()?.is_dir())
+    }
+
+    pub fn delete(&self) -> Result<()> {
+        let path = self.absolute_path();
+        let symlink_metadata = fs::symlink_metadata(path)
+            .with_context(|| format!("{}: Failed to get metadata", self.path))?;
+        if symlink_metadata.is_file() || symlink_metadata.is_symlink() {
+            fs::remove_file(path).with_context(|| format!("{}: Failed to delete", self.path))?;
+        } else if symlink_metadata.is_dir() {
+            fs::remove_dir_all(path).with_context(|| format!("{}: Failed to delete", self.path))?;
+        }
+        Ok(())
     }
 }

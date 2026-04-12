@@ -1,5 +1,5 @@
-use crate::state::AppState;
-use crate::ui::features::{build_filer, build_header};
+use crate::state::{AppState, ModalState};
+use crate::ui::features::{build_filer, build_header, render_delete_confirm_modal};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
@@ -15,4 +15,11 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
         filer_area,
         &mut state.filer.file_table_state,
     );
+
+    match &state.modal {
+        ModalState::None => {}
+        ModalState::DeleteConfirm { files } => {
+            render_delete_confirm_modal(frame, area, files);
+        }
+    }
 }

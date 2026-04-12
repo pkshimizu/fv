@@ -32,7 +32,7 @@ impl App {
             terminal.draw(|frame| ui::render_main_view(frame, &mut self.state))?;
 
             // イベントを取得してコマンドに変換
-            let command = self.event_handler.next()?;
+            let command = self.event_handler.next(&self.state.modal)?;
             command.exec(&mut self.state)?;
 
             // カレントディレクトリの監視
