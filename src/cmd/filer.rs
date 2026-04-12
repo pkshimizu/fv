@@ -24,3 +24,9 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 pub fn refresh_files(state: &mut AppState) -> Result<()> {
     state.filer.refresh_files()
 }
+
+pub fn toggle_checked_file(state: &mut AppState) -> Result<()> {
+    state.filer.toggle_checked_file();
+    state.filer.next();
+    Ok(())
+}

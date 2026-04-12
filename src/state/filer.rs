@@ -1,12 +1,14 @@
 use crate::fs::VFile;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct FilerState {
     pub current_dir: VFile,
     pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
+    pub checked_paths: HashSet<String>,
 }
 
 impl FilerState {
@@ -15,6 +17,7 @@ impl FilerState {
             current_dir: VFile::new(""),
             current_dir_files: Vec::new(),
             file_table_state: TableState::default(),
+            checked_paths: HashSet::new(),
         }
     }
 
@@ -107,5 +110,24 @@ impl FilerState {
     pub fn selected_file(&self) -> Option<&VFile> {
         let selected_index = self.file_table_state.selected();
         selected_index.and_then(|i| self.current_dir_files.get(i))
+    }
+
+    pub fn is_checked(&self, file: &VFile) -> bool {
+        self.is_checked_path(file.absolute_path())
+    }
+
+    fn is_checked_path(&self, path: &str) -> bool {
+        self.checked_paths.contains(path)
+    }
+
+    pub fn toggle_checked_file(&mut self) {
+        if let Some(selected_file) = self.selected_file() {
+            let path = selected_file.absolute_path().to_string();
+            if self.is_checked_path(&path) {
+                self.checked_paths.remove(&path);
+            } else {
+                self.checked_paths.insert(path);
+            }
+        }
     }
 }

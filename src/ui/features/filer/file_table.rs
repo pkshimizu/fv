@@ -1,4 +1,5 @@
-use crate::fs::{VFile, VFileTime};
+use crate::fs::VFileTime;
+use crate::state::FilerState;
 use anyhow::Result;
 use num_format::{Locale, ToFormattedString};
 use ratatui::layout::{Alignment, Constraint};
@@ -13,12 +14,19 @@ fn format_time(time: Result<VFileTime>) -> String {
     "____-__-__ --:--:--".to_string()
 }
 
-pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'static> {
+pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Table<'static> {
+    let files = &filer_state.current_dir_files;
     let rows: Vec<Row> = files
-        .into_iter()
+        .iter()
         .filter_map(|file| {
             let metadata = file.metadata().ok()?;
+            let checked = if filer_state.is_checked(&file) {
+                "*"
+            } else {
+                " "
+            };
             Some(Row::new(vec![
+                Cell::from(checked),
                 Cell::from(file.file_name().unwrap_or_default()),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
@@ -36,6 +44,7 @@ pub fn build_file_table(block: Block<'static>, files: &Vec<VFile>) -> Table<'sta
     Table::new(
         rows,
         [
+            Constraint::Max(1),
             Constraint::Fill(1),
             Constraint::Max(6),
             Constraint::Max(10),

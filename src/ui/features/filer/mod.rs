@@ -13,5 +13,5 @@ pub fn build_filer(state: &FilerState) -> Table<'static> {
         state.current_dir.absolute_path(),
         list_size
     ));
-    build_file_table(block, &state.current_dir_files)
+    build_file_table(block, state)
 }
