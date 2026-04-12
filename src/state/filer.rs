@@ -107,20 +107,11 @@ impl FilerState {
         }
 
         // チェック済みファイルの更新
-        let path_to_remove: Vec<String> = self
-            .checked_paths
-            .iter()
-            .filter(|checked_path| {
-                !self
-                    .current_dir_files
-                    .iter()
-                    .any(|file| file.absolute_path() == checked_path.as_str())
-            })
-            .cloned()
-            .collect();
-        for path in path_to_remove {
-            self.checked_paths.remove(&path);
-        }
+        self.checked_paths.retain(|path| {
+            self.current_dir_files
+                .iter()
+                .any(|file| file.absolute_path() == path.as_str())
+        });
 
         Ok(())
     }
