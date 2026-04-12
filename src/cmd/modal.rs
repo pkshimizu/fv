@@ -1,4 +1,3 @@
-use crate::fs::VFile;
 use crate::state::{AppState, ModalState};
 use anyhow::Result;
 
@@ -12,9 +11,10 @@ pub fn open_delete_modal(state: &mut AppState) -> Result<()> {
     } else {
         let files = state
             .filer
-            .checked_paths
+            .current_dir_files
             .iter()
-            .map(|path| VFile::new(path))
+            .filter(|file| state.filer.checked_paths.contains(file.absolute_path()))
+            .cloned()
             .collect();
         state.modal = ModalState::DeleteConfirm { files };
     }
