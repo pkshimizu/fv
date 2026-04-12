@@ -92,6 +92,7 @@ impl FilerState {
 
         self.current_dir_files = self.current_dir.list()?;
 
+        // 選択ファイル状態の更新
         if let Some(name) = selected_name {
             let new_index = self
                 .current_dir_files
@@ -104,6 +105,14 @@ impl FilerState {
         } else {
             self.file_table_state.select(Some(0));
         }
+
+        // チェック済みファイルの更新
+        self.checked_paths.retain(|path| {
+            self.current_dir_files
+                .iter()
+                .any(|file| file.absolute_path() == path.as_str())
+        });
+
         Ok(())
     }
 

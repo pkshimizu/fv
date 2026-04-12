@@ -2,10 +2,21 @@ use crate::state::{AppState, ModalState};
 use anyhow::Result;
 
 pub fn open_delete_modal(state: &mut AppState) -> Result<()> {
-    if let Some(selected_file) = state.filer.selected_file() {
-        state.modal = ModalState::DeleteConfirm {
-            files: vec![selected_file.clone()],
-        };
+    if state.filer.checked_paths.is_empty() {
+        if let Some(selected_file) = state.filer.selected_file() {
+            state.modal = ModalState::DeleteConfirm {
+                files: vec![selected_file.clone()],
+            };
+        }
+    } else {
+        let files = state
+            .filer
+            .current_dir_files
+            .iter()
+            .filter(|file| state.filer.checked_paths.contains(file.absolute_path()))
+            .cloned()
+            .collect();
+        state.modal = ModalState::DeleteConfirm { files };
     }
     Ok(())
 }
