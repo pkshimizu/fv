@@ -1,3 +1,4 @@
+use crate::fs::VFile;
 use crate::state::{AppState, InputMode};
 use anyhow::Result;
 
@@ -18,23 +19,9 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
 pub fn input_ok(state: &mut AppState) -> Result<()> {
     let input = std::mem::replace(&mut state.input, InputMode::None);
     match input {
-        InputMode::DeleteConfirm { files, .. } => {
-            let mut error = None;
-            for file in files {
-                if let Err(e) = file.delete() {
-                    error.get_or_insert(e);
-                }
-            }
-            if let Err(e) = state.filer.refresh_files() {
-                error.get_or_insert(e);
-            }
-            if let Some(e) = error {
-                return Err(e);
-            }
-        }
-        InputMode::None | InputMode::Text { .. } => {}
+        InputMode::DeleteConfirm { files, .. } => execute_deletes(state, files),
+        InputMode::None | InputMode::Text { .. } => Ok(()),
     }
-    Ok(())
 }
 
 pub fn input_cancel(state: &mut AppState) -> Result<()> {
@@ -75,6 +62,22 @@ pub fn open_delete_confirm(state: &mut AppState) -> Result<()> {
             format!("Delete {} files?", files.len())
         };
         state.input = InputMode::DeleteConfirm { title, files };
+    }
+    Ok(())
+}
+
+fn execute_deletes(state: &mut AppState, files: Vec<VFile>) -> Result<()> {
+    let mut error = None;
+    for file in files {
+        if let Err(e) = file.delete() {
+            error.get_or_insert(e);
+        }
+    }
+    if let Err(e) = state.filer.refresh_files() {
+        error.get_or_insert(e);
+    }
+    if let Some(e) = error {
+        return Err(e);
     }
     Ok(())
 }
