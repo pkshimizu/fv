@@ -79,7 +79,7 @@ impl EventHandler {
     fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
             (_, KeyCode::Char('q')) => Command::Quit,
-            (_, KeyCode::Char('d')) => Command::OpenDeleteConfirm,
+            (_, KeyCode::Char('d')) => Command::InputDeleteConfirm,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,

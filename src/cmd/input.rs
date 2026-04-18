@@ -29,7 +29,7 @@ pub fn input_cancel(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn open_delete_confirm(state: &mut AppState) -> Result<()> {
+pub fn input_delete_confirm(state: &mut AppState) -> Result<()> {
     if state.filer.checked_paths.is_empty() {
         if let Some(selected_file) = state.filer.selected_file() {
             let title = format!(
