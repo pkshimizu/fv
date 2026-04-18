@@ -100,7 +100,7 @@ impl EventHandler {
                 KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,
             },
-            InputMode::DeleteConfirm { .. } => match key.code {
+            InputMode::Confirm { .. } => match key.code {
                 KeyCode::Char('y') | KeyCode::Enter => Command::InputOk,
                 KeyCode::Char('n') | KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,

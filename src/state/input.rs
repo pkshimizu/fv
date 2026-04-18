@@ -1,5 +1,10 @@
 use crate::fs::VFile;
 
+#[derive(Debug)]
+pub enum InputAction {
+    Delete { files: Vec<VFile> },
+}
+
 #[derive(Debug, Default)]
 pub enum InputMode {
     #[default]
@@ -7,10 +12,11 @@ pub enum InputMode {
     Text {
         title: String,
         value: String,
+        action: InputAction,
     },
-    DeleteConfirm {
+    Confirm {
         title: String,
-        files: Vec<VFile>,
+        action: InputAction,
     },
 }
 
