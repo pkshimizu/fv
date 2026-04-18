@@ -1,4 +1,4 @@
-use crate::cmd::{app, file, filer, input, modal};
+use crate::cmd::{app, file, filer, input};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -11,9 +11,7 @@ pub enum Command {
     ChangeParentDir,
     RefreshFiles,
     ToggleCheckedFile,
-    OpenDeleteModal,
-    ModalConfirm,
-    ModalCancel,
+    InputDeleteConfirm,
     InputChar(char),
     InputBackspace,
     InputOk,
@@ -33,9 +31,7 @@ impl Command {
             Command::ChangeParentDir => filer::change_to_parent(state),
             Command::RefreshFiles => filer::refresh_files(state),
             Command::ToggleCheckedFile => filer::toggle_checked_file(state),
-            Command::OpenDeleteModal => modal::open_delete_modal(state),
-            Command::ModalConfirm => modal::modal_confirm(state),
-            Command::ModalCancel => modal::modal_cancel(state),
+            Command::InputDeleteConfirm => input::input_delete_confirm(state),
             Command::InputChar(c) => input::input_char(state, c),
             Command::InputBackspace => input::input_backspace(state),
             Command::InputOk => input::input_ok(state),

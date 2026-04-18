@@ -3,4 +3,3 @@ pub mod command;
 mod file;
 mod filer;
 mod input;
-mod modal;
