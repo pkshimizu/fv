@@ -1,7 +1,6 @@
 use crate::fs::VFile;
-use crate::ui::features::modal::centered_rect;
 use ratatui::Frame;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Flex, Layout, Rect};
 use ratatui::widgets::{Block, Clear, Paragraph};
 use std::cmp::max;
 
@@ -28,6 +27,15 @@ pub fn render_delete_confirm_modal(frame: &mut Frame, area: Rect, files: &[VFile
 
     let actions = Paragraph::new("[y] Yes  [n] No").alignment(Alignment::Center);
     frame.render_widget(actions, action_area);
+}
+
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let vertical = Layout::vertical([Constraint::Length(height)])
+        .flex(Flex::Center)
+        .split(area);
+    Layout::horizontal([Constraint::Length(width)])
+        .flex(Flex::Center)
+        .split(vertical[0])[0]
 }
 
 fn generate_title(files: &[VFile]) -> String {

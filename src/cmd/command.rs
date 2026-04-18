@@ -1,4 +1,4 @@
-use crate::cmd::{app, file, filer, modal};
+use crate::cmd::{app, file, filer, input, modal};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -14,6 +14,10 @@ pub enum Command {
     OpenDeleteModal,
     ModalConfirm,
     ModalCancel,
+    InputChar(char),
+    InputBackspace,
+    InputOk,
+    InputCancel,
     Quit,
     None,
 }
@@ -32,6 +36,10 @@ impl Command {
             Command::OpenDeleteModal => modal::open_delete_modal(state),
             Command::ModalConfirm => modal::modal_confirm(state),
             Command::ModalCancel => modal::modal_cancel(state),
+            Command::InputChar(c) => input::input_char(state, c),
+            Command::InputBackspace => input::input_backspace(state),
+            Command::InputOk => input::input_ok(state),
+            Command::InputCancel => input::input_cancel(state),
             Command::Quit => app::quit(state),
             Command::None => Ok(()),
         }
