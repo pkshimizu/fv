@@ -7,8 +7,8 @@ pub fn build_input_area(input: &InputMode) -> Paragraph {
         InputMode::Text { title, value } => {
             Paragraph::new(format!("{value}_")).block(Block::bordered().title(title.as_str()))
         }
-        InputMode::Confirm { title } => {
-            Paragraph::new("(y/n)").block(Block::bordered().title(title.as_str()))
+        InputMode::Confirm { title } | InputMode::DeleteConfirm { title, .. } => {
+            Paragraph::new(" Yes(y) No(n))").block(Block::bordered().title(title.as_str()))
         }
     }
 }

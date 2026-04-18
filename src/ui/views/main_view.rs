@@ -1,7 +1,5 @@
-use crate::state::{AppState, ModalState};
-use crate::ui::features::{
-    build_filer, build_header, build_input_area, render_delete_confirm_modal,
-};
+use crate::state::AppState;
+use crate::ui::features::{build_filer, build_header, build_input_area};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
@@ -22,11 +20,4 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
         &mut state.filer.file_table_state,
     );
     frame.render_widget(build_input_area(&state.input), input_area);
-
-    match &state.modal {
-        ModalState::None => {}
-        ModalState::DeleteConfirm { files } => {
-            render_delete_confirm_modal(frame, area, files);
-        }
-    }
 }

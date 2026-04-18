@@ -1,3 +1,5 @@
+use crate::fs::VFile;
+
 #[derive(Debug, Default)]
 pub enum InputMode {
     #[default]
@@ -8,6 +10,10 @@ pub enum InputMode {
     },
     Confirm {
         title: String,
+    },
+    DeleteConfirm {
+        title: String,
+        files: Vec<VFile>,
     },
 }
 
