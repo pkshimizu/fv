@@ -8,9 +8,6 @@ pub enum InputMode {
         title: String,
         value: String,
     },
-    Confirm {
-        title: String,
-    },
     DeleteConfirm {
         title: String,
         files: Vec<VFile>,

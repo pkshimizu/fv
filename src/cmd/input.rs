@@ -32,7 +32,7 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
                 return Err(e);
             }
         }
-        InputMode::None | InputMode::Text { .. } | InputMode::Confirm { .. } => {}
+        InputMode::None | InputMode::Text { .. } => {}
     }
     Ok(())
 }
