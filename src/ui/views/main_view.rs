@@ -1,13 +1,19 @@
 use crate::state::{AppState, ModalState};
-use crate::ui::features::{build_filer, build_header, render_delete_confirm_modal};
+use crate::ui::features::{
+    build_filer, build_header, build_input_area, render_delete_confirm_modal,
+};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
 pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
     let area = frame.area();
 
-    let [header_area, filer_area] =
-        Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
+    let [header_area, filer_area, input_area] = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Fill(1),
+        Constraint::Length(3),
+    ])
+    .areas(area);
 
     frame.render_widget(build_header(state), header_area);
     frame.render_stateful_widget(
@@ -15,6 +21,7 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
         filer_area,
         &mut state.filer.file_table_state,
     );
+    frame.render_widget(build_input_area(&state.input), input_area);
 
     match &state.modal {
         ModalState::None => {}

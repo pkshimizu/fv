@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::Command;
-use crate::state::ModalState;
+use crate::state::{InputMode, ModalState};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -45,10 +45,12 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self, modal: &ModalState) -> Result<Command> {
+    pub fn next(&self, modal: &ModalState, input: &InputMode) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => {
-                if modal.is_active() {
+                if input.is_active() {
+                    Ok(Self::input_key_to_command(key, input))
+                } else if modal.is_active() {
                     Ok(Self::modal_key_to_command(key))
                 } else {
                     Ok(Self::key_to_command(key))
@@ -96,6 +98,24 @@ impl EventHandler {
             KeyCode::Char('y') | KeyCode::Enter => Command::ModalConfirm,
             KeyCode::Char('n') | KeyCode::Esc => Command::ModalCancel,
             _ => Command::None,
+        }
+    }
+
+    fn input_key_to_command(key: KeyEvent, input: &InputMode) -> Command {
+        match input {
+            InputMode::Text { .. } => match key.code {
+                KeyCode::Char(c) => Command::InputChar(c),
+                KeyCode::Backspace => Command::InputBackspace,
+                KeyCode::Enter => Command::InputOk,
+                KeyCode::Esc => Command::InputCancel,
+                _ => Command::None,
+            },
+            InputMode::Confirm { .. } => match key.code {
+                KeyCode::Char('y') | KeyCode::Enter => Command::InputOk,
+                KeyCode::Char('n') | KeyCode::Esc => Command::InputCancel,
+                _ => Command::None,
+            },
+            InputMode::None => Command::None,
         }
     }
 }
