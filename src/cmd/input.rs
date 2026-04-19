@@ -49,7 +49,7 @@ pub fn input_mkdir(state: &mut AppState) -> Result<()> {
         state.input = InputMode::Text {
             title,
             action: InputAction::Mkdir { dir },
-            value: "".to_string(),
+            value: String::new(),
         };
     }
     Ok(())
@@ -82,29 +82,26 @@ fn delete_confirm_title(files: &[VFile]) -> String {
     }
 }
 
-fn execute_confirm_action(state: &mut AppState, action: InputAction) -> Result<()> {
+fn execute_confirm_action(_: &mut AppState, action: InputAction) -> Result<()> {
     match action {
-        InputAction::Delete { files } => execute_deletes(state, files),
-        _ => Ok(()),
+        InputAction::Delete { files } => execute_deletes(files),
+        _ => unreachable!(),
     }
 }
 
 fn execute_text_action(_: &mut AppState, action: InputAction, value: &str) -> Result<()> {
     match action {
         InputAction::Mkdir { dir } => execute_mkdir(dir, value),
-        _ => Ok(()),
+        _ => unreachable!(),
     }
 }
 
-fn execute_deletes(state: &mut AppState, files: Vec<VFile>) -> Result<()> {
+fn execute_deletes(files: Vec<VFile>) -> Result<()> {
     let mut error = None;
     for file in files {
         if let Err(e) = file.delete() {
             error.get_or_insert(e);
         }
-    }
-    if let Err(e) = state.filer.refresh_files() {
-        error.get_or_insert(e);
     }
     if let Some(e) = error {
         return Err(e);
