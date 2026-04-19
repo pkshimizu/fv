@@ -97,6 +97,11 @@ impl VFile {
         let path = Path::new(self.absolute_path());
         if let Some(parent_path) = path.parent() {
             let new_path = parent_path.join(name);
+            anyhow::ensure!(
+                !new_path.exists(),
+                "{}: File already exists",
+                new_path.display()
+            );
             rename(path, &new_path)
                 .with_context(|| format!("{}: Failed to rename file", new_path.display()))?;
         }
