@@ -1,6 +1,6 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
-use std::fs::{create_dir, read_dir};
+use std::fs::{create_dir, read_dir, rename};
 use std::path::{Component, Path};
 
 #[derive(Debug, Clone)]
@@ -79,6 +79,32 @@ impl VFile {
         let dir_path = path.join(dir_name);
         create_dir(&dir_path)
             .with_context(|| format!("{}: Failed to create directory", dir_path.display()))?;
+
+        Ok(())
+    }
+
+    pub fn rename(&self, name: &str) -> Result<()> {
+        if name.is_empty() {
+            return Ok(());
+        }
+        anyhow::ensure!(
+            Path::new(name)
+                .components()
+                .all(|c| matches!(c, Component::Normal(_))),
+            "{}: Invalid file name",
+            name
+        );
+        let path = Path::new(self.absolute_path());
+        if let Some(parent_path) = path.parent() {
+            let new_path = parent_path.join(name);
+            anyhow::ensure!(
+                !new_path.exists(),
+                "{}: File already exists",
+                new_path.display()
+            );
+            rename(path, &new_path)
+                .with_context(|| format!("{}: Failed to rename file", new_path.display()))?;
+        }
 
         Ok(())
     }
