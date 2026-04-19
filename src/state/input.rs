@@ -1,7 +1,12 @@
 use crate::fs::VFile;
 
 #[derive(Debug)]
-pub enum InputAction {
+pub enum TextAction {
+    Mkdir { dir: VFile },
+}
+
+#[derive(Debug)]
+pub enum ConfirmAction {
     Delete { files: Vec<VFile> },
 }
 
@@ -12,11 +17,11 @@ pub enum InputMode {
     Text {
         title: String,
         value: String,
-        action: InputAction,
+        action: TextAction,
     },
     Confirm {
         title: String,
-        action: InputAction,
+        action: ConfirmAction,
     },
 }
 

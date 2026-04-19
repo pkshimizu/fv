@@ -1,7 +1,7 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
-use std::fs::read_dir;
-use std::path::Path;
+use std::fs::{create_dir, read_dir};
+use std::path::{Component, Path};
 
 #[derive(Debug, Clone)]
 pub struct VFile {
@@ -64,9 +64,29 @@ impl VFile {
         Ok(self.metadata()?.is_dir())
     }
 
+    pub fn create_dir(&self, dir_name: &str) -> Result<()> {
+        if dir_name.is_empty() {
+            return Ok(());
+        }
+        anyhow::ensure!(
+            Path::new(dir_name)
+                .components()
+                .all(|c| matches!(c, Component::Normal(_))),
+            "{}: Invalid dir name",
+            dir_name
+        );
+        let path = Path::new(self.absolute_path());
+        let dir_path = path.join(dir_name);
+        create_dir(&dir_path)
+            .with_context(|| format!("{}: Failed to create directory", dir_path.display()))?;
+
+        Ok(())
+    }
+
     pub fn delete(&self) -> Result<()> {
         let path = self.absolute_path();
         trash::delete(path).with_context(|| format!("{}: Failed to trash", self.path))?;
+
         Ok(())
     }
 }

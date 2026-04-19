@@ -1,5 +1,5 @@
 use crate::fs::VFile;
-use crate::state::{AppState, InputAction, InputMode};
+use crate::state::{AppState, ConfirmAction, InputMode, TextAction};
 use anyhow::Result;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
@@ -19,8 +19,8 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
 pub fn input_ok(state: &mut AppState) -> Result<()> {
     let input = std::mem::replace(&mut state.input, InputMode::None);
     match input {
-        InputMode::Confirm { action, .. } => execute_action(state, action),
-        InputMode::Text { action, .. } => execute_action(state, action),
+        InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
+        InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
         InputMode::None => Ok(()),
     }
 }
@@ -36,7 +36,20 @@ pub fn input_delete_confirm(state: &mut AppState) -> Result<()> {
         let title = delete_confirm_title(&files);
         state.input = InputMode::Confirm {
             title,
-            action: InputAction::Delete { files },
+            action: ConfirmAction::Delete { files },
+        };
+    }
+    Ok(())
+}
+
+pub fn input_mkdir(state: &mut AppState) -> Result<()> {
+    let dir = state.filer.current_dir.clone();
+    if let Some(file_name) = dir.file_name() {
+        let title = format!("Create directory in {}", file_name);
+        state.input = InputMode::Text {
+            title,
+            action: TextAction::Mkdir { dir },
+            value: String::new(),
         };
     }
     Ok(())
@@ -69,24 +82,32 @@ fn delete_confirm_title(files: &[VFile]) -> String {
     }
 }
 
-fn execute_action(state: &mut AppState, action: InputAction) -> Result<()> {
+fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()> {
     match action {
-        InputAction::Delete { files } => execute_deletes(state, files),
+        ConfirmAction::Delete { files } => execute_deletes(files),
     }
 }
 
-fn execute_deletes(state: &mut AppState, files: Vec<VFile>) -> Result<()> {
+fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Result<()> {
+    match action {
+        TextAction::Mkdir { dir } => execute_mkdir(dir, value),
+    }
+}
+
+fn execute_deletes(files: Vec<VFile>) -> Result<()> {
     let mut error = None;
     for file in files {
         if let Err(e) = file.delete() {
             error.get_or_insert(e);
         }
     }
-    if let Err(e) = state.filer.refresh_files() {
-        error.get_or_insert(e);
-    }
     if let Some(e) = error {
         return Err(e);
     }
+    Ok(())
+}
+
+fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
+    dir.create_dir(value)?;
     Ok(())
 }

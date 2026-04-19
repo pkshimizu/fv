@@ -4,4 +4,4 @@ mod input;
 
 pub use app::AppState;
 pub use filer::FilerState;
-pub use input::{InputAction, InputMode};
+pub use input::{ConfirmAction, InputMode, TextAction};
