@@ -67,8 +67,8 @@ impl VFile {
     pub fn create_dir(&self, dir_name: &str) -> Result<()> {
         let path = Path::new(self.absolute_path());
         let dir_path = path.join(dir_name);
-        create_dir(dir_path)
-            .with_context(|| format!("{}: Failed to create directory", self.path))?;
+        create_dir(&dir_path)
+            .with_context(|| format!("{}: Failed to create directory", dir_path.display()))?;
 
         Ok(())
     }
