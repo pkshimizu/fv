@@ -1,6 +1,6 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
-use std::fs::read_dir;
+use std::fs::{create_dir, read_dir};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -64,9 +64,18 @@ impl VFile {
         Ok(self.metadata()?.is_dir())
     }
 
+    pub fn create_dir(&self, dir_name: &str) -> Result<()> {
+        let path = Path::new(self.absolute_path());
+        let dir_path = path.join(dir_name);
+        create_dir(dir_path)?;
+
+        Ok(())
+    }
+
     pub fn delete(&self) -> Result<()> {
         let path = self.absolute_path();
         trash::delete(path).with_context(|| format!("{}: Failed to trash", self.path))?;
+
         Ok(())
     }
 }

@@ -19,8 +19,8 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
 pub fn input_ok(state: &mut AppState) -> Result<()> {
     let input = std::mem::replace(&mut state.input, InputMode::None);
     match input {
-        InputMode::Confirm { action, .. } => execute_action(state, action),
-        InputMode::Text { action, .. } => execute_action(state, action),
+        InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
+        InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
         InputMode::None => Ok(()),
     }
 }
@@ -37,6 +37,19 @@ pub fn input_delete_confirm(state: &mut AppState) -> Result<()> {
         state.input = InputMode::Confirm {
             title,
             action: InputAction::Delete { files },
+        };
+    }
+    Ok(())
+}
+
+pub fn input_mkdir(state: &mut AppState) -> Result<()> {
+    let dir = state.filer.current_dir.clone();
+    if let Some(file_name) = dir.file_name() {
+        let title = format!("Create directory in {}", file_name);
+        state.input = InputMode::Text {
+            title,
+            action: InputAction::Mkdir { dir },
+            value: "".to_string(),
         };
     }
     Ok(())
@@ -69,9 +82,17 @@ fn delete_confirm_title(files: &[VFile]) -> String {
     }
 }
 
-fn execute_action(state: &mut AppState, action: InputAction) -> Result<()> {
+fn execute_confirm_action(state: &mut AppState, action: InputAction) -> Result<()> {
     match action {
         InputAction::Delete { files } => execute_deletes(state, files),
+        _ => Ok(()),
+    }
+}
+
+fn execute_text_action(_: &mut AppState, action: InputAction, value: &str) -> Result<()> {
+    match action {
+        InputAction::Mkdir { dir } => execute_mkdir(dir, value),
+        _ => Ok(()),
     }
 }
 
@@ -88,5 +109,10 @@ fn execute_deletes(state: &mut AppState, files: Vec<VFile>) -> Result<()> {
     if let Some(e) = error {
         return Err(e);
     }
+    Ok(())
+}
+
+fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
+    dir.create_dir(value)?;
     Ok(())
 }

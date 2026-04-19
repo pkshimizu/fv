@@ -3,6 +3,7 @@ use crate::fs::VFile;
 #[derive(Debug)]
 pub enum InputAction {
     Delete { files: Vec<VFile> },
+    Mkdir { dir: VFile },
 }
 
 #[derive(Debug, Default)]
