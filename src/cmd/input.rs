@@ -1,5 +1,5 @@
 use crate::fs::VFile;
-use crate::state::{AppState, InputAction, InputMode};
+use crate::state::{AppState, ConfirmAction, InputMode, TextAction};
 use anyhow::Result;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
@@ -36,7 +36,7 @@ pub fn input_delete_confirm(state: &mut AppState) -> Result<()> {
         let title = delete_confirm_title(&files);
         state.input = InputMode::Confirm {
             title,
-            action: InputAction::Delete { files },
+            action: ConfirmAction::Delete { files },
         };
     }
     Ok(())
@@ -48,7 +48,7 @@ pub fn input_mkdir(state: &mut AppState) -> Result<()> {
         let title = format!("Create directory in {}", file_name);
         state.input = InputMode::Text {
             title,
-            action: InputAction::Mkdir { dir },
+            action: TextAction::Mkdir { dir },
             value: String::new(),
         };
     }
@@ -82,17 +82,15 @@ fn delete_confirm_title(files: &[VFile]) -> String {
     }
 }
 
-fn execute_confirm_action(_: &mut AppState, action: InputAction) -> Result<()> {
+fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()> {
     match action {
-        InputAction::Delete { files } => execute_deletes(files),
-        _ => unreachable!(),
+        ConfirmAction::Delete { files } => execute_deletes(files),
     }
 }
 
-fn execute_text_action(_: &mut AppState, action: InputAction, value: &str) -> Result<()> {
+fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Result<()> {
     match action {
-        InputAction::Mkdir { dir } => execute_mkdir(dir, value),
-        _ => unreachable!(),
+        TextAction::Mkdir { dir } => execute_mkdir(dir, value),
     }
 }
 
