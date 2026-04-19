@@ -30,7 +30,7 @@ pub fn input_cancel(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn input_delete_confirm(state: &mut AppState) -> Result<()> {
+pub fn input_delete(state: &mut AppState) -> Result<()> {
     let files = collect_delete_targets(state);
     if !files.is_empty() {
         let title = delete_confirm_title(&files);
