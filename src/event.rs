@@ -81,6 +81,7 @@ impl EventHandler {
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char('d')) => Command::InputDelete,
             (_, KeyCode::Char('k')) => Command::InputMkdir,
+            (_, KeyCode::Char('r')) => Command::InputRename,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,

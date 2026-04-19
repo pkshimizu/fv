@@ -55,6 +55,23 @@ pub fn input_mkdir(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn input_rename(state: &mut AppState) -> Result<()> {
+    let selected_file = state.filer.selected_file();
+    if let Some(selected_file) = selected_file {
+        if let Some(file_name) = selected_file.file_name() {
+            let title = format!("Rename {}", file_name);
+            state.input = InputMode::Text {
+                title,
+                action: TextAction::Rename {
+                    file: selected_file.clone(),
+                },
+                value: file_name,
+            };
+        }
+    }
+    Ok(())
+}
+
 fn collect_delete_targets(state: &AppState) -> Vec<VFile> {
     if state.filer.checked_paths.is_empty() {
         state.filer.selected_file().cloned().into_iter().collect()
@@ -91,6 +108,7 @@ fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()>
 fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Result<()> {
     match action {
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
+        TextAction::Rename { file } => execute_rename(file, value),
     }
 }
 
@@ -109,5 +127,10 @@ fn execute_deletes(files: Vec<VFile>) -> Result<()> {
 
 fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
     dir.create_dir(value)?;
+    Ok(())
+}
+
+fn execute_rename(file: VFile, value: &str) -> Result<()> {
+    file.rename(value)?;
     Ok(())
 }
