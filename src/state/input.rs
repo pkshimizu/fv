@@ -24,6 +24,9 @@ pub enum InputMode {
         title: String,
         action: ConfirmAction,
     },
+    Error {
+        message: String,
+    },
 }
 
 impl InputMode {

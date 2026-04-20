@@ -2,7 +2,7 @@ use ratatui::DefaultTerminal;
 
 use crate::config::Config;
 use crate::event::EventHandler;
-use crate::state::AppState;
+use crate::state::{AppState, InputMode};
 use crate::ui;
 use anyhow::Result;
 
@@ -33,7 +33,11 @@ impl App {
 
             // イベントを取得してコマンドに変換
             let command = self.event_handler.next(&self.state.input)?;
-            command.exec(&mut self.state)?;
+            if let Err(e) = command.exec(&mut self.state) {
+                self.state.input = InputMode::Error {
+                    message: format!("{e}"),
+                };
+            }
 
             // カレントディレクトリの監視
             let current_dir_path = self.state.filer.current_dir.absolute_path();
