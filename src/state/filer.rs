@@ -141,18 +141,10 @@ impl FilerState {
         } else {
             self.current_dir.list()?
         };
-        files.sort_by(|a, b| {
-            if let Ok(a_is_dir) = a.is_dir() {
-                if let Ok(b_is_dir) = b.is_dir() {
-                    if a_is_dir && !b_is_dir {
-                        return Ordering::Less;
-                    }
-                    if !a_is_dir && b_is_dir {
-                        return Ordering::Greater;
-                    }
-                }
-            }
-            a.file_name().cmp(&b.file_name())
+        files.sort_by(|a, b| match (a.is_dir(), b.is_dir()) {
+            (Ok(true), Ok(false)) => Ordering::Less,
+            (Ok(false), Ok(true)) => Ordering::Greater,
+            _ => a.file_name().cmp(&b.file_name()),
         });
 
         if let Some(current_dir) = current_dir {
