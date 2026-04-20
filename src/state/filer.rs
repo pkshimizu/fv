@@ -1,6 +1,7 @@
 use crate::fs::VFile;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -135,17 +136,30 @@ impl FilerState {
     }
 
     fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
-        let current_dir_files = if let Some(current_dir) = &current_dir {
+        let mut files = if let Some(current_dir) = &current_dir {
             current_dir.list()?
         } else {
             self.current_dir.list()?
         };
+        files.sort_by(|a, b| {
+            if let Ok(a_is_dir) = a.is_dir() {
+                if let Ok(b_is_dir) = b.is_dir() {
+                    if a_is_dir && !b_is_dir {
+                        return Ordering::Less;
+                    }
+                    if !a_is_dir && b_is_dir {
+                        return Ordering::Greater;
+                    }
+                }
+            }
+            a.file_name().cmp(&b.file_name())
+        });
 
         if let Some(current_dir) = current_dir {
             self.current_dir = current_dir;
         }
 
-        self.current_dir_files = current_dir_files;
+        self.current_dir_files = files;
         Ok(())
     }
 }
