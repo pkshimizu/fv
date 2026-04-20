@@ -1,6 +1,7 @@
 use crate::fs::VFile;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 #[derive(Debug)]
@@ -24,11 +25,8 @@ impl FilerState {
     pub fn init(&mut self) -> Result<()> {
         let home_dir = dirs::home_dir().context("Failed to get home directory")?;
         let current_dir_path = home_dir.to_str().context("Failed to get path string")?;
-        let current_dir = VFile::new(current_dir_path);
-        let current_dir_files = current_dir.list()?;
+        self.load_current_dir(Some(VFile::new(current_dir_path)))?;
 
-        self.current_dir = current_dir;
-        self.current_dir_files = current_dir_files;
         self.file_table_state.select(Some(0));
         Ok(())
     }
@@ -71,10 +69,7 @@ impl FilerState {
     }
 
     pub fn change_to(&mut self, path: &str) -> Result<()> {
-        let file = VFile::new(path);
-        let files = file.list()?;
-        self.current_dir = file;
-        self.current_dir_files = files;
+        self.load_current_dir(Some(VFile::new(path)))?;
         self.file_table_state.select(Some(0));
         Ok(())
     }
@@ -90,7 +85,7 @@ impl FilerState {
     pub fn refresh_files(&mut self) -> Result<()> {
         let selected_name = self.selected_file().and_then(|f| f.file_name());
 
-        self.current_dir_files = self.current_dir.list()?;
+        self.load_current_dir(None)?;
 
         // 選択ファイル状態の更新
         if let Some(name) = selected_name {
@@ -138,5 +133,27 @@ impl FilerState {
                 self.checked_paths.insert(path);
             }
         }
+    }
+
+    fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
+        let mut files = if let Some(current_dir) = &current_dir {
+            current_dir.list()?
+        } else {
+            self.current_dir.list()?
+        };
+        files.sort_by(
+            |a, b| match (a.is_dir().unwrap_or(false), b.is_dir().unwrap_or(false)) {
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                _ => a.file_name().cmp(&b.file_name()),
+            },
+        );
+
+        if let Some(current_dir) = current_dir {
+            self.current_dir = current_dir;
+        }
+
+        self.current_dir_files = files;
+        Ok(())
     }
 }
