@@ -21,7 +21,7 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
     match input {
         InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
         InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
-        InputMode::None => Ok(()),
+        InputMode::None | InputMode::Error { .. } => Ok(()),
     }
 }
 

@@ -107,6 +107,10 @@ impl EventHandler {
                 KeyCode::Char('n') | KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,
             },
+            InputMode::Error { .. } => match key.code {
+                KeyCode::Enter | KeyCode::Esc => Command::InputCancel,
+                _ => Command::None,
+            },
             InputMode::None => Command::None,
         }
     }
