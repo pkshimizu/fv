@@ -20,6 +20,12 @@ pub enum InputMode {
         value: String,
         action: TextAction,
     },
+    File {
+        title: String,
+        value: String,
+        candidates: Vec<String>,
+        candidate_index: Option<usize>,
+    },
     Confirm {
         title: String,
         action: ConfirmAction,

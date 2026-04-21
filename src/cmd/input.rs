@@ -3,15 +3,64 @@ use crate::state::{AppState, ConfirmAction, InputMode, TextAction};
 use anyhow::Result;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
-    if let InputMode::Text { value, .. } = &mut state.input {
-        value.push(c);
+    match &mut state.input {
+        InputMode::Text { value, .. } => {
+            value.push(c);
+        }
+        InputMode::File {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            value.push(c);
+            candidates.clear();
+            *candidate_index = None;
+        }
+        _ => {}
     }
     Ok(())
 }
 
 pub fn input_backspace(state: &mut AppState) -> Result<()> {
-    if let InputMode::Text { value, .. } = &mut state.input {
-        value.pop();
+    match &mut state.input {
+        InputMode::Text { value, .. } => {
+            value.pop();
+        }
+        InputMode::File {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            value.pop();
+            candidates.clear();
+            *candidate_index = None;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub fn input_tab(state: &mut AppState) -> Result<()> {
+    if let InputMode::File {
+        value,
+        candidates,
+        candidate_index,
+        ..
+    } = &mut state.input
+    {
+        if candidates.is_empty() {
+            *candidates = compute_path_candidates(value);
+            if !candidates.is_empty() {
+                *candidate_index = Some(0);
+                *value = candidates[0].clone();
+            }
+        } else if let Some(index) = candidate_index {
+            let next = (*index + 1) % candidates.len();
+            *candidate_index = Some(next);
+            *value = candidates[next].clone();
+        }
     }
     Ok(())
 }
@@ -21,6 +70,7 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
     match input {
         InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
         InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
+        InputMode::File { .. } => Ok(()),
         InputMode::None | InputMode::Error { .. } => Ok(()),
     }
 }
@@ -133,4 +183,47 @@ fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
 fn execute_rename(file: VFile, value: &str) -> Result<()> {
     file.rename(value)?;
     Ok(())
+}
+
+fn compute_path_candidates(input: &str) -> Vec<String> {
+    use std::path::Path;
+
+    let path = Path::new(input);
+    let (dir, prefix) = if input.ends_with('/') {
+        (path.to_path_buf(), String::new())
+    } else {
+        let dir = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| Path::new(".").to_path_buf());
+        let prefix = path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default();
+        (dir, prefix)
+    };
+
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return vec![];
+    };
+
+    let mut candidates: Vec<String> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with(&prefix)
+        })
+        .map(|e| {
+            let full_path = dir.join(e.file_name());
+            let mut s = full_path.to_string_lossy().to_string();
+            if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                s.push('/');
+            }
+            s
+        })
+        .collect();
+
+    candidates.sort();
+    candidates
 }

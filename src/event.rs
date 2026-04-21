@@ -102,6 +102,14 @@ impl EventHandler {
                 KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,
             },
+            InputMode::File { .. } => match key.code {
+                KeyCode::Char(c) => Command::InputChar(c),
+                KeyCode::Backspace => Command::InputBackspace,
+                KeyCode::Tab => Command::InputTab,
+                KeyCode::Enter => Command::InputOk,
+                KeyCode::Esc => Command::InputCancel,
+                _ => Command::None,
+            },
             InputMode::Confirm { .. } => match key.code {
                 KeyCode::Char('y') | KeyCode::Enter => Command::InputOk,
                 KeyCode::Char('n') | KeyCode::Esc => Command::InputCancel,
