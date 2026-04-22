@@ -11,6 +11,11 @@ pub enum ConfirmAction {
     Delete { files: Vec<VFile> },
 }
 
+#[derive(Debug)]
+pub enum FileAction {
+    Copy { files: Vec<VFile> },
+}
+
 #[derive(Debug, Default)]
 pub enum InputMode {
     #[default]
@@ -25,6 +30,7 @@ pub enum InputMode {
         value: String,
         candidates: Vec<String>,
         candidate_index: Option<usize>,
+        action: FileAction,
     },
     Confirm {
         title: String,

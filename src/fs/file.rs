@@ -1,7 +1,7 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
 use std::fs::{create_dir, read_dir, rename};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct VFile {
@@ -115,4 +115,71 @@ impl VFile {
 
         Ok(())
     }
+
+    pub fn copy_to(&self, path: &str) -> Result<()> {
+        let dest = Path::new(path);
+        let src = Path::new(self.absolute_path());
+
+        let dest_path = if dest.is_dir() {
+            let file_name = src
+                .file_name()
+                .with_context(|| format!("{}: No file name", self.path))?;
+            unique_path(&dest.join(file_name))
+        } else if dest.exists() {
+            unique_path(dest)
+        } else {
+            dest.to_path_buf()
+        };
+
+        if src.is_dir() {
+            copy_dir_recursive(src, &dest_path)
+                .with_context(|| format!("{}: Failed to copy directory", dest_path.display()))?;
+        } else {
+            std::fs::copy(src, &dest_path)
+                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
+        }
+
+        Ok(())
+    }
+}
+
+fn unique_path(path: &Path) -> PathBuf {
+    if !path.exists() {
+        return path.to_path_buf();
+    }
+
+    let parent = path.parent().unwrap_or(Path::new("."));
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let ext = path.extension().map(|e| e.to_string_lossy().to_string());
+
+    for i in 1.. {
+        let new_name = match &ext {
+            Some(ext) => format!("{}_{}.{}", stem, i, ext),
+            None => format!("{}_{}", stem, i),
+        };
+        let candidate = parent.join(&new_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    unreachable!()
+}
+
+fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for entry in read_dir(src)? {
+        let entry = entry?;
+        let entry_path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+        if entry_path.is_dir() {
+            copy_dir_recursive(&entry_path, &dest_path)?;
+        } else {
+            std::fs::copy(&entry_path, &dest_path)?;
+        }
+    }
+    Ok(())
 }

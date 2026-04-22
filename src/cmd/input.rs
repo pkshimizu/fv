@@ -1,5 +1,5 @@
 use crate::fs::VFile;
-use crate::state::{AppState, ConfirmAction, InputMode, TextAction};
+use crate::state::{AppState, ConfirmAction, FileAction, InputMode, TextAction};
 use anyhow::Result;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
@@ -70,7 +70,7 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
     match input {
         InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
         InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
-        InputMode::File { .. } => Ok(()),
+        InputMode::File { action, value, .. } => execute_file_action(state, action, value.as_str()),
         InputMode::None | InputMode::Error { .. } => Ok(()),
     }
 }
@@ -80,10 +80,30 @@ pub fn input_cancel(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn input_delete(state: &mut AppState) -> Result<()> {
-    let files = collect_delete_targets(state);
+pub fn input_copy(state: &mut AppState) -> Result<()> {
+    let files = collect_action_targets(state);
     if !files.is_empty() {
-        let title = delete_confirm_title(&files);
+        let title = action_title("Copy to", &files);
+        let init_value = if files.len() == 1 {
+            files[0].absolute_path()
+        } else {
+            state.filer.current_dir.absolute_path()
+        };
+        state.input = InputMode::File {
+            title,
+            value: init_value.to_string(),
+            candidates: Vec::new(),
+            candidate_index: None,
+            action: FileAction::Copy { files },
+        };
+    }
+    Ok(())
+}
+
+pub fn input_delete(state: &mut AppState) -> Result<()> {
+    let files = collect_action_targets(state);
+    if !files.is_empty() {
+        let title = action_title("Delete", &files);
         state.input = InputMode::Confirm {
             title,
             action: ConfirmAction::Delete { files },
@@ -122,7 +142,7 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-fn collect_delete_targets(state: &AppState) -> Vec<VFile> {
+fn collect_action_targets(state: &AppState) -> Vec<VFile> {
     if state.filer.checked_paths.is_empty() {
         state.filer.selected_file().cloned().into_iter().collect()
     } else {
@@ -136,16 +156,17 @@ fn collect_delete_targets(state: &AppState) -> Vec<VFile> {
     }
 }
 
-fn delete_confirm_title(files: &[VFile]) -> String {
+fn action_title(action_name: &str, files: &[VFile]) -> String {
     if files.len() == 1 {
         format!(
-            "Delete {}?",
+            "{} {}?",
+            action_name,
             files[0]
                 .file_name()
                 .unwrap_or_else(|| "(unknown)".to_string())
         )
     } else {
-        format!("Delete {} files?", files.len())
+        format!("{} {} files?", action_name, files.len())
     }
 }
 
@@ -160,6 +181,25 @@ fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Res
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
         TextAction::Rename { file } => execute_rename(file, value),
     }
+}
+
+fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Result<()> {
+    match action {
+        FileAction::Copy { files } => execute_copy(files, value),
+    }
+}
+
+fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {
+    let mut error = None;
+    for file in files {
+        if let Err(e) = file.copy_to(value) {
+            error.get_or_insert(e);
+        }
+    }
+    if let Some(e) = error {
+        return Err(e);
+    }
+    Ok(())
 }
 
 fn execute_deletes(files: Vec<VFile>) -> Result<()> {
