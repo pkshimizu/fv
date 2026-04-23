@@ -114,19 +114,8 @@ impl VFile {
     }
 
     pub fn copy_to(&self, path: &str) -> Result<()> {
-        let dest = Path::new(path);
         let src = Path::new(self.absolute_path());
-
-        let dest_path = if dest.is_dir() {
-            let file_name = src
-                .file_name()
-                .with_context(|| format!("{}: No file name", self.path))?;
-            unique_path(&dest.join(file_name))?
-        } else if dest.exists() {
-            unique_path(dest)?
-        } else {
-            dest.to_path_buf()
-        };
+        let dest_path = resolve_dest_path(src, path, &self.path)?;
 
         if src.is_dir() {
             copy_dir_recursive(src, &dest_path)
@@ -140,24 +129,27 @@ impl VFile {
     }
 
     pub fn move_to(&self, path: &str) -> Result<()> {
-        let dest = Path::new(path);
         let src = Path::new(self.absolute_path());
-
-        let dest_path = if dest.is_dir() {
-            let file_name = src
-                .file_name()
-                .with_context(|| format!("{}: No file name", self.path))?;
-            unique_path(&dest.join(file_name))?
-        } else if dest.exists() {
-            unique_path(dest)?
-        } else {
-            dest.to_path_buf()
-        };
+        let dest_path = resolve_dest_path(src, path, &self.path)?;
 
         rename(src, &dest_path)
             .with_context(|| format!("{}: Failed to move file", dest_path.display()))?;
 
         Ok(())
+    }
+}
+
+fn resolve_dest_path(src: &Path, path: &str, src_display: &str) -> Result<PathBuf> {
+    let dest = Path::new(path);
+    if dest.is_dir() {
+        let file_name = src
+            .file_name()
+            .with_context(|| format!("{src_display}: No file name"))?;
+        unique_path(&dest.join(file_name))
+    } else if dest.exists() {
+        unique_path(dest)
+    } else {
+        Ok(dest.to_path_buf())
     }
 }
 
@@ -195,7 +187,7 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
         let file_type = entry.file_type()?;
         let entry_path = entry.path();
         let dest_path = dest.join(entry.file_name());
-        if file_type.is_dir() {
+        if file_type.is_dir() && !file_type.is_symlink() {
             copy_dir_recursive(&entry_path, &dest_path)?;
         } else {
             // シンボリックリンクはリンク先の内容をファイルとしてコピーする

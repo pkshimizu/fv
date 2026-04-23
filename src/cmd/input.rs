@@ -66,23 +66,7 @@ pub fn input_cancel(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_copy(state: &mut AppState) -> Result<()> {
-    let files = collect_action_targets(state);
-    if !files.is_empty() {
-        let title = action_title("Copy to", &files);
-        let init_value = if files.len() == 1 {
-            files[0].absolute_path()
-        } else {
-            state.filer.current_dir.absolute_path()
-        };
-        state.input = InputMode::File {
-            title,
-            value: init_value.to_string(),
-            candidates: Vec::new(),
-            candidate_index: None,
-            action: FileAction::Copy { files },
-        };
-    }
-    Ok(())
+    start_file_input(state, "Copy to", |files| FileAction::Copy { files })
 }
 
 pub fn input_delete(state: &mut AppState) -> Result<()> {
@@ -111,23 +95,7 @@ pub fn input_mkdir(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_move(state: &mut AppState) -> Result<()> {
-    let files = collect_action_targets(state);
-    if !files.is_empty() {
-        let title = action_title("Move to", &files);
-        let init_value = if files.len() == 1 {
-            files[0].absolute_path()
-        } else {
-            state.filer.current_dir.absolute_path()
-        };
-        state.input = InputMode::File {
-            title,
-            value: init_value.to_string(),
-            candidates: Vec::new(),
-            candidate_index: None,
-            action: FileAction::Move { files },
-        };
-    }
-    Ok(())
+    start_file_input(state, "Move to", |files| FileAction::Move { files })
 }
 
 pub fn input_rename(state: &mut AppState) -> Result<()> {
@@ -159,6 +127,30 @@ fn collect_action_targets(state: &AppState) -> Vec<VFile> {
             .cloned()
             .collect()
     }
+}
+
+fn start_file_input(
+    state: &mut AppState,
+    label: &str,
+    make_action: impl FnOnce(Vec<VFile>) -> FileAction,
+) -> Result<()> {
+    let files = collect_action_targets(state);
+    if !files.is_empty() {
+        let title = action_title(label, &files);
+        let init_value = if files.len() == 1 {
+            files[0].absolute_path()
+        } else {
+            state.filer.current_dir.absolute_path()
+        };
+        state.input = InputMode::File {
+            title,
+            value: init_value.to_string(),
+            candidates: Vec::new(),
+            candidate_index: None,
+            action: make_action(files),
+        };
+    }
+    Ok(())
 }
 
 fn action_title(action_name: &str, files: &[VFile]) -> String {
