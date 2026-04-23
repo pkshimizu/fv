@@ -222,7 +222,7 @@ fn execute_rename(file: VFile, value: &str) -> Result<()> {
 
 fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
     let path = Path::new(input);
-    let (dir, prefix) = if input.ends_with('/') {
+    let (dir_path, prefix) = if input.ends_with('/') {
         (path.to_path_buf(), String::new())
     } else {
         let dir = path
@@ -238,20 +238,17 @@ fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
         (dir, prefix)
     };
 
-    let entries = std::fs::read_dir(&dir)
-        .with_context(|| format!("{}: Failed to read directory", dir.display()))?;
+    let files = VFile::new(dir_path.to_string_lossy()).list()?;
 
-    let mut candidates: Vec<String> = entries
-        .filter_map(|e| e.ok())
-        .filter_map(|e| {
-            let name = e.file_name();
-            let name_str = name.to_string_lossy();
-            if !name_str.starts_with(&prefix) {
+    let mut candidates: Vec<String> = files
+        .into_iter()
+        .filter_map(|f| {
+            let name = f.file_name()?;
+            if !name.starts_with(&prefix) {
                 return None;
             }
-            let full_path = dir.join(&*name_str);
-            let mut s = full_path.to_string_lossy().into_owned();
-            if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            let mut s = f.absolute_path().to_string();
+            if f.is_dir().unwrap_or(false) {
                 s.push('/');
             }
             Some(s)
