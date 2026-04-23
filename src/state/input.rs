@@ -14,6 +14,7 @@ pub enum ConfirmAction {
 #[derive(Debug)]
 pub enum FileAction {
     Copy { files: Vec<VFile> },
+    Move { files: Vec<VFile> },
 }
 
 #[derive(Debug, Default)]

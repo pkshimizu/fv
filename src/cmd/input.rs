@@ -66,23 +66,7 @@ pub fn input_cancel(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_copy(state: &mut AppState) -> Result<()> {
-    let files = collect_action_targets(state);
-    if !files.is_empty() {
-        let title = action_title("Copy to", &files);
-        let init_value = if files.len() == 1 {
-            files[0].absolute_path()
-        } else {
-            state.filer.current_dir.absolute_path()
-        };
-        state.input = InputMode::File {
-            title,
-            value: init_value.to_string(),
-            candidates: Vec::new(),
-            candidate_index: None,
-            action: FileAction::Copy { files },
-        };
-    }
-    Ok(())
+    start_file_input(state, "Copy to", |files| FileAction::Copy { files })
 }
 
 pub fn input_delete(state: &mut AppState) -> Result<()> {
@@ -108,6 +92,10 @@ pub fn input_mkdir(state: &mut AppState) -> Result<()> {
         };
     }
     Ok(())
+}
+
+pub fn input_move(state: &mut AppState) -> Result<()> {
+    start_file_input(state, "Move to", |files| FileAction::Move { files })
 }
 
 pub fn input_rename(state: &mut AppState) -> Result<()> {
@@ -141,14 +129,36 @@ fn collect_action_targets(state: &AppState) -> Vec<VFile> {
     }
 }
 
+fn start_file_input(
+    state: &mut AppState,
+    label: &str,
+    make_action: impl FnOnce(Vec<VFile>) -> FileAction,
+) -> Result<()> {
+    let files = collect_action_targets(state);
+    if !files.is_empty() {
+        let title = action_title(label, &files);
+        let init_value = if files.len() == 1 {
+            files[0].absolute_path()
+        } else {
+            state.filer.current_dir.absolute_path()
+        };
+        state.input = InputMode::File {
+            title,
+            value: init_value.to_string(),
+            candidates: Vec::new(),
+            candidate_index: None,
+            action: make_action(files),
+        };
+    }
+    Ok(())
+}
+
 fn action_title(action_name: &str, files: &[VFile]) -> String {
     if files.len() == 1 {
         format!(
             "{} {}?",
             action_name,
-            files[0]
-                .file_name()
-                .unwrap_or("(unknown)")
+            files[0].file_name().unwrap_or("(unknown)")
         )
     } else {
         format!("{} {} files?", action_name, files.len())
@@ -157,7 +167,7 @@ fn action_title(action_name: &str, files: &[VFile]) -> String {
 
 fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()> {
     match action {
-        ConfirmAction::Delete { files } => execute_deletes(files),
+        ConfirmAction::Delete { files } => execute_delete(files),
     }
 }
 
@@ -171,6 +181,7 @@ fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Res
 fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => execute_copy(files, value),
+        FileAction::Move { files } => execute_move(files, value),
     }
 }
 
@@ -181,7 +192,14 @@ fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn execute_deletes(files: Vec<VFile>) -> Result<()> {
+fn execute_move(files: Vec<VFile>, value: &str) -> Result<()> {
+    for file in &files {
+        file.move_to(value)?
+    }
+    Ok(())
+}
+
+fn execute_delete(files: Vec<VFile>) -> Result<()> {
     for file in &files {
         file.delete()?
     }
