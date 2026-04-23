@@ -27,7 +27,7 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
             };
             Some(Row::new(vec![
                 Cell::from(checked),
-                Cell::from(file.file_name().unwrap_or_default()),
+                Cell::from(file.file_name().unwrap_or_default().to_string()),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
                     Text::from(if metadata.is_dir() {

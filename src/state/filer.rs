@@ -83,7 +83,9 @@ impl FilerState {
     }
 
     pub fn refresh_files(&mut self) -> Result<()> {
-        let selected_name = self.selected_file().and_then(|f| f.file_name());
+        let selected_name = self
+            .selected_file()
+            .and_then(|f| f.file_name().map(String::from));
 
         self.load_current_dir(None)?;
 

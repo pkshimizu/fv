@@ -138,7 +138,7 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
                 action: TextAction::Rename {
                     file: selected_file.clone(),
                 },
-                value: file_name,
+                value: file_name.to_string(),
             };
         }
     }
@@ -166,7 +166,7 @@ fn action_title(action_name: &str, files: &[VFile]) -> String {
             action_name,
             files[0]
                 .file_name()
-                .unwrap_or_else(|| "(unknown)".to_string())
+                .unwrap_or("(unknown)")
         )
     } else {
         format!("{} {} files?", action_name, files.len())
