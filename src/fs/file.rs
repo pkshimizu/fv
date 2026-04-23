@@ -124,9 +124,9 @@ impl VFile {
             let file_name = src
                 .file_name()
                 .with_context(|| format!("{}: No file name", self.path))?;
-            unique_path(&dest.join(file_name))
+            unique_path(&dest.join(file_name))?
         } else if dest.exists() {
-            unique_path(dest)
+            unique_path(dest)?
         } else {
             dest.to_path_buf()
         };
@@ -143,30 +143,28 @@ impl VFile {
     }
 }
 
-fn unique_path(path: &Path) -> PathBuf {
+fn unique_path(path: &Path) -> Result<PathBuf> {
     if !path.exists() {
-        return path.to_path_buf();
+        return Ok(path.to_path_buf());
     }
 
     let parent = path.parent().unwrap_or(Path::new("."));
-    let stem = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let ext = path.extension().map(|e| e.to_string_lossy().to_string());
+    let stem = path.file_stem().map(|s| s.to_string_lossy().to_string());
+    if let Some(stem) = stem {
+        let ext = path.extension().map(|e| e.to_string_lossy().to_string());
 
-    for i in 1.. {
-        let new_name = match &ext {
-            Some(ext) => format!("{}_{}.{}", stem, i, ext),
-            None => format!("{}_{}", stem, i),
-        };
-        let candidate = parent.join(&new_name);
-        if !candidate.exists() {
-            return candidate;
+        for i in 1.. {
+            let new_name = match &ext {
+                Some(ext) => format!("{}_{}.{}", stem, i, ext),
+                None => format!("{}_{}", stem, i),
+            };
+            let candidate = parent.join(&new_name);
+            if !candidate.exists() {
+                return Ok(candidate);
+            }
         }
     }
-
-    unreachable!()
+    anyhow::bail!("Failed to make unique path")
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
