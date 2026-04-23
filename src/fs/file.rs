@@ -140,6 +140,8 @@ impl VFile {
     }
 }
 
+const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
+
 fn unique_path(path: &Path) -> Result<PathBuf> {
     if !path.exists() {
         return Ok(path.to_path_buf());
@@ -150,7 +152,7 @@ fn unique_path(path: &Path) -> Result<PathBuf> {
     if let Some(stem) = stem {
         let ext = path.extension().map(|e| e.to_string_lossy().to_string());
 
-        for i in 1..=1000 {
+        for i in 1..=MAX_UNIQUE_PATH_SUFFIX {
             let new_name = match &ext {
                 Some(ext) => format!("{stem}_{i}.{ext}"),
                 None => format!("{stem}_{i}"),
