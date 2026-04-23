@@ -1,6 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{AppState, ConfirmAction, FileAction, InputMode, TextAction};
-use anyhow::Result;
+use anyhow::{Context, Result};
+use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.input {
@@ -51,7 +52,7 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
     } = &mut state.input
     {
         if candidates.is_empty() {
-            *candidates = compute_path_candidates(value);
+            *candidates = compute_path_candidates(value)?;
             if !candidates.is_empty() {
                 *candidate_index = Some(0);
                 *value = candidates[0].clone();
@@ -219,9 +220,7 @@ fn execute_rename(file: VFile, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn compute_path_candidates(input: &str) -> Vec<String> {
-    use std::path::Path;
-
+fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
     let path = Path::new(input);
     let (dir, prefix) = if input.ends_with('/') {
         (path.to_path_buf(), String::new())
@@ -230,34 +229,35 @@ fn compute_path_candidates(input: &str) -> Vec<String> {
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| Path::new(".").to_path_buf());
+            .context("Failed to get parent directory")?;
         let prefix = path
             .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_default();
+            .context("Failed to get file name")?
+            .to_string_lossy()
+            .to_string();
         (dir, prefix)
     };
 
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return vec![];
-    };
+    let entries = std::fs::read_dir(&dir)
+        .with_context(|| format!("{}: Failed to read directory", dir.display()))?;
 
     let mut candidates: Vec<String> = entries
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            let name = e.file_name().to_string_lossy().to_string();
-            name.starts_with(&prefix)
-        })
-        .map(|e| {
-            let full_path = dir.join(e.file_name());
-            let mut s = full_path.to_string_lossy().to_string();
+        .filter_map(|e| {
+            let name = e.file_name();
+            let name_str = name.to_string_lossy();
+            if !name_str.starts_with(&prefix) {
+                return None;
+            }
+            let full_path = dir.join(&*name_str);
+            let mut s = full_path.to_string_lossy().into_owned();
             if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
                 s.push('/');
             }
-            s
+            Some(s)
         })
         .collect();
 
     candidates.sort();
-    candidates
+    Ok(candidates)
 }
