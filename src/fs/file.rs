@@ -29,7 +29,7 @@ impl VFile {
         &self.path
     }
 
-    pub fn file_name(&self) -> Option<> {
+    pub fn file_name(&self) -> Option<String> {
         let file_name = Path::new(&self.path).file_name()?;
         let file_name_str = file_name.to_str()?;
         Some(file_name_str.to_string())
