@@ -128,30 +128,34 @@ impl VFile {
     pub fn copy_to(&self, path: &str) -> Result<()> {
         let src = Path::new(self.absolute_path());
         let dest_path = resolve_dest_path(src, path, &self.path)?;
-
-        if src.is_dir() {
-            copy_dir_recursive(src, &dest_path)
-                .with_context(|| format!("{}: Failed to copy directory", dest_path.display()))?;
-        } else {
-            std::fs::copy(src, &dest_path)
-                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
-        }
-
-        Ok(())
+        copy_to_path(src, &dest_path)
     }
 
     pub fn move_to(&self, path: &str) -> Result<()> {
         let src = Path::new(self.absolute_path());
         let dest_path = resolve_dest_path(src, path, &self.path)?;
 
-        // renameが失敗した場合（クロスデバイス移動等）はコピー+削除にフォールバック
-        if rename(src, &dest_path).is_err() {
-            self.copy_to(path)?;
-            self.remove()?;
+        match rename(src, &dest_path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.raw_os_error() == Some(libc::EXDEV) => {
+                copy_to_path(src, &dest_path)?;
+                self.remove()
+            }
+            Err(e) => Err(anyhow::Error::from(e)
+                .context(format!("{}: Failed to move file", dest_path.display()))),
         }
-
-        Ok(())
     }
+}
+
+fn copy_to_path(src: &Path, dest_path: &Path) -> Result<()> {
+    if src.is_dir() {
+        copy_dir_recursive(src, dest_path)
+            .with_context(|| format!("{}: Failed to copy directory", dest_path.display()))?;
+    } else {
+        std::fs::copy(src, dest_path)
+            .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
+    }
+    Ok(())
 }
 
 fn resolve_dest_path(src: &Path, path: &str, src_display: &str) -> Result<PathBuf> {
