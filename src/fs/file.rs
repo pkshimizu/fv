@@ -153,7 +153,7 @@ fn unique_path(path: &Path) -> Result<PathBuf> {
     if let Some(stem) = stem {
         let ext = path.extension().map(|e| e.to_string_lossy().to_string());
 
-        for i in 1.. {
+        for i in 1..=1000 {
             let new_name = match &ext {
                 Some(ext) => format!("{}_{}.{}", stem, i, ext),
                 None => format!("{}_{}", stem, i),
