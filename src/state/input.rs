@@ -45,4 +45,16 @@ impl InputMode {
     pub fn is_active(&self) -> bool {
         !matches!(self, InputMode::None)
     }
+
+    pub fn reset_candidates(&mut self) {
+        if let InputMode::File {
+            candidates,
+            candidate_index,
+            ..
+        } = self
+        {
+            candidates.clear();
+            *candidate_index = None;
+        }
+    }
 }

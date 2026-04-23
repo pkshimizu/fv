@@ -148,19 +148,20 @@ fn unique_path(path: &Path) -> Result<PathBuf> {
     }
 
     let parent = path.parent().context("Failed to get parent directory")?;
-    let stem = path.file_stem().map(|s| s.to_string_lossy().to_string());
-    if let Some(stem) = stem {
-        let ext = path.extension().map(|e| e.to_string_lossy().to_string());
+    let stem = path
+        .file_stem()
+        .context("Failed to get file stem")?
+        .to_string_lossy();
+    let ext = path.extension().map(|e| e.to_string_lossy());
 
-        for i in 1..=MAX_UNIQUE_PATH_SUFFIX {
-            let new_name = match &ext {
-                Some(ext) => format!("{stem}_{i}.{ext}"),
-                None => format!("{stem}_{i}"),
-            };
-            let candidate = parent.join(&new_name);
-            if !candidate.exists() {
-                return Ok(candidate);
-            }
+    for i in 1..=MAX_UNIQUE_PATH_SUFFIX {
+        let new_name = match &ext {
+            Some(ext) => format!("{stem}_{i}.{ext}"),
+            None => format!("{stem}_{i}"),
+        };
+        let candidate = parent.join(&new_name);
+        if !candidate.exists() {
+            return Ok(candidate);
         }
     }
     anyhow::bail!("Failed to make unique path")
@@ -173,12 +174,10 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
         let file_type = entry.file_type()?;
         let entry_path = entry.path();
         let dest_path = dest.join(entry.file_name());
-        if file_type.is_symlink() {
-            std::fs::copy(&entry_path, &dest_path)
-                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
-        } else if file_type.is_dir() {
+        if file_type.is_dir() {
             copy_dir_recursive(&entry_path, &dest_path)?;
         } else {
+            // シンボリックリンクはリンク先の内容をファイルとしてコピーする
             std::fs::copy(&entry_path, &dest_path)
                 .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
         }

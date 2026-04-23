@@ -5,41 +5,23 @@ use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.input {
-        InputMode::Text { value, .. } => {
+        InputMode::Text { value, .. } | InputMode::File { value, .. } => {
             value.push(c);
-        }
-        InputMode::File {
-            value,
-            candidates,
-            candidate_index,
-            ..
-        } => {
-            value.push(c);
-            candidates.clear();
-            *candidate_index = None;
         }
         _ => {}
     }
+    state.input.reset_candidates();
     Ok(())
 }
 
 pub fn input_backspace(state: &mut AppState) -> Result<()> {
     match &mut state.input {
-        InputMode::Text { value, .. } => {
+        InputMode::Text { value, .. } | InputMode::File { value, .. } => {
             value.pop();
-        }
-        InputMode::File {
-            value,
-            candidates,
-            candidate_index,
-            ..
-        } => {
-            value.pop();
-            candidates.clear();
-            *candidate_index = None;
         }
         _ => {}
     }
+    state.input.reset_candidates();
     Ok(())
 }
 
