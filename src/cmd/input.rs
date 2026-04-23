@@ -73,7 +73,9 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
         InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
         InputMode::File { action, value, .. } => execute_file_action(state, action, value.as_str()),
         InputMode::None | InputMode::Error { .. } => Ok(()),
-    }
+    }?;
+    state.filer.checked_paths.clear();
+    Ok(())
 }
 
 pub fn input_cancel(state: &mut AppState) -> Result<()> {
@@ -171,28 +173,25 @@ fn action_title(action_name: &str, files: &[VFile]) -> String {
     }
 }
 
-fn execute_confirm_action(state: &mut AppState, action: ConfirmAction) -> Result<()> {
+fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()> {
     match action {
         ConfirmAction::Delete { files } => execute_deletes(files),
     }?;
-    state.filer.checked_paths.clear();
     Ok(())
 }
 
-fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) -> Result<()> {
+fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Result<()> {
     match action {
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
         TextAction::Rename { file } => execute_rename(file, value),
     }?;
-    state.filer.checked_paths.clear();
     Ok(())
 }
 
-fn execute_file_action(state: &mut AppState, action: FileAction, value: &str) -> Result<()> {
+fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => execute_copy(files, value),
     }?;
-    state.filer.checked_paths.clear();
     Ok(())
 }
 
