@@ -178,7 +178,8 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
         if entry_path.is_dir() {
             copy_dir_recursive(&entry_path, &dest_path)?;
         } else {
-            std::fs::copy(&entry_path, &dest_path)?;
+            std::fs::copy(&entry_path, &dest_path)
+                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
         }
     }
     Ok(())
