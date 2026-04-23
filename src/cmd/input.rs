@@ -196,27 +196,15 @@ fn execute_file_action(state: &mut AppState, action: FileAction, value: &str) ->
 }
 
 fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {
-    let mut errors = Vec::new();
     for file in &files {
-        if let Err(e) = file.copy_to(value) {
-            errors.push(e);
-        }
-    }
-    if !errors.is_empty() {
-        anyhow::bail!("{}/{} files failed", errors.len(), files.len());
+        file.copy_to(value)?
     }
     Ok(())
 }
 
 fn execute_deletes(files: Vec<VFile>) -> Result<()> {
-    let mut errors = Vec::new();
     for file in &files {
-        if let Err(e) = file.delete() {
-            errors.push(e);
-        }
-    }
-    if !errors.is_empty() {
-        anyhow::bail!("{}/{} files failed", errors.len(), files.len());
+        file.delete()?
     }
     Ok(())
 }
