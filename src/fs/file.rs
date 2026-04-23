@@ -72,8 +72,7 @@ impl VFile {
             Path::new(dir_name)
                 .components()
                 .all(|c| matches!(c, Component::Normal(_))),
-            "{}: Invalid dir name",
-            dir_name
+            "{dir_name}: Invalid dir name"
         );
         let path = Path::new(self.absolute_path());
         let dir_path = path.join(dir_name);
@@ -91,8 +90,7 @@ impl VFile {
             Path::new(name)
                 .components()
                 .all(|c| matches!(c, Component::Normal(_))),
-            "{}: Invalid file name",
-            name
+            "{name}: Invalid file name"
         );
         let path = Path::new(self.absolute_path());
         let new_path = path
@@ -156,8 +154,8 @@ fn unique_path(path: &Path) -> Result<PathBuf> {
 
         for i in 1..=1000 {
             let new_name = match &ext {
-                Some(ext) => format!("{}_{}.{}", stem, i, ext),
-                None => format!("{}_{}", stem, i),
+                Some(ext) => format!("{stem}_{i}.{ext}"),
+                None => format!("{stem}_{i}"),
             };
             let candidate = parent.join(&new_name);
             if !candidate.exists() {

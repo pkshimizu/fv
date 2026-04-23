@@ -116,7 +116,7 @@ pub fn input_delete(state: &mut AppState) -> Result<()> {
 pub fn input_mkdir(state: &mut AppState) -> Result<()> {
     let dir = state.filer.current_dir.clone();
     if let Some(file_name) = dir.file_name() {
-        let title = format!("Create directory in {}", file_name);
+        let title = format!("Create directory in {file_name}");
         state.input = InputMode::Text {
             title,
             action: TextAction::Mkdir { dir },
@@ -130,7 +130,7 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
     let selected_file = state.filer.selected_file();
     if let Some(selected_file) = selected_file {
         if let Some(file_name) = selected_file.file_name() {
-            let title = format!("Rename {}", file_name);
+            let title = format!("Rename {file_name}");
             state.input = InputMode::Text {
                 title,
                 action: TextAction::Rename {

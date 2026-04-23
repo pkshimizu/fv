@@ -20,7 +20,7 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
         .iter()
         .filter_map(|file| {
             let metadata = file.metadata().ok()?;
-            let checked = if filer_state.is_checked(&file) {
+            let checked = if filer_state.is_checked(file) {
                 "*"
             } else {
                 " "
