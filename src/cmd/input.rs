@@ -110,6 +110,26 @@ pub fn input_mkdir(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn input_move(state: &mut AppState) -> Result<()> {
+    let files = collect_action_targets(state);
+    if !files.is_empty() {
+        let title = action_title("Move to", &files);
+        let init_value = if files.len() == 1 {
+            files[0].absolute_path()
+        } else {
+            state.filer.current_dir.absolute_path()
+        };
+        state.input = InputMode::File {
+            title,
+            value: init_value.to_string(),
+            candidates: Vec::new(),
+            candidate_index: None,
+            action: FileAction::Move { files },
+        };
+    }
+    Ok(())
+}
+
 pub fn input_rename(state: &mut AppState) -> Result<()> {
     let selected_file = state.filer.selected_file();
     if let Some(selected_file) = selected_file {
@@ -146,9 +166,7 @@ fn action_title(action_name: &str, files: &[VFile]) -> String {
         format!(
             "{} {}?",
             action_name,
-            files[0]
-                .file_name()
-                .unwrap_or("(unknown)")
+            files[0].file_name().unwrap_or("(unknown)")
         )
     } else {
         format!("{} {} files?", action_name, files.len())
@@ -171,12 +189,20 @@ fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Res
 fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => execute_copy(files, value),
+        FileAction::Move { files } => execute_move(files, value),
     }
 }
 
 fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {
     for file in &files {
         file.copy_to(value)?
+    }
+    Ok(())
+}
+
+fn execute_move(files: Vec<VFile>, value: &str) -> Result<()> {
+    for file in &files {
+        file.move_to(value)?
     }
     Ok(())
 }

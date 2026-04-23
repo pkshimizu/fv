@@ -138,6 +138,27 @@ impl VFile {
 
         Ok(())
     }
+
+    pub fn move_to(&self, path: &str) -> Result<()> {
+        let dest = Path::new(path);
+        let src = Path::new(self.absolute_path());
+
+        let dest_path = if dest.is_dir() {
+            let file_name = src
+                .file_name()
+                .with_context(|| format!("{}: No file name", self.path))?;
+            unique_path(&dest.join(file_name))?
+        } else if dest.exists() {
+            unique_path(dest)?
+        } else {
+            dest.to_path_buf()
+        };
+
+        rename(src, &dest_path)
+            .with_context(|| format!("{}: Failed to move file", dest_path.display()))?;
+
+        Ok(())
+    }
 }
 
 const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
