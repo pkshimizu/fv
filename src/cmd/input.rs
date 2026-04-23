@@ -167,7 +167,7 @@ fn action_title(action_name: &str, files: &[VFile]) -> String {
 
 fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()> {
     match action {
-        ConfirmAction::Delete { files } => execute_deletes(files),
+        ConfirmAction::Delete { files } => execute_delete(files),
     }
 }
 
@@ -199,7 +199,7 @@ fn execute_move(files: Vec<VFile>, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn execute_deletes(files: Vec<VFile>) -> Result<()> {
+fn execute_delete(files: Vec<VFile>) -> Result<()> {
     for file in &files {
         file.delete()?
     }

@@ -132,8 +132,17 @@ impl VFile {
         let src = Path::new(self.absolute_path());
         let dest_path = resolve_dest_path(src, path, &self.path)?;
 
-        rename(src, &dest_path)
-            .with_context(|| format!("{}: Failed to move file", dest_path.display()))?;
+        // renameが失敗した場合（クロスデバイス移動等）はコピー+削除にフォールバック
+        if rename(src, &dest_path).is_err() {
+            self.copy_to(path)?;
+            if src.is_dir() {
+                std::fs::remove_dir_all(src)
+                    .with_context(|| format!("{}: Failed to remove source directory", src.display()))?;
+            } else {
+                std::fs::remove_file(src)
+                    .with_context(|| format!("{}: Failed to remove source file", src.display()))?;
+            }
+        }
 
         Ok(())
     }
