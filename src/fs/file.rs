@@ -29,7 +29,7 @@ impl VFile {
         &self.path
     }
 
-    pub fn file_name(&self) -> Option<String> {
+    pub fn file_name(&self) -> Option<> {
         let file_name = Path::new(&self.path).file_name()?;
         let file_name_str = file_name.to_str()?;
         Some(file_name_str.to_string())
@@ -148,7 +148,7 @@ fn unique_path(path: &Path) -> Result<PathBuf> {
         return Ok(path.to_path_buf());
     }
 
-    let parent = path.parent().unwrap_or(Path::new("."));
+    let parent = path.parent().context("Failed to get parent directory")?;
     let stem = path.file_stem().map(|s| s.to_string_lossy().to_string());
     if let Some(stem) = stem {
         let ext = path.extension().map(|e| e.to_string_lossy().to_string());

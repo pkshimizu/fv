@@ -202,7 +202,7 @@ fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {
             errors.push(e);
         }
     }
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         anyhow::bail!("{}/{} files failed", errors.len(), files.len());
     }
     Ok(())
@@ -215,7 +215,7 @@ fn execute_deletes(files: Vec<VFile>) -> Result<()> {
             errors.push(e);
         }
     }
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         anyhow::bail!("{}/{} files failed", errors.len(), files.len());
     }
     Ok(())
