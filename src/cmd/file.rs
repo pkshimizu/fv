@@ -5,7 +5,7 @@ pub fn enter_file(state: &mut AppState) -> Result<()> {
     let Some(file) = state.filer.selected_file() else {
         return Ok(());
     };
-    let is_dir = file.is_dir()?;
+    let is_dir = file.is_dir();
     let path = file.absolute_path().to_string();
     if is_dir {
         state.filer.change_to(&path)?;

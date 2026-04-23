@@ -78,10 +78,11 @@ impl EventHandler {
 
     fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
-            (_, KeyCode::Char('q')) => Command::Quit,
+            (_, KeyCode::Char('c')) => Command::InputCopy,
             (_, KeyCode::Char('d')) => Command::InputDelete,
             (_, KeyCode::Char('k')) => Command::InputMkdir,
             (_, KeyCode::Char('r')) => Command::InputRename,
+            (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,
@@ -98,6 +99,14 @@ impl EventHandler {
             InputMode::Text { .. } => match key.code {
                 KeyCode::Char(c) => Command::InputChar(c),
                 KeyCode::Backspace => Command::InputBackspace,
+                KeyCode::Enter => Command::InputOk,
+                KeyCode::Esc => Command::InputCancel,
+                _ => Command::None,
+            },
+            InputMode::File { .. } => match key.code {
+                KeyCode::Char(c) => Command::InputChar(c),
+                KeyCode::Backspace => Command::InputBackspace,
+                KeyCode::Tab => Command::InputTab,
                 KeyCode::Enter => Command::InputOk,
                 KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,

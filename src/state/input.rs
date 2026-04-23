@@ -11,6 +11,11 @@ pub enum ConfirmAction {
     Delete { files: Vec<VFile> },
 }
 
+#[derive(Debug)]
+pub enum FileAction {
+    Copy { files: Vec<VFile> },
+}
+
 #[derive(Debug, Default)]
 pub enum InputMode {
     #[default]
@@ -19,6 +24,13 @@ pub enum InputMode {
         title: String,
         value: String,
         action: TextAction,
+    },
+    File {
+        title: String,
+        value: String,
+        candidates: Vec<String>,
+        candidate_index: Option<usize>,
+        action: FileAction,
     },
     Confirm {
         title: String,
@@ -32,5 +44,17 @@ pub enum InputMode {
 impl InputMode {
     pub fn is_active(&self) -> bool {
         !matches!(self, InputMode::None)
+    }
+
+    pub fn reset_candidates(&mut self) {
+        if let InputMode::File {
+            candidates,
+            candidate_index,
+            ..
+        } = self
+        {
+            candidates.clear();
+            *candidate_index = None;
+        }
     }
 }

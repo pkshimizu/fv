@@ -1,7 +1,7 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
 use std::fs::{create_dir, read_dir, rename};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct VFile {
@@ -29,10 +29,8 @@ impl VFile {
         &self.path
     }
 
-    pub fn file_name(&self) -> Option<String> {
-        let file_name = Path::new(&self.path).file_name()?;
-        let file_name_str = file_name.to_str()?;
-        Some(file_name_str.to_string())
+    pub fn file_name(&self) -> Option<&str> {
+        Path::new(&self.path).file_name()?.to_str()
     }
 
     pub fn parent_dir(&self) -> Option<VFile> {
@@ -60,8 +58,8 @@ impl VFile {
             .with_context(|| format!("{}: No metadata", self.path))
     }
 
-    pub fn is_dir(&self) -> Result<bool> {
-        Ok(self.metadata()?.is_dir())
+    pub fn is_dir(&self) -> bool {
+        self.metadata.as_ref().is_some_and(|m| m.is_dir())
     }
 
     pub fn create_dir(&self, dir_name: &str) -> Result<()> {
@@ -72,8 +70,7 @@ impl VFile {
             Path::new(dir_name)
                 .components()
                 .all(|c| matches!(c, Component::Normal(_))),
-            "{}: Invalid dir name",
-            dir_name
+            "{dir_name}: Invalid dir name"
         );
         let path = Path::new(self.absolute_path());
         let dir_path = path.join(dir_name);
@@ -91,20 +88,20 @@ impl VFile {
             Path::new(name)
                 .components()
                 .all(|c| matches!(c, Component::Normal(_))),
-            "{}: Invalid file name",
-            name
+            "{name}: Invalid file name"
         );
         let path = Path::new(self.absolute_path());
-        if let Some(parent_path) = path.parent() {
-            let new_path = parent_path.join(name);
-            anyhow::ensure!(
-                !new_path.exists(),
-                "{}: File already exists",
-                new_path.display()
-            );
-            rename(path, &new_path)
-                .with_context(|| format!("{}: Failed to rename file", new_path.display()))?;
-        }
+        let new_path = path
+            .parent()
+            .context("Failed to get parent path")?
+            .join(name);
+        anyhow::ensure!(
+            !new_path.exists(),
+            "{}: File already exists",
+            new_path.display()
+        );
+        rename(path, &new_path)
+            .with_context(|| format!("{}: Failed to rename file", new_path.display()))?;
 
         Ok(())
     }
@@ -115,4 +112,75 @@ impl VFile {
 
         Ok(())
     }
+
+    pub fn copy_to(&self, path: &str) -> Result<()> {
+        let dest = Path::new(path);
+        let src = Path::new(self.absolute_path());
+
+        let dest_path = if dest.is_dir() {
+            let file_name = src
+                .file_name()
+                .with_context(|| format!("{}: No file name", self.path))?;
+            unique_path(&dest.join(file_name))?
+        } else if dest.exists() {
+            unique_path(dest)?
+        } else {
+            dest.to_path_buf()
+        };
+
+        if src.is_dir() {
+            copy_dir_recursive(src, &dest_path)
+                .with_context(|| format!("{}: Failed to copy directory", dest_path.display()))?;
+        } else {
+            std::fs::copy(src, &dest_path)
+                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
+        }
+
+        Ok(())
+    }
+}
+
+const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
+
+fn unique_path(path: &Path) -> Result<PathBuf> {
+    if !path.exists() {
+        return Ok(path.to_path_buf());
+    }
+
+    let parent = path.parent().context("Failed to get parent directory")?;
+    let stem = path
+        .file_stem()
+        .context("Failed to get file stem")?
+        .to_string_lossy();
+    let ext = path.extension().map(|e| e.to_string_lossy());
+
+    for i in 1..=MAX_UNIQUE_PATH_SUFFIX {
+        let new_name = match &ext {
+            Some(ext) => format!("{stem}_{i}.{ext}"),
+            None => format!("{stem}_{i}"),
+        };
+        let candidate = parent.join(&new_name);
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    anyhow::bail!("Failed to make unique path")
+}
+
+fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for entry in read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let entry_path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir_recursive(&entry_path, &dest_path)?;
+        } else {
+            // シンボリックリンクはリンク先の内容をファイルとしてコピーする
+            std::fs::copy(&entry_path, &dest_path)
+                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
+        }
+    }
+    Ok(())
 }

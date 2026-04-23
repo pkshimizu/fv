@@ -6,19 +6,23 @@ pub fn change_to_parent(state: &mut AppState) -> Result<()> {
 }
 
 pub fn up_cursor(state: &mut AppState) -> Result<()> {
-    Ok(state.filer.prev())
+    state.filer.prev();
+    Ok(())
 }
 
 pub fn down_cursor(state: &mut AppState) -> Result<()> {
-    Ok(state.filer.next())
+    state.filer.next();
+    Ok(())
 }
 
 pub fn first_cursor(state: &mut AppState) -> Result<()> {
-    Ok(state.filer.first())
+    state.filer.first();
+    Ok(())
 }
 
 pub fn last_cursor(state: &mut AppState) -> Result<()> {
-    Ok(state.filer.last())
+    state.filer.last();
+    Ok(())
 }
 
 pub fn refresh_files(state: &mut AppState) -> Result<()> {
