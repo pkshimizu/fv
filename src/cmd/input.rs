@@ -248,7 +248,7 @@ fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
                 return None;
             }
             let mut s = f.absolute_path().to_string();
-            if f.is_dir().unwrap_or(false) {
+            if f.is_dir() {
                 s.push('/');
             }
             Some(s)

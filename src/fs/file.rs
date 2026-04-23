@@ -60,8 +60,8 @@ impl VFile {
             .with_context(|| format!("{}: No metadata", self.path))
     }
 
-    pub fn is_dir(&self) -> Result<bool> {
-        Ok(self.metadata()?.is_dir())
+    pub fn is_dir(&self) -> bool {
+        self.metadata.as_ref().is_some_and(|m| m.is_dir())
     }
 
     pub fn create_dir(&self, dir_name: &str) -> Result<()> {
