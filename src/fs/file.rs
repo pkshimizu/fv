@@ -171,9 +171,13 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<()> {
     std::fs::create_dir_all(dest)?;
     for entry in read_dir(src)? {
         let entry = entry?;
+        let file_type = entry.file_type()?;
         let entry_path = entry.path();
         let dest_path = dest.join(entry.file_name());
-        if entry_path.is_dir() {
+        if file_type.is_symlink() {
+            std::fs::copy(&entry_path, &dest_path)
+                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
+        } else if file_type.is_dir() {
             copy_dir_recursive(&entry_path, &dest_path)?;
         } else {
             std::fs::copy(&entry_path, &dest_path)
