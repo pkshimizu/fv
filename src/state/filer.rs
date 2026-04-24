@@ -5,11 +5,34 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 #[derive(Debug)]
+struct FilerFilter {
+    show_dot_file: bool,
+}
+
+impl FilerFilter {
+    fn new() -> Self {
+        Self {
+            show_dot_file: false,
+        }
+    }
+
+    fn apply(&self, files: Vec<VFile>) -> Vec<VFile> {
+        files
+            .into_iter()
+            .filter(|file| {
+                self.show_dot_file || file.file_name().is_none_or(|name| !name.starts_with('.'))
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug)]
 pub struct FilerState {
     pub current_dir: VFile,
     pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
     pub checked_paths: HashSet<String>,
+    filter: FilerFilter,
 }
 
 impl FilerState {
@@ -19,6 +42,7 @@ impl FilerState {
             current_dir_files: Vec::new(),
             file_table_state: TableState::default(),
             checked_paths: HashSet::new(),
+            filter: FilerFilter::new(),
         }
     }
 
@@ -137,12 +161,19 @@ impl FilerState {
         }
     }
 
+    pub fn toggle_show_dot_file(&mut self) -> Result<()> {
+        self.filter.show_dot_file = !self.filter.show_dot_file;
+        self.refresh_files()
+    }
+
     fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
         let mut files = if let Some(current_dir) = &current_dir {
             current_dir.list()?
         } else {
             self.current_dir.list()?
         };
+        files = self.filter.apply(files);
+
         files.sort_by(|a, b| match (a.is_dir(), b.is_dir()) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
