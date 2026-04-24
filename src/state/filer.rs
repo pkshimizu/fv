@@ -107,39 +107,6 @@ impl FilerState {
     }
 
     pub fn refresh_files(&mut self) -> Result<()> {
-        self.reload_current_dir()
-    }
-
-    pub fn selected_file(&self) -> Option<&VFile> {
-        let selected_index = self.file_table_state.selected();
-        selected_index.and_then(|i| self.current_dir_files.get(i))
-    }
-
-    pub fn is_checked(&self, file: &VFile) -> bool {
-        self.is_checked_path(file.absolute_path())
-    }
-
-    fn is_checked_path(&self, path: &str) -> bool {
-        self.checked_paths.contains(path)
-    }
-
-    pub fn toggle_checked_file(&mut self) {
-        if let Some(selected_file) = self.selected_file() {
-            let path = selected_file.absolute_path().to_string();
-            if self.is_checked_path(&path) {
-                self.checked_paths.remove(&path);
-            } else {
-                self.checked_paths.insert(path);
-            }
-        }
-    }
-
-    pub fn toggle_show_dot_file(&mut self) -> Result<()> {
-        self.filter.show_dot_file = !self.filter.show_dot_file;
-        self.reload_current_dir()
-    }
-
-    fn reload_current_dir(&mut self) -> Result<()> {
         let selected_name = self
             .selected_file()
             .and_then(|f| f.file_name().map(String::from));
@@ -168,6 +135,35 @@ impl FilerState {
         });
 
         Ok(())
+    }
+
+    pub fn selected_file(&self) -> Option<&VFile> {
+        let selected_index = self.file_table_state.selected();
+        selected_index.and_then(|i| self.current_dir_files.get(i))
+    }
+
+    pub fn is_checked(&self, file: &VFile) -> bool {
+        self.is_checked_path(file.absolute_path())
+    }
+
+    fn is_checked_path(&self, path: &str) -> bool {
+        self.checked_paths.contains(path)
+    }
+
+    pub fn toggle_checked_file(&mut self) {
+        if let Some(selected_file) = self.selected_file() {
+            let path = selected_file.absolute_path().to_string();
+            if self.is_checked_path(&path) {
+                self.checked_paths.remove(&path);
+            } else {
+                self.checked_paths.insert(path);
+            }
+        }
+    }
+
+    pub fn toggle_show_dot_file(&mut self) -> Result<()> {
+        self.filter.show_dot_file = !self.filter.show_dot_file;
+        self.refresh_files()
     }
 
     fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
