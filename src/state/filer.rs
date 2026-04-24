@@ -107,34 +107,7 @@ impl FilerState {
     }
 
     pub fn refresh_files(&mut self) -> Result<()> {
-        let selected_name = self
-            .selected_file()
-            .and_then(|f| f.file_name().map(String::from));
-
-        self.load_current_dir(None)?;
-
-        // 選択ファイル状態の更新
-        if let Some(name) = selected_name {
-            let new_index = self
-                .current_dir_files
-                .iter()
-                .position(|f| f.file_name().unwrap_or_default() == name)
-                .unwrap_or(0);
-            self.file_table_state.select(Some(
-                new_index.min(self.current_dir_files.len().saturating_sub(1)),
-            ));
-        } else {
-            self.file_table_state.select(Some(0));
-        }
-
-        // チェック済みファイルの更新
-        self.checked_paths.retain(|path| {
-            self.current_dir_files
-                .iter()
-                .any(|file| file.absolute_path() == path.as_str())
-        });
-
-        Ok(())
+        self.reload_current_dir()
     }
 
     pub fn selected_file(&self) -> Option<&VFile> {
@@ -163,7 +136,37 @@ impl FilerState {
 
     pub fn toggle_show_dot_file(&mut self) -> Result<()> {
         self.filter.show_dot_file = !self.filter.show_dot_file;
+        self.reload_current_dir()
+    }
+
+    fn reload_current_dir(&mut self) -> Result<()> {
+        let selected_name = self
+            .selected_file()
+            .and_then(|f| f.file_name().map(String::from));
+
         self.load_current_dir(None)?;
+
+        // 選択ファイル状態の更新
+        if let Some(name) = selected_name {
+            let new_index = self
+                .current_dir_files
+                .iter()
+                .position(|f| f.file_name().unwrap_or_default() == name)
+                .unwrap_or(0);
+            self.file_table_state.select(Some(
+                new_index.min(self.current_dir_files.len().saturating_sub(1)),
+            ));
+        } else {
+            self.file_table_state.select(Some(0));
+        }
+
+        // チェック済みファイルの更新
+        self.checked_paths.retain(|path| {
+            self.current_dir_files
+                .iter()
+                .any(|file| file.absolute_path() == path.as_str())
+        });
+
         Ok(())
     }
 
