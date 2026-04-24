@@ -5,11 +5,39 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 #[derive(Debug)]
+struct FilerFilter {
+    dot_file: bool
+}
+
+impl FilerFilter {
+    pub fn new() -> Self {
+        Self {
+            dot_file: false
+        }
+    }
+
+    pub fn filter(&self, files: Vec<VFile>) -> Vec<VFile> {
+        files
+            .into_iter()
+            .filter(|file| {
+                if !self.dot_file {
+                    if let Some(name) = file.file_name() {
+                        return !name.starts_with('.');
+                    }
+                }
+                true
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug)]
 pub struct FilerState {
     pub current_dir: VFile,
     pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
     pub checked_paths: HashSet<String>,
+    filter: FilerFilter,
 }
 
 impl FilerState {
@@ -19,6 +47,7 @@ impl FilerState {
             current_dir_files: Vec::new(),
             file_table_state: TableState::default(),
             checked_paths: HashSet::new(),
+            filter: FilerFilter::new(),
         }
     }
 
@@ -143,6 +172,8 @@ impl FilerState {
         } else {
             self.current_dir.list()?
         };
+        files = self.filter.filter(files);
+
         files.sort_by(|a, b| match (a.is_dir(), b.is_dir()) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
