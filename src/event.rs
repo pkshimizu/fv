@@ -85,6 +85,7 @@ impl EventHandler {
             (_, KeyCode::Char('r')) => Command::InputRename,
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
+            (_, KeyCode::Char('.')) => Command::FilterToggleShowDotFile,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,
             (_, KeyCode::Left) => Command::MoveCursorLeft,

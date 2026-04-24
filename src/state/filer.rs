@@ -162,6 +162,12 @@ impl FilerState {
         }
     }
 
+    pub fn toggle_show_dot_file(&mut self) -> Result<()> {
+        self.filter.show_dot_file = !self.filter.show_dot_file;
+        self.load_current_dir(None)?;
+        Ok(())
+    }
+
     fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
         let mut files = if let Some(current_dir) = &current_dir {
             current_dir.list()?

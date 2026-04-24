@@ -34,3 +34,8 @@ pub fn toggle_checked_file(state: &mut AppState) -> Result<()> {
     state.filer.next();
     Ok(())
 }
+
+pub fn toggle_show_dot_file(state: &mut AppState) -> Result<()> {
+    state.filer.toggle_show_dot_file()?;
+    Ok(())
+}
