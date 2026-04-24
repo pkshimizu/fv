@@ -20,8 +20,7 @@ impl FilerFilter {
         files
             .into_iter()
             .filter(|file| {
-                self.show_dot_file
-                    || file.file_name().is_none_or(|name| !name.starts_with('.'))
+                self.show_dot_file || file.file_name().is_none_or(|name| !name.starts_with('.'))
             })
             .collect()
     }
