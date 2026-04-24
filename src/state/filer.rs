@@ -6,26 +6,21 @@ use std::collections::HashSet;
 
 #[derive(Debug)]
 struct FilerFilter {
-    dot_file: bool
+    show_dot_file: bool,
 }
 
 impl FilerFilter {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
-            dot_file: false
+            show_dot_file: false,
         }
     }
 
-    pub fn filter(&self, files: Vec<VFile>) -> Vec<VFile> {
+    fn apply(&self, files: Vec<VFile>) -> Vec<VFile> {
         files
             .into_iter()
             .filter(|file| {
-                if !self.dot_file {
-                    if let Some(name) = file.file_name() {
-                        return !name.starts_with('.');
-                    }
-                }
-                true
+                self.show_dot_file || file.file_name().map_or(true, |name| !name.starts_with('.'))
             })
             .collect()
     }
@@ -172,7 +167,7 @@ impl FilerState {
         } else {
             self.current_dir.list()?
         };
-        files = self.filter.filter(files);
+        files = self.filter.apply(files);
 
         files.sort_by(|a, b| match (a.is_dir(), b.is_dir()) {
             (true, false) => Ordering::Less,
