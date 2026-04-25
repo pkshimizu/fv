@@ -39,6 +39,10 @@ impl SortKey {
         SortKey::ALL.iter().position(|k| k == self).unwrap_or(0)
     }
 
+    fn is_size(&self) -> bool {
+        matches!(self, SortKey::SizeAsc | SortKey::SizeDesc)
+    }
+
     fn compare(&self, a: &VFile, b: &VFile) -> Ordering {
         match self {
             SortKey::NameAsc => a.file_name().cmp(&b.file_name()),
@@ -245,6 +249,7 @@ impl FilerState {
             match (a.is_dir(), b.is_dir()) {
                 (true, false) => Ordering::Less,
                 (false, true) => Ordering::Greater,
+                (true, true) if sort_key.is_size() => a.file_name().cmp(&b.file_name()),
                 _ => sort_key.compare(a, b),
             }
         });
