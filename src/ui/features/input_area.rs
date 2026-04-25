@@ -12,6 +12,29 @@ pub fn build_input_area(input: &InputMode) -> Paragraph {
                     .padding(Padding::horizontal(1)),
             )
         }
+        InputMode::Select {
+            title,
+            options,
+            selected_index,
+            ..
+        } => {
+            let items: Vec<String> = options
+                .iter()
+                .enumerate()
+                .map(|(i, opt)| {
+                    if i == *selected_index {
+                        format!("[{opt}]")
+                    } else {
+                        format!(" {opt} ")
+                    }
+                })
+                .collect();
+            Paragraph::new(items.join(" ")).block(
+                Block::bordered()
+                    .title(title.as_str())
+                    .padding(Padding::horizontal(1)),
+            )
+        }
         InputMode::Confirm { title, .. } => Paragraph::new("Yes(y) No(n)").block(
             Block::bordered()
                 .title(title.as_str())

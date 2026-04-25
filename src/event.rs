@@ -113,6 +113,13 @@ impl EventHandler {
                 KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,
             },
+            InputMode::Select { .. } => match key.code {
+                KeyCode::Left => Command::InputSelectLeft,
+                KeyCode::Right => Command::InputSelectRight,
+                KeyCode::Enter => Command::InputOk,
+                KeyCode::Esc => Command::InputCancel,
+                _ => Command::None,
+            },
             InputMode::Confirm { .. } => match key.code {
                 KeyCode::Char('y') | KeyCode::Enter => Command::InputOk,
                 KeyCode::Char('n') | KeyCode::Esc => Command::InputCancel,
