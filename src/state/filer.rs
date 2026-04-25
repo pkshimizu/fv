@@ -4,7 +4,7 @@ use ratatui::widgets::TableState;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SortKey {
     NameAsc,
     NameDesc,
@@ -47,25 +47,25 @@ impl SortKey {
         match self {
             SortKey::NameAsc => a.file_name().cmp(&b.file_name()),
             SortKey::NameDesc => b.file_name().cmp(&a.file_name()),
-            SortKey::SizeAsc => {
+            SortKey::SizeAsc | SortKey::SizeDesc => {
                 let sa = a.metadata().map(|m| m.file_size()).unwrap_or(0);
                 let sb = b.metadata().map(|m| m.file_size()).unwrap_or(0);
-                sa.cmp(&sb)
+                let ord = sa.cmp(&sb);
+                if matches!(self, SortKey::SizeDesc) {
+                    ord.reverse()
+                } else {
+                    ord
+                }
             }
-            SortKey::SizeDesc => {
-                let sa = a.metadata().map(|m| m.file_size()).unwrap_or(0);
-                let sb = b.metadata().map(|m| m.file_size()).unwrap_or(0);
-                sb.cmp(&sa)
-            }
-            SortKey::DateAsc => {
+            SortKey::DateAsc | SortKey::DateDesc => {
                 let da = a.metadata().ok().and_then(|m| m.modified().ok());
                 let db = b.metadata().ok().and_then(|m| m.modified().ok());
-                da.cmp(&db)
-            }
-            SortKey::DateDesc => {
-                let da = a.metadata().ok().and_then(|m| m.modified().ok());
-                let db = b.metadata().ok().and_then(|m| m.modified().ok());
-                db.cmp(&da)
+                let ord = da.cmp(&db);
+                if matches!(self, SortKey::DateDesc) {
+                    ord.reverse()
+                } else {
+                    ord
+                }
             }
         }
     }
