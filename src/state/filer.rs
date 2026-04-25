@@ -4,6 +4,73 @@ use ratatui::widgets::TableState;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum SortKey {
+    NameAsc,
+    NameDesc,
+    SizeAsc,
+    SizeDesc,
+    DateAsc,
+    DateDesc,
+}
+
+impl SortKey {
+    pub const ALL: [SortKey; 6] = [
+        SortKey::NameAsc,
+        SortKey::NameDesc,
+        SortKey::SizeAsc,
+        SortKey::SizeDesc,
+        SortKey::DateAsc,
+        SortKey::DateDesc,
+    ];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            SortKey::NameAsc => "Name ↑",
+            SortKey::NameDesc => "Name ↓",
+            SortKey::SizeAsc => "Size ↑",
+            SortKey::SizeDesc => "Size ↓",
+            SortKey::DateAsc => "Date ↑",
+            SortKey::DateDesc => "Date ↓",
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        SortKey::ALL.iter().position(|k| k == self).unwrap_or(0)
+    }
+
+    fn is_apply_for_dirs(&self) -> bool {
+        !matches!(self, SortKey::SizeAsc | SortKey::SizeDesc)
+    }
+
+    fn compare(&self, a: &VFile, b: &VFile) -> Ordering {
+        match self {
+            SortKey::NameAsc => a.file_name().cmp(&b.file_name()),
+            SortKey::NameDesc => b.file_name().cmp(&a.file_name()),
+            SortKey::SizeAsc | SortKey::SizeDesc => {
+                let sa = a.metadata().map(|m| m.file_size()).unwrap_or(0);
+                let sb = b.metadata().map(|m| m.file_size()).unwrap_or(0);
+                let ord = sa.cmp(&sb);
+                if matches!(self, SortKey::SizeDesc) {
+                    ord.reverse()
+                } else {
+                    ord
+                }
+            }
+            SortKey::DateAsc | SortKey::DateDesc => {
+                let da = a.metadata().ok().and_then(|m| m.modified().ok());
+                let db = b.metadata().ok().and_then(|m| m.modified().ok());
+                let ord = da.cmp(&db);
+                if matches!(self, SortKey::DateDesc) {
+                    ord.reverse()
+                } else {
+                    ord
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct FilerFilter {
     show_dot_file: bool,
@@ -32,6 +99,7 @@ pub struct FilerState {
     pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
     pub checked_paths: HashSet<String>,
+    pub sort_key: SortKey,
     filter: FilerFilter,
 }
 
@@ -42,6 +110,7 @@ impl FilerState {
             current_dir_files: Vec::new(),
             file_table_state: TableState::default(),
             checked_paths: HashSet::new(),
+            sort_key: SortKey::NameAsc,
             filter: FilerFilter::new(),
         }
     }
@@ -174,10 +243,15 @@ impl FilerState {
         };
         files = self.filter.apply(files);
 
-        files.sort_by(|a, b| match (a.is_dir(), b.is_dir()) {
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            _ => a.file_name().cmp(&b.file_name()),
+        let sort_key = self.sort_key;
+        files.sort_by(|a, b| {
+            // ディレクトリ優先は常に維持
+            match (a.is_dir(), b.is_dir()) {
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
+                _ => sort_key.compare(a, b),
+            }
         });
 
         if let Some(current_dir) = current_dir {

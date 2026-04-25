@@ -1,5 +1,6 @@
 use crate::state::InputMode;
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 
 pub fn build_input_area(input: &InputMode) -> Paragraph {
@@ -7,6 +8,32 @@ pub fn build_input_area(input: &InputMode) -> Paragraph {
         InputMode::None => Paragraph::new(""),
         InputMode::Text { title, value, .. } | InputMode::File { title, value, .. } => {
             Paragraph::new(format!("{value}_")).block(
+                Block::bordered()
+                    .title(title.as_str())
+                    .padding(Padding::horizontal(1)),
+            )
+        }
+        InputMode::Select {
+            title,
+            options,
+            selected_index,
+            ..
+        } => {
+            let mut spans: Vec<Span> = Vec::new();
+            for (i, opt) in options.iter().enumerate() {
+                if i > 0 {
+                    spans.push(Span::raw(" "));
+                }
+                if i == *selected_index {
+                    spans.push(Span::styled(
+                        format!("[{opt}]"),
+                        Style::default().add_modifier(Modifier::REVERSED),
+                    ));
+                } else {
+                    spans.push(Span::raw(format!(" {opt} ")));
+                }
+            }
+            Paragraph::new(Line::from(spans)).block(
                 Block::bordered()
                     .title(title.as_str())
                     .padding(Padding::horizontal(1)),

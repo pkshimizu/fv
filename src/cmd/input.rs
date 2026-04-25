@@ -1,5 +1,7 @@
 use crate::fs::VFile;
-use crate::state::{AppState, ConfirmAction, FileAction, InputMode, TextAction};
+use crate::state::{
+    AppState, ConfirmAction, FileAction, InputMode, SelectAction, SortKey, TextAction,
+};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -22,6 +24,38 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
         _ => {}
     }
     state.input.reset_candidates();
+    Ok(())
+}
+
+pub fn input_select_left(state: &mut AppState) -> Result<()> {
+    if let InputMode::Select {
+        selected_index,
+        options,
+        ..
+    } = &mut state.input
+    {
+        if *selected_index > 0 {
+            *selected_index -= 1;
+        } else {
+            *selected_index = options.len().saturating_sub(1);
+        }
+    }
+    Ok(())
+}
+
+pub fn input_select_right(state: &mut AppState) -> Result<()> {
+    if let InputMode::Select {
+        selected_index,
+        options,
+        ..
+    } = &mut state.input
+    {
+        if *selected_index + 1 < options.len() {
+            *selected_index += 1;
+        } else {
+            *selected_index = 0;
+        }
+    }
     Ok(())
 }
 
@@ -50,13 +84,27 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 
 pub fn input_ok(state: &mut AppState) -> Result<()> {
     let input = std::mem::replace(&mut state.input, InputMode::None);
+    let skip_clear = matches!(
+        input,
+        InputMode::Select {
+            action: SelectAction::Sort,
+            ..
+        }
+    );
     match input {
         InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
         InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
         InputMode::File { action, value, .. } => execute_file_action(state, action, value.as_str()),
+        InputMode::Select {
+            action,
+            selected_index,
+            ..
+        } => execute_select_action(state, action, selected_index),
         InputMode::None | InputMode::Error { .. } => Ok(()),
     }?;
-    state.filer.checked_paths.clear();
+    if !skip_clear {
+        state.filer.checked_paths.clear();
+    }
     Ok(())
 }
 
@@ -112,6 +160,18 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
             };
         }
     }
+    Ok(())
+}
+
+pub fn input_sort(state: &mut AppState) -> Result<()> {
+    let options: Vec<String> = SortKey::ALL.iter().map(|k| k.label().to_string()).collect();
+    let selected_index = state.filer.sort_key.index();
+    state.input = InputMode::Select {
+        title: "Sort by".to_string(),
+        options,
+        selected_index,
+        action: SelectAction::Sort,
+    };
     Ok(())
 }
 
@@ -182,6 +242,22 @@ fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Res
     match action {
         FileAction::Copy { files } => execute_copy(files, value),
         FileAction::Move { files } => execute_move(files, value),
+    }
+}
+
+fn execute_select_action(
+    state: &mut AppState,
+    action: SelectAction,
+    selected_index: usize,
+) -> Result<()> {
+    match action {
+        SelectAction::Sort => {
+            if let Some(&sort_key) = SortKey::ALL.get(selected_index) {
+                state.filer.sort_key = sort_key;
+                state.filer.refresh_files()?;
+            }
+            Ok(())
+        }
     }
 }
 

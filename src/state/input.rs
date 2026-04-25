@@ -17,6 +17,11 @@ pub enum FileAction {
     Move { files: Vec<VFile> },
 }
 
+#[derive(Debug)]
+pub enum SelectAction {
+    Sort,
+}
+
 #[derive(Debug, Default)]
 pub enum InputMode {
     #[default]
@@ -36,6 +41,12 @@ pub enum InputMode {
     Confirm {
         title: String,
         action: ConfirmAction,
+    },
+    Select {
+        title: String,
+        options: Vec<String>,
+        selected_index: usize,
+        action: SelectAction,
     },
     Error {
         message: String,
