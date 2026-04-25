@@ -83,6 +83,7 @@ impl EventHandler {
             (_, KeyCode::Char('k')) => Command::InputMkdir,
             (_, KeyCode::Char('m')) => Command::InputMove,
             (_, KeyCode::Char('r')) => Command::InputRename,
+            (_, KeyCode::Char('s')) => Command::InputSort,
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Char('.')) => Command::ToggleDotFiles,

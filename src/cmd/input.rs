@@ -1,5 +1,7 @@
 use crate::fs::VFile;
-use crate::state::{AppState, ConfirmAction, FileAction, InputMode, SelectAction, TextAction};
+use crate::state::{
+    AppState, ConfirmAction, FileAction, InputMode, SelectAction, SortKey, TextAction,
+};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -153,6 +155,18 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn input_sort(state: &mut AppState) -> Result<()> {
+    let options: Vec<String> = SortKey::ALL.iter().map(|k| k.label().to_string()).collect();
+    let selected_index = state.filer.sort_key.index();
+    state.input = InputMode::Select {
+        title: "Sort by".to_string(),
+        options,
+        selected_index,
+        action: SelectAction::Sort,
+    };
+    Ok(())
+}
+
 fn collect_action_targets(state: &AppState) -> Vec<VFile> {
     if state.filer.checked_paths.is_empty() {
         state.filer.selected_file().cloned().into_iter().collect()
@@ -224,12 +238,20 @@ fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Res
 }
 
 fn execute_select_action(
-    _state: &mut AppState,
+    state: &mut AppState,
     action: SelectAction,
     _options: &[String],
-    _selected_index: usize,
+    selected_index: usize,
 ) -> Result<()> {
-    match action {}
+    match action {
+        SelectAction::Sort => {
+            if let Some(&sort_key) = SortKey::ALL.get(selected_index) {
+                state.filer.sort_key = sort_key;
+                state.filer.refresh_files()?;
+            }
+            Ok(())
+        }
+    }
 }
 
 fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {

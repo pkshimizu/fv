@@ -2,6 +2,7 @@ use chrono::{DateTime, Datelike, Local, Timelike};
 use std::fmt::{Display, Formatter};
 use std::time::SystemTime;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct VFileTime {
     time: SystemTime,
 }

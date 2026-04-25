@@ -18,7 +18,9 @@ pub enum FileAction {
 }
 
 #[derive(Debug)]
-pub enum SelectAction {}
+pub enum SelectAction {
+    Sort,
+}
 
 #[derive(Debug, Default)]
 pub enum InputMode {
