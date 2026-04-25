@@ -40,7 +40,7 @@ impl SortKey {
     }
 
     fn is_apply_for_dirs(&self) -> bool {
-        matches!(self, SortKey::SizeAsc | SortKey::SizeDesc)
+        !matches!(self, SortKey::SizeAsc | SortKey::SizeDesc)
     }
 
     fn compare(&self, a: &VFile, b: &VFile) -> Ordering {
