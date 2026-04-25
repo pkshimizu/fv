@@ -20,7 +20,6 @@ pub enum FileAction {
 #[derive(Debug)]
 pub enum SelectAction {}
 
-
 #[derive(Debug, Default)]
 pub enum InputMode {
     #[default]
