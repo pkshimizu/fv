@@ -84,19 +84,27 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 
 pub fn input_ok(state: &mut AppState) -> Result<()> {
     let input = std::mem::replace(&mut state.input, InputMode::None);
+    let skip_clear = matches!(
+        input,
+        InputMode::Select {
+            action: SelectAction::Sort,
+            ..
+        }
+    );
     match input {
         InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
         InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
         InputMode::File { action, value, .. } => execute_file_action(state, action, value.as_str()),
         InputMode::Select {
             action,
-            options,
             selected_index,
             ..
-        } => execute_select_action(state, action, &options, selected_index),
+        } => execute_select_action(state, action, selected_index),
         InputMode::None | InputMode::Error { .. } => Ok(()),
     }?;
-    state.filer.checked_paths.clear();
+    if !skip_clear {
+        state.filer.checked_paths.clear();
+    }
     Ok(())
 }
 
@@ -240,7 +248,6 @@ fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Res
 fn execute_select_action(
     state: &mut AppState,
     action: SelectAction,
-    _options: &[String],
     selected_index: usize,
 ) -> Result<()> {
     match action {

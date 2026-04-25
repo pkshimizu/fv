@@ -39,7 +39,7 @@ impl SortKey {
         SortKey::ALL.iter().position(|k| k == self).unwrap_or(0)
     }
 
-    fn is_not_apply_for_dirs(&self) -> bool {
+    fn is_apply_for_dirs(&self) -> bool {
         matches!(self, SortKey::SizeAsc | SortKey::SizeDesc)
     }
 
@@ -249,9 +249,7 @@ impl FilerState {
             match (a.is_dir(), b.is_dir()) {
                 (true, false) => Ordering::Less,
                 (false, true) => Ordering::Greater,
-                (true, true) if sort_key.is_not_apply_for_dirs() => {
-                    a.file_name().cmp(&b.file_name())
-                }
+                (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
                 _ => sort_key.compare(a, b),
             }
         });
