@@ -101,6 +101,7 @@ pub struct FilerState {
     pub checked_paths: HashSet<String>,
     pub sort_key: SortKey,
     filter: FilerFilter,
+    pending_select_name: Option<String>,
 }
 
 impl FilerState {
@@ -112,6 +113,7 @@ impl FilerState {
             checked_paths: HashSet::new(),
             sort_key: SortKey::NameAsc,
             filter: FilerFilter::new(),
+            pending_select_name: None,
         }
     }
 
@@ -175,10 +177,15 @@ impl FilerState {
         Ok(())
     }
 
+    pub fn set_pending_select_name(&mut self, name: String) {
+        self.pending_select_name = Some(name);
+    }
+
     pub fn refresh_files(&mut self) -> Result<()> {
-        let selected_name = self
-            .selected_file()
-            .and_then(|f| f.file_name().map(String::from));
+        let selected_name = self.pending_select_name.take().or_else(|| {
+            self.selected_file()
+                .and_then(|f| f.file_name().map(String::from))
+        });
 
         self.load_current_dir(None)?;
 
