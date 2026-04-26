@@ -231,10 +231,10 @@ fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()>
     }
 }
 
-fn execute_text_action(_: &mut AppState, action: TextAction, value: &str) -> Result<()> {
+fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) -> Result<()> {
     match action {
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
-        TextAction::Rename { file } => execute_rename(file, value),
+        TextAction::Rename { file } => execute_rename(state, file, value),
     }
 }
 
@@ -287,8 +287,9 @@ fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn execute_rename(file: VFile, value: &str) -> Result<()> {
+fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> {
     file.rename(value)?;
+    state.filer.set_pending_select_name(value.to_string());
     Ok(())
 }
 
