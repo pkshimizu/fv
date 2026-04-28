@@ -14,11 +14,7 @@ pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
         }
         _ => {}
     }
-    state.input.reset_candidates();
-    if let InputMode::Search { value, .. } = &state.input {
-        let query = value.clone();
-        state.filer.select_matching_file(&query);
-    }
+    after_input_value_changed(state);
     Ok(())
 }
 
@@ -31,12 +27,15 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
         }
         _ => {}
     }
+    after_input_value_changed(state);
+    Ok(())
+}
+
+fn after_input_value_changed(state: &mut AppState) {
     state.input.reset_candidates();
     if let InputMode::Search { value, .. } = &state.input {
-        let query = value.clone();
-        state.filer.select_matching_file(&query);
+        state.filer.select_matching_file(value);
     }
-    Ok(())
 }
 
 pub fn input_select_left(state: &mut AppState) -> Result<()> {
@@ -185,16 +184,14 @@ pub fn input_search(state: &mut AppState) -> Result<()> {
 
 pub fn input_search_next(state: &mut AppState) -> Result<()> {
     if let InputMode::Search { value, .. } = &state.input {
-        let query = value.clone();
-        state.filer.select_next_matching_file(&query);
+        state.filer.select_next_matching_file(value);
     }
     Ok(())
 }
 
 pub fn input_search_prev(state: &mut AppState) -> Result<()> {
     if let InputMode::Search { value, .. } = &state.input {
-        let query = value.clone();
-        state.filer.select_prev_matching_file(&query);
+        state.filer.select_prev_matching_file(value);
     }
     Ok(())
 }
