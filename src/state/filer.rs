@@ -118,8 +118,11 @@ impl FilerState {
     }
 
     pub fn init(&mut self) -> Result<()> {
-        let home_dir = dirs::home_dir().context("Failed to get home directory")?;
-        let current_dir_path = home_dir.to_str().context("Failed to get path string")?;
+        let init_dir = std::env::current_dir()
+            .ok()
+            .or_else(dirs::home_dir)
+            .context("Failed to get initial directory")?;
+        let current_dir_path = init_dir.to_str().context("Failed to get path string")?;
         self.load_current_dir(Some(VFile::new(current_dir_path)))?;
 
         self.file_table_state.select(Some(0));
