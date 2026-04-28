@@ -6,7 +6,9 @@ use ratatui::widgets::{Block, Padding, Paragraph};
 pub fn build_input_area(input: &InputMode) -> Paragraph {
     match input {
         InputMode::None => Paragraph::new(""),
-        InputMode::Text { title, value, .. } | InputMode::File { title, value, .. } => {
+        InputMode::Text { title, value, .. }
+        | InputMode::File { title, value, .. }
+        | InputMode::Search { title, value, .. } => {
             Paragraph::new(format!("{value}_")).block(
                 Block::bordered()
                     .title(title.as_str())

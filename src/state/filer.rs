@@ -242,6 +242,57 @@ impl FilerState {
         self.refresh_files()
     }
 
+    pub fn select_matching_file(&mut self, query: &str) {
+        if query.is_empty() {
+            return;
+        }
+        let query_lower = query.to_lowercase();
+        for (i, file) in self.current_dir_files.iter().enumerate() {
+            if let Some(name) = file.file_name() {
+                if name.to_lowercase().contains(&query_lower) {
+                    self.file_table_state.select(Some(i));
+                    return;
+                }
+            }
+        }
+    }
+
+    pub fn select_next_matching_file(&mut self, query: &str) {
+        if query.is_empty() {
+            return;
+        }
+        let query_lower = query.to_lowercase();
+        let current = self.file_table_state.selected().unwrap_or(0);
+        let len = self.current_dir_files.len();
+        for offset in 1..=len {
+            let i = (current + offset) % len;
+            if let Some(name) = self.current_dir_files[i].file_name() {
+                if name.to_lowercase().contains(&query_lower) {
+                    self.file_table_state.select(Some(i));
+                    return;
+                }
+            }
+        }
+    }
+
+    pub fn select_prev_matching_file(&mut self, query: &str) {
+        if query.is_empty() {
+            return;
+        }
+        let query_lower = query.to_lowercase();
+        let current = self.file_table_state.selected().unwrap_or(0);
+        let len = self.current_dir_files.len();
+        for offset in 1..=len {
+            let i = (current + len - offset) % len;
+            if let Some(name) = self.current_dir_files[i].file_name() {
+                if name.to_lowercase().contains(&query_lower) {
+                    self.file_table_state.select(Some(i));
+                    return;
+                }
+            }
+        }
+    }
+
     fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
         let mut files = if let Some(current_dir) = &current_dir {
             current_dir.list()?
