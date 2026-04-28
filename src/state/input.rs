@@ -54,6 +54,7 @@ pub enum InputMode {
     Search {
         title: String,
         value: String,
+        original_index: Option<usize>,
     },
 }
 

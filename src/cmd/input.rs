@@ -94,6 +94,9 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_ok(state: &mut AppState) -> Result<()> {
+    if matches!(state.input, InputMode::Search { .. }) {
+        return Ok(());
+    }
     let input = std::mem::replace(&mut state.input, InputMode::None);
     let skip_clear = matches!(
         input,
@@ -120,6 +123,9 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_cancel(state: &mut AppState) -> Result<()> {
+    if let InputMode::Search { original_index, .. } = &state.input {
+        state.filer.file_table_state.select(*original_index);
+    }
     state.input = InputMode::None;
     Ok(())
 }
@@ -175,9 +181,11 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_search(state: &mut AppState) -> Result<()> {
+    let original_index = state.filer.file_table_state.selected();
     state.input = InputMode::Search {
         title: "Search".to_string(),
         value: String::new(),
+        original_index,
     };
     Ok(())
 }

@@ -258,7 +258,11 @@ impl FilerState {
     pub fn select_prev_matching_file(&mut self, query: &str) {
         let current = self.file_table_state.selected().unwrap_or(0);
         let len = self.current_dir_files.len();
-        let start = if len == 0 { 0 } else { (current + len - 1) % len };
+        let start = if len == 0 {
+            0
+        } else {
+            (current + len - 1) % len
+        };
         if let Some(i) = self.find_matching_index(query, start, false) {
             self.file_table_state.select(Some(i));
         }
@@ -272,6 +276,7 @@ impl FilerState {
         if len == 0 {
             return None;
         }
+        let start = start % len;
         let query_lower = query.to_lowercase();
         for step in 0..len {
             let i = if forward {
@@ -280,7 +285,7 @@ impl FilerState {
                 (start + len - step) % len
             };
             if let Some(name) = self.current_dir_files[i].file_name() {
-                if name.to_lowercase().contains(&query_lower) {
+                if contains_case_insensitive(name, &query_lower) {
                     return Some(i);
                 }
             }
@@ -314,4 +319,11 @@ impl FilerState {
         self.current_dir_files = files;
         Ok(())
     }
+}
+
+fn contains_case_insensitive(haystack: &str, needle_lower: &str) -> bool {
+    haystack
+        .as_bytes()
+        .windows(needle_lower.len())
+        .any(|window| window.eq_ignore_ascii_case(needle_lower.as_bytes()))
 }

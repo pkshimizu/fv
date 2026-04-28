@@ -8,13 +8,11 @@ pub fn build_input_area(input: &InputMode) -> Paragraph {
         InputMode::None => Paragraph::new(""),
         InputMode::Text { title, value, .. }
         | InputMode::File { title, value, .. }
-        | InputMode::Search { title, value, .. } => {
-            Paragraph::new(format!("{value}_")).block(
-                Block::bordered()
-                    .title(title.as_str())
-                    .padding(Padding::horizontal(1)),
-            )
-        }
+        | InputMode::Search { title, value, .. } => Paragraph::new(format!("{value}_")).block(
+            Block::bordered()
+                .title(title.as_str())
+                .padding(Padding::horizontal(1)),
+        ),
         InputMode::Select {
             title,
             options,
