@@ -250,7 +250,7 @@ impl FilerState {
 
     pub fn select_next_matching_file(&mut self, query: &str) {
         let current = self.file_table_state.selected().unwrap_or(0);
-        if let Some(i) = self.find_matching_index(query, current + 1, true) {
+        if let Some(i) = self.find_matching_index(query, current.wrapping_add(1), true) {
             self.file_table_state.select(Some(i));
         }
     }

@@ -94,6 +94,8 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_ok(state: &mut AppState) -> Result<()> {
+    // Search モードでは Enter は次の一致への移動（InputSearchNext）に割り当てられているため、
+    // input_ok が呼ばれることはないが、状態クリア等の副作用を回避するため防御的に早期リターンする
     if matches!(state.input, InputMode::Search { .. }) {
         return Ok(());
     }
