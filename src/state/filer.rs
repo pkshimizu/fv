@@ -242,6 +242,51 @@ impl FilerState {
         self.refresh_files()
     }
 
+    pub fn select_matching_file(&mut self, query: &str) {
+        if let Some(i) = self.find_matching_index(query, 0, true) {
+            self.file_table_state.select(Some(i));
+        }
+    }
+
+    pub fn select_next_matching_file(&mut self, query: &str) {
+        let current = self.file_table_state.selected().unwrap_or(0);
+        if let Some(i) = self.find_matching_index(query, current.wrapping_add(1), true) {
+            self.file_table_state.select(Some(i));
+        }
+    }
+
+    pub fn select_prev_matching_file(&mut self, query: &str) {
+        let current = self.file_table_state.selected().unwrap_or(0);
+        if let Some(i) = self.find_matching_index(query, current.wrapping_sub(1), false) {
+            self.file_table_state.select(Some(i));
+        }
+    }
+
+    fn find_matching_index(&self, query: &str, start: usize, forward: bool) -> Option<usize> {
+        if query.is_empty() {
+            return None;
+        }
+        let len = self.current_dir_files.len();
+        if len == 0 {
+            return None;
+        }
+        let start = start % len;
+        let query_lower = query.to_lowercase();
+        for step in 0..len {
+            let i = if forward {
+                (start + step) % len
+            } else {
+                (start + len - step) % len
+            };
+            if let Some(name) = self.current_dir_files[i].file_name() {
+                if name.to_lowercase().contains(&query_lower) {
+                    return Some(i);
+                }
+            }
+        }
+        None
+    }
+
     fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
         let mut files = if let Some(current_dir) = &current_dir {
             current_dir.list()?

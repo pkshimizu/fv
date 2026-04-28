@@ -25,6 +25,9 @@ pub enum Command {
     InputSelectRight,
     InputOk,
     InputCancel,
+    InputSearch,
+    InputSearchNext,
+    InputSearchPrev,
     Quit,
     None,
 }
@@ -54,6 +57,9 @@ impl Command {
             Command::InputSelectRight => input::input_select_right(state),
             Command::InputOk => input::input_ok(state),
             Command::InputCancel => input::input_cancel(state),
+            Command::InputSearch => input::input_search(state),
+            Command::InputSearchNext => input::input_search_next(state),
+            Command::InputSearchPrev => input::input_search_prev(state),
             Command::Quit => app::quit(state),
             Command::None => Ok(()),
         }

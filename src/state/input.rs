@@ -51,6 +51,11 @@ pub enum InputMode {
     Error {
         message: String,
     },
+    Search {
+        title: String,
+        value: String,
+        original_index: Option<usize>,
+    },
 }
 
 impl InputMode {

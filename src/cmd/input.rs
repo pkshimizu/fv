@@ -7,24 +7,35 @@ use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.input {
-        InputMode::Text { value, .. } | InputMode::File { value, .. } => {
+        InputMode::Text { value, .. }
+        | InputMode::File { value, .. }
+        | InputMode::Search { value, .. } => {
             value.push(c);
         }
         _ => {}
     }
-    state.input.reset_candidates();
+    after_input_value_changed(state);
     Ok(())
 }
 
 pub fn input_backspace(state: &mut AppState) -> Result<()> {
     match &mut state.input {
-        InputMode::Text { value, .. } | InputMode::File { value, .. } => {
+        InputMode::Text { value, .. }
+        | InputMode::File { value, .. }
+        | InputMode::Search { value, .. } => {
             value.pop();
         }
         _ => {}
     }
-    state.input.reset_candidates();
+    after_input_value_changed(state);
     Ok(())
+}
+
+fn after_input_value_changed(state: &mut AppState) {
+    state.input.reset_candidates();
+    if let InputMode::Search { value, .. } = &state.input {
+        state.filer.select_matching_file(value);
+    }
 }
 
 pub fn input_select_left(state: &mut AppState) -> Result<()> {
@@ -83,6 +94,11 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_ok(state: &mut AppState) -> Result<()> {
+    // Search モードでは Enter でカーソル位置を維持したまま検索を終了する
+    if matches!(state.input, InputMode::Search { .. }) {
+        state.input = InputMode::None;
+        return Ok(());
+    }
     let input = std::mem::replace(&mut state.input, InputMode::None);
     let skip_clear = matches!(
         input,
@@ -100,7 +116,7 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
             selected_index,
             ..
         } => execute_select_action(state, action, selected_index),
-        InputMode::None | InputMode::Error { .. } => Ok(()),
+        InputMode::None | InputMode::Error { .. } | InputMode::Search { .. } => Ok(()),
     }?;
     if !skip_clear {
         state.filer.checked_paths.clear();
@@ -109,6 +125,9 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_cancel(state: &mut AppState) -> Result<()> {
+    if let InputMode::Search { original_index, .. } = &state.input {
+        state.filer.file_table_state.select(*original_index);
+    }
     state.input = InputMode::None;
     Ok(())
 }
@@ -159,6 +178,30 @@ pub fn input_rename(state: &mut AppState) -> Result<()> {
                 value: file_name.to_string(),
             };
         }
+    }
+    Ok(())
+}
+
+pub fn input_search(state: &mut AppState) -> Result<()> {
+    let original_index = state.filer.file_table_state.selected();
+    state.input = InputMode::Search {
+        title: "Search".to_string(),
+        value: String::new(),
+        original_index,
+    };
+    Ok(())
+}
+
+pub fn input_search_next(state: &mut AppState) -> Result<()> {
+    if let InputMode::Search { value, .. } = &state.input {
+        state.filer.select_next_matching_file(value);
+    }
+    Ok(())
+}
+
+pub fn input_search_prev(state: &mut AppState) -> Result<()> {
+    if let InputMode::Search { value, .. } = &state.input {
+        state.filer.select_prev_matching_file(value);
     }
     Ok(())
 }
