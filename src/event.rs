@@ -7,7 +7,7 @@ use std::time::Duration;
 use crate::cmd::command::Command;
 use crate::state::InputMode;
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
 pub enum AppEvent {
@@ -130,10 +130,9 @@ impl EventHandler {
             InputMode::Search { .. } => match key.code {
                 KeyCode::Char(c) => Command::InputChar(c),
                 KeyCode::Backspace => Command::InputBackspace,
-                KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                    Command::InputSearchPrev
-                }
-                KeyCode::Enter => Command::InputSearchNext,
+                KeyCode::Down => Command::InputSearchNext,
+                KeyCode::Up => Command::InputSearchPrev,
+                KeyCode::Enter => Command::InputOk,
                 KeyCode::Esc => Command::InputCancel,
                 _ => Command::None,
             },
