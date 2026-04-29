@@ -7,6 +7,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
 
+const DOTFILE_STYLE: Style = Style::new().fg(Color::Blue);
+
 fn format_time(time: Result<VFileTime>) -> String {
     if let Ok(time) = time {
         return time.to_string();
@@ -27,7 +29,7 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
             };
             let file_name = file.file_name().unwrap_or_default();
             let is_dotfile = file_name.starts_with('.');
-            let mut row = Row::new(vec![
+            let row = Row::new(vec![
                 Cell::from(checked),
                 Cell::from(file_name.to_string()),
                 Cell::from(metadata.permissions().to_rwx_string()),
@@ -41,9 +43,11 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
                 ),
                 Cell::from(format_time(metadata.modified())),
             ]);
-            if is_dotfile {
-                row = row.style(Style::default().fg(Color::Blue));
-            }
+            let row = if is_dotfile {
+                row.style(DOTFILE_STYLE)
+            } else {
+                row
+            };
             Some(row)
         })
         .collect();
