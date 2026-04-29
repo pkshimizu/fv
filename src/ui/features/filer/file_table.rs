@@ -8,6 +8,7 @@ use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
 
 const DOTFILE_STYLE: Style = Style::new().fg(Color::Blue);
+const DIR_STYLE: Style = Style::new().fg(Color::Green);
 
 fn format_time(time: Result<VFileTime>) -> String {
     if let Ok(time) = time {
@@ -43,7 +44,9 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
                 ),
                 Cell::from(format_time(metadata.modified())),
             ]);
-            let row = if is_dotfile {
+            let row = if metadata.is_dir() {
+                row.style(DIR_STYLE)
+            } else if is_dotfile {
                 row.style(DOTFILE_STYLE)
             } else {
                 row
