@@ -3,9 +3,11 @@ use crate::state::FilerState;
 use anyhow::Result;
 use num_format::{Locale, ToFormattedString};
 use ratatui::layout::{Alignment, Constraint};
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
+
+const DOTFILE_STYLE: Style = Style::new().fg(Color::Blue);
 
 fn format_time(time: Result<VFileTime>) -> String {
     if let Ok(time) = time {
@@ -25,9 +27,11 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
             } else {
                 " "
             };
-            Some(Row::new(vec![
+            let file_name = file.file_name().unwrap_or_default();
+            let is_dotfile = file_name.starts_with('.');
+            let row = Row::new(vec![
                 Cell::from(checked),
-                Cell::from(file.file_name().unwrap_or_default().to_string()),
+                Cell::from(file_name.to_string()),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
                     Text::from(if metadata.is_dir() {
@@ -38,7 +42,13 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
                     .alignment(Alignment::Right),
                 ),
                 Cell::from(format_time(metadata.modified())),
-            ]))
+            ]);
+            let row = if is_dotfile {
+                row.style(DOTFILE_STYLE)
+            } else {
+                row
+            };
+            Some(row)
         })
         .collect();
     Table::new(
