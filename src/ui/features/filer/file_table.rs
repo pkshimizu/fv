@@ -30,12 +30,13 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
             };
             let file_name = file.file_name().unwrap_or_default();
             let is_dotfile = file_name.starts_with('.');
+            let is_dir = metadata.is_dir();
             let row = Row::new(vec![
                 Cell::from(checked),
                 Cell::from(file_name.to_string()),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
-                    Text::from(if metadata.is_dir() {
+                    Text::from(if is_dir {
                         "<dir>".to_string()
                     } else {
                         metadata.file_size().to_formatted_string(&Locale::en)
@@ -44,7 +45,7 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
                 ),
                 Cell::from(format_time(metadata.modified())),
             ]);
-            let row = if metadata.is_dir() {
+            let row = if is_dir {
                 row.style(DIR_STYLE)
             } else if is_dotfile {
                 row.style(DOTFILE_STYLE)
