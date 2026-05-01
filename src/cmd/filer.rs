@@ -28,11 +28,11 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn copy(state: &mut AppState) -> Result<()> {
+pub fn prompt_copy(state: &mut AppState) -> Result<()> {
     start_file_input(state, "Copy to", |files| FileAction::Copy { files })
 }
 
-pub fn delete(state: &mut AppState) -> Result<()> {
+pub fn prompt_delete(state: &mut AppState) -> Result<()> {
     let files = collect_action_targets(state);
     if !files.is_empty() {
         let title = action_title("Delete", &files);
@@ -44,7 +44,7 @@ pub fn delete(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn mkdir(state: &mut AppState) -> Result<()> {
+pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
     let dir = state.filer.current_dir.clone();
     if let Some(file_name) = dir.file_name() {
         let title = format!("Create directory in {file_name}");
@@ -57,11 +57,11 @@ pub fn mkdir(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn move_to(state: &mut AppState) -> Result<()> {
+pub fn prompt_move(state: &mut AppState) -> Result<()> {
     start_file_input(state, "Move to", |files| FileAction::Move { files })
 }
 
-pub fn rename(state: &mut AppState) -> Result<()> {
+pub fn prompt_rename(state: &mut AppState) -> Result<()> {
     let selected_file = state.filer.selected_file();
     if let Some(selected_file) = selected_file {
         if let Some(file_name) = selected_file.file_name() {
@@ -78,7 +78,7 @@ pub fn rename(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn sort(state: &mut AppState) -> Result<()> {
+pub fn prompt_sort(state: &mut AppState) -> Result<()> {
     let options: Vec<String> = SortKey::ALL.iter().map(|k| k.label().to_string()).collect();
     let selected_index = state.filer.sort_key.index();
     state.input = InputMode::Select {
@@ -90,7 +90,7 @@ pub fn sort(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn search(state: &mut AppState) -> Result<()> {
+pub fn prompt_search(state: &mut AppState) -> Result<()> {
     let original_index = state.filer.file_table_state.selected();
     state.input = InputMode::Search {
         title: "Search".to_string(),

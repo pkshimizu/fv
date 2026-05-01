@@ -78,13 +78,13 @@ impl EventHandler {
 
     fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
-            (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::Copy),
-            (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::Search),
-            (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::Delete),
-            (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::Mkdir),
-            (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::Move),
-            (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::Rename),
-            (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::Sort),
+            (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::PromptCopy),
+            (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::PromptSearch),
+            (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::PromptDelete),
+            (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::PromptMkdir),
+            (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),
+            (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::PromptRename),
+            (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::PromptSort),
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char(' ')) => Command::Filer(FilerCommand::ToggleCheckedFile),
             (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
