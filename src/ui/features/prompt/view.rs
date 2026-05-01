@@ -3,7 +3,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 
-pub fn build_input_area(input: &InputMode) -> Paragraph {
+pub fn build_prompt_view(input: &InputMode) -> Paragraph {
     match input {
         InputMode::None => {
             Paragraph::new("q: Quit").block(Block::bordered().padding(Padding::horizontal(1)))

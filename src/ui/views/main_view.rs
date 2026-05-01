@@ -1,5 +1,5 @@
 use crate::state::AppState;
-use crate::ui::features::{build_filer, build_header, build_input_area};
+use crate::ui::features::{build_filer, build_header, build_prompt_view};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
@@ -19,5 +19,5 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState) {
         filer_area,
         &mut state.filer.file_table_state,
     );
-    frame.render_widget(build_input_area(&state.input), input_area);
+    frame.render_widget(build_prompt_view(&state.input), input_area);
 }

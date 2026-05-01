@@ -1,4 +1,4 @@
-use crate::cmd::{app, file, filer, input};
+use crate::cmd::{app, file, filer, prompt};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -62,7 +62,7 @@ impl Executable for FilerCommand {
     }
 }
 
-pub enum InputAreaCommand {
+pub enum PromptCommand {
     Char(char),
     Backspace,
     Tab,
@@ -74,18 +74,18 @@ pub enum InputAreaCommand {
     SearchPrev,
 }
 
-impl Executable for InputAreaCommand {
+impl Executable for PromptCommand {
     fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
         match *self {
-            InputAreaCommand::Char(c) => input::input_char(state, c),
-            InputAreaCommand::Backspace => input::input_backspace(state),
-            InputAreaCommand::Tab => input::input_tab(state),
-            InputAreaCommand::SelectLeft => input::input_select_left(state),
-            InputAreaCommand::SelectRight => input::input_select_right(state),
-            InputAreaCommand::Ok => input::input_ok(state),
-            InputAreaCommand::Cancel => input::input_cancel(state),
-            InputAreaCommand::SearchNext => input::input_search_next(state),
-            InputAreaCommand::SearchPrev => input::input_search_prev(state),
+            PromptCommand::Char(c) => prompt::input_char(state, c),
+            PromptCommand::Backspace => prompt::input_backspace(state),
+            PromptCommand::Tab => prompt::input_tab(state),
+            PromptCommand::SelectLeft => prompt::input_select_left(state),
+            PromptCommand::SelectRight => prompt::input_select_right(state),
+            PromptCommand::Ok => prompt::input_ok(state),
+            PromptCommand::Cancel => prompt::input_cancel(state),
+            PromptCommand::SearchNext => prompt::input_search_next(state),
+            PromptCommand::SearchPrev => prompt::input_search_prev(state),
         }
     }
 }
