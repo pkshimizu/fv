@@ -1,6 +1,6 @@
 mod app;
 mod bookmark_list;
-pub mod cursor;
+pub(crate) mod cursor;
 mod filer;
 mod input;
 

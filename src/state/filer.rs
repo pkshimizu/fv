@@ -145,18 +145,11 @@ impl FilerState {
     }
 
     pub fn first(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        self.file_table_state.select(Some(0));
+        cursor::move_first(&mut self.file_table_state, self.current_dir_files.len());
     }
 
     pub fn last(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        self.file_table_state
-            .select(Some(self.current_dir_files.len() - 1));
+        cursor::move_last(&mut self.file_table_state, self.current_dir_files.len());
     }
 
     pub fn change_to(&mut self, path: &str) -> Result<()> {

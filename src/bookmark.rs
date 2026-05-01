@@ -26,7 +26,7 @@ pub fn load_bookmarks() -> Result<HashSet<String>> {
     }
 }
 
-pub fn sorted_paths(bookmarks: &HashSet<String>) -> Vec<String> {
+pub(crate) fn sorted_paths(bookmarks: &HashSet<String>) -> Vec<String> {
     let mut paths: Vec<String> = bookmarks.iter().cloned().collect();
     paths.sort();
     paths

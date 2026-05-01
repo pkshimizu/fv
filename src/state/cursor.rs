@@ -21,3 +21,17 @@ pub fn move_prev(table_state: &mut TableState, len: usize) {
         }
     }
 }
+
+pub fn move_first(table_state: &mut TableState, len: usize) {
+    if len == 0 {
+        return;
+    }
+    table_state.select(Some(0));
+}
+
+pub fn move_last(table_state: &mut TableState, len: usize) {
+    if len == 0 {
+        return;
+    }
+    table_state.select(Some(len - 1));
+}
