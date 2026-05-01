@@ -1,3 +1,4 @@
+use crate::bookmark;
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -37,4 +38,18 @@ pub fn toggle_checked_file(state: &mut AppState) -> Result<()> {
 
 pub fn toggle_dot_files(state: &mut AppState) -> Result<()> {
     state.filer.toggle_show_dot_file()
+}
+
+pub fn add_bookmark(state: &mut AppState) -> Result<()> {
+    if state.filer.add_bookmarked_file() {
+        bookmark::save_bookmarks(&state.filer.bookmarked_paths)?;
+    }
+    Ok(())
+}
+
+pub fn remove_bookmark(state: &mut AppState) -> Result<()> {
+    if state.filer.remove_bookmarked_file() {
+        bookmark::save_bookmarks(&state.filer.bookmarked_paths)?;
+    }
+    Ok(())
 }

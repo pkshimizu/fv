@@ -88,6 +88,8 @@ impl EventHandler {
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Char('.')) => Command::ToggleDotFiles,
+            (_, KeyCode::Char('+')) => Command::AddBookmark,
+            (_, KeyCode::Char('-')) => Command::RemoveBookmark,
             (_, KeyCode::Up) => Command::MoveCursorUp,
             (_, KeyCode::Down) => Command::MoveCursorDown,
             (_, KeyCode::Left) => Command::MoveCursorLeft,

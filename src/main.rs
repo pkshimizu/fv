@@ -1,4 +1,5 @@
 mod app;
+mod bookmark;
 mod cmd;
 mod config;
 mod event;

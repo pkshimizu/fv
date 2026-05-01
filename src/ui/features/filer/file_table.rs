@@ -34,6 +34,11 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
             let row = Row::new(vec![
                 Cell::from(checked),
                 Cell::from(file_name.to_string()),
+                Cell::from(if filer_state.is_bookmarked(file) {
+                    "B"
+                } else {
+                    " "
+                }),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
                     Text::from(if is_dir {
@@ -60,6 +65,7 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
         [
             Constraint::Max(1),
             Constraint::Fill(1),
+            Constraint::Max(1),
             Constraint::Max(6),
             Constraint::Max(10),
             Constraint::Max(19),

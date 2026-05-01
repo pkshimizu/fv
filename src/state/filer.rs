@@ -1,3 +1,4 @@
+use crate::bookmark;
 use crate::fs::VFile;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
@@ -99,6 +100,7 @@ pub struct FilerState {
     pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
     pub checked_paths: HashSet<String>,
+    pub bookmarked_paths: HashSet<String>,
     pub sort_key: SortKey,
     filter: FilerFilter,
     pending_select_name: Option<String>,
@@ -111,6 +113,7 @@ impl FilerState {
             current_dir_files: Vec::new(),
             file_table_state: TableState::default(),
             checked_paths: HashSet::new(),
+            bookmarked_paths: HashSet::new(),
             sort_key: SortKey::NameAsc,
             filter: FilerFilter::new(),
             pending_select_name: None,
@@ -124,6 +127,8 @@ impl FilerState {
             .context("Failed to get initial directory")?;
         let current_dir_path = init_dir.to_str().context("Failed to get path string")?;
         self.load_current_dir(Some(VFile::new(current_dir_path)))?;
+
+        self.bookmarked_paths = bookmark::load_bookmarks()?;
 
         self.file_table_state.select(Some(0));
         Ok(())
@@ -240,6 +245,26 @@ impl FilerState {
         }
     }
 
+    pub fn is_bookmarked(&self, file: &VFile) -> bool {
+        self.bookmarked_paths.contains(file.absolute_path())
+    }
+
+    pub fn add_bookmarked_file(&mut self) -> bool {
+        if let Some(selected_file) = self.selected_file() {
+            let path = selected_file.absolute_path().to_string();
+            return self.bookmarked_paths.insert(path);
+        }
+        false
+    }
+
+    pub fn remove_bookmarked_file(&mut self) -> bool {
+        if let Some(selected_file) = self.selected_file() {
+            let path = selected_file.absolute_path().to_string();
+            return self.bookmarked_paths.remove(&path);
+        }
+        false
+    }
+
     pub fn toggle_show_dot_file(&mut self) -> Result<()> {
         self.filter.show_dot_file = !self.filter.show_dot_file;
         self.refresh_files()
@@ -316,4 +341,5 @@ impl FilerState {
         self.current_dir_files = files;
         Ok(())
     }
+
 }
