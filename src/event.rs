@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::{Command, FilerCommand, InputAreaCommand};
+use crate::cmd::command::{AppCommand, Executable, FilerCommand, InputAreaCommand};
 use crate::state::InputMode;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
@@ -45,17 +45,17 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self, input: &InputMode) -> Result<Command> {
+    pub fn next(&self, input: &InputMode) -> Result<Box<dyn Executable>> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => {
                 if input.is_active() {
-                    Ok(Self::input_key_to_command(key, input))
+                    Ok(Self::input_key_to_executable(key, input))
                 } else {
-                    Ok(Self::key_to_command(key))
+                    Ok(Self::key_to_executable(key))
                 }
             }
-            Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
-            Err(_) => Ok(Command::None),
+            Ok(AppEvent::FileChange) => Ok(Box::new(FilerCommand::RefreshFiles)),
+            Err(_) => Ok(Box::new(AppCommand::None)),
         }
     }
 
@@ -76,71 +76,71 @@ impl EventHandler {
         Ok(())
     }
 
-    fn key_to_command(key: KeyEvent) -> Command {
+    fn key_to_executable(key: KeyEvent) -> Box<dyn Executable> {
         match (key.modifiers, key.code) {
-            (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::PromptCopy),
-            (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::PromptSearch),
-            (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::PromptDelete),
-            (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::PromptMkdir),
-            (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),
-            (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::PromptRename),
-            (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::PromptSort),
-            (_, KeyCode::Char('q')) => Command::Quit,
-            (_, KeyCode::Char(' ')) => Command::Filer(FilerCommand::ToggleCheckedFile),
-            (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
-            (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
-            (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
-            (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
-            (_, KeyCode::Right) => Command::Filer(FilerCommand::MoveCursorRight),
-            (_, KeyCode::Enter) => Command::Filer(FilerCommand::EnterFile),
-            (_, KeyCode::Backspace) => Command::Filer(FilerCommand::ChangeParentDir),
-            _ => Command::None,
+            (_, KeyCode::Char('c')) => Box::new(FilerCommand::PromptCopy),
+            (_, KeyCode::Char('f')) => Box::new(FilerCommand::PromptSearch),
+            (_, KeyCode::Char('d')) => Box::new(FilerCommand::PromptDelete),
+            (_, KeyCode::Char('k')) => Box::new(FilerCommand::PromptMkdir),
+            (_, KeyCode::Char('m')) => Box::new(FilerCommand::PromptMove),
+            (_, KeyCode::Char('r')) => Box::new(FilerCommand::PromptRename),
+            (_, KeyCode::Char('s')) => Box::new(FilerCommand::PromptSort),
+            (_, KeyCode::Char('q')) => Box::new(AppCommand::Quit),
+            (_, KeyCode::Char(' ')) => Box::new(FilerCommand::ToggleCheckedFile),
+            (_, KeyCode::Char('.')) => Box::new(FilerCommand::ToggleDotFiles),
+            (_, KeyCode::Up) => Box::new(FilerCommand::MoveCursorUp),
+            (_, KeyCode::Down) => Box::new(FilerCommand::MoveCursorDown),
+            (_, KeyCode::Left) => Box::new(FilerCommand::MoveCursorLeft),
+            (_, KeyCode::Right) => Box::new(FilerCommand::MoveCursorRight),
+            (_, KeyCode::Enter) => Box::new(FilerCommand::EnterFile),
+            (_, KeyCode::Backspace) => Box::new(FilerCommand::ChangeParentDir),
+            _ => Box::new(AppCommand::None),
         }
     }
 
-    fn input_key_to_command(key: KeyEvent, input: &InputMode) -> Command {
+    fn input_key_to_executable(key: KeyEvent, input: &InputMode) -> Box<dyn Executable> {
         match input {
             InputMode::Text { .. } => match key.code {
-                KeyCode::Char(c) => Command::InputArea(InputAreaCommand::Char(c)),
-                KeyCode::Backspace => Command::InputArea(InputAreaCommand::Backspace),
-                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
-                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
-                _ => Command::None,
+                KeyCode::Char(c) => Box::new(InputAreaCommand::Char(c)),
+                KeyCode::Backspace => Box::new(InputAreaCommand::Backspace),
+                KeyCode::Enter => Box::new(InputAreaCommand::Ok),
+                KeyCode::Esc => Box::new(InputAreaCommand::Cancel),
+                _ => Box::new(AppCommand::None),
             },
             InputMode::File { .. } => match key.code {
-                KeyCode::Char(c) => Command::InputArea(InputAreaCommand::Char(c)),
-                KeyCode::Backspace => Command::InputArea(InputAreaCommand::Backspace),
-                KeyCode::Tab => Command::InputArea(InputAreaCommand::Tab),
-                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
-                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
-                _ => Command::None,
+                KeyCode::Char(c) => Box::new(InputAreaCommand::Char(c)),
+                KeyCode::Backspace => Box::new(InputAreaCommand::Backspace),
+                KeyCode::Tab => Box::new(InputAreaCommand::Tab),
+                KeyCode::Enter => Box::new(InputAreaCommand::Ok),
+                KeyCode::Esc => Box::new(InputAreaCommand::Cancel),
+                _ => Box::new(AppCommand::None),
             },
             InputMode::Select { .. } => match key.code {
-                KeyCode::Left => Command::InputArea(InputAreaCommand::SelectLeft),
-                KeyCode::Right => Command::InputArea(InputAreaCommand::SelectRight),
-                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
-                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
-                _ => Command::None,
+                KeyCode::Left => Box::new(InputAreaCommand::SelectLeft),
+                KeyCode::Right => Box::new(InputAreaCommand::SelectRight),
+                KeyCode::Enter => Box::new(InputAreaCommand::Ok),
+                KeyCode::Esc => Box::new(InputAreaCommand::Cancel),
+                _ => Box::new(AppCommand::None),
             },
             InputMode::Confirm { .. } => match key.code {
-                KeyCode::Char('y') | KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
-                KeyCode::Char('n') | KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
-                _ => Command::None,
+                KeyCode::Char('y') | KeyCode::Enter => Box::new(InputAreaCommand::Ok),
+                KeyCode::Char('n') | KeyCode::Esc => Box::new(InputAreaCommand::Cancel),
+                _ => Box::new(AppCommand::None),
             },
             InputMode::Search { .. } => match key.code {
-                KeyCode::Char(c) => Command::InputArea(InputAreaCommand::Char(c)),
-                KeyCode::Backspace => Command::InputArea(InputAreaCommand::Backspace),
-                KeyCode::Down => Command::InputArea(InputAreaCommand::SearchNext),
-                KeyCode::Up => Command::InputArea(InputAreaCommand::SearchPrev),
-                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
-                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
-                _ => Command::None,
+                KeyCode::Char(c) => Box::new(InputAreaCommand::Char(c)),
+                KeyCode::Backspace => Box::new(InputAreaCommand::Backspace),
+                KeyCode::Down => Box::new(InputAreaCommand::SearchNext),
+                KeyCode::Up => Box::new(InputAreaCommand::SearchPrev),
+                KeyCode::Enter => Box::new(InputAreaCommand::Ok),
+                KeyCode::Esc => Box::new(InputAreaCommand::Cancel),
+                _ => Box::new(AppCommand::None),
             },
             InputMode::Error { .. } => match key.code {
-                KeyCode::Enter | KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
-                _ => Command::None,
+                KeyCode::Enter | KeyCode::Esc => Box::new(InputAreaCommand::Cancel),
+                _ => Box::new(AppCommand::None),
             },
-            InputMode::None => Command::None,
+            InputMode::None => Box::new(AppCommand::None),
         }
     }
 }

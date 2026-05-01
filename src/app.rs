@@ -32,8 +32,8 @@ impl App {
             terminal.draw(|frame| ui::render_main_view(frame, &mut self.state))?;
 
             // イベントを取得してコマンドに変換
-            let command = self.event_handler.next(&self.state.input)?;
-            if let Err(e) = command.exec(&mut self.state) {
+            let executable = self.event_handler.next(&self.state.input)?;
+            if let Err(e) = executable.exec(&mut self.state) {
                 self.state.input = InputMode::Error {
                     message: format!("{e}"),
                 };

@@ -2,6 +2,24 @@ use crate::cmd::{app, file, filer, input};
 use crate::state::AppState;
 use anyhow::Result;
 
+pub trait Executable {
+    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()>;
+}
+
+pub enum AppCommand {
+    Quit,
+    None,
+}
+
+impl Executable for AppCommand {
+    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
+        match *self {
+            AppCommand::Quit => app::quit(state),
+            AppCommand::None => Ok(()),
+        }
+    }
+}
+
 pub enum FilerCommand {
     MoveCursorUp,
     MoveCursorDown,
@@ -21,9 +39,9 @@ pub enum FilerCommand {
     ToggleDotFiles,
 }
 
-impl FilerCommand {
-    pub fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
+impl Executable for FilerCommand {
+    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
+        match *self {
             FilerCommand::MoveCursorUp => filer::up_cursor(state),
             FilerCommand::MoveCursorDown => filer::down_cursor(state),
             FilerCommand::MoveCursorLeft => filer::first_cursor(state),
@@ -56,9 +74,9 @@ pub enum InputAreaCommand {
     SearchPrev,
 }
 
-impl InputAreaCommand {
-    pub fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
+impl Executable for InputAreaCommand {
+    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
+        match *self {
             InputAreaCommand::Char(c) => input::input_char(state, c),
             InputAreaCommand::Backspace => input::input_backspace(state),
             InputAreaCommand::Tab => input::input_tab(state),
@@ -68,24 +86,6 @@ impl InputAreaCommand {
             InputAreaCommand::Cancel => input::input_cancel(state),
             InputAreaCommand::SearchNext => input::input_search_next(state),
             InputAreaCommand::SearchPrev => input::input_search_prev(state),
-        }
-    }
-}
-
-pub enum Command {
-    Filer(FilerCommand),
-    InputArea(InputAreaCommand),
-    Quit,
-    None,
-}
-
-impl Command {
-    pub fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
-            Command::Filer(cmd) => cmd.exec(state),
-            Command::InputArea(cmd) => cmd.exec(state),
-            Command::Quit => app::quit(state),
-            Command::None => Ok(()),
         }
     }
 }
