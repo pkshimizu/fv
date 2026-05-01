@@ -1,5 +1,6 @@
 use crate::bookmark;
 use crate::fs::VFile;
+use crate::state::cursor;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
 use std::cmp::Ordering;
@@ -135,25 +136,11 @@ impl FilerState {
     }
 
     pub fn next(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        if let Some(selected) = self.file_table_state.selected() {
-            if selected < self.current_dir_files.len() - 1 {
-                self.file_table_state.select(Some(selected + 1));
-            }
-        }
+        cursor::move_next(&mut self.file_table_state, self.current_dir_files.len());
     }
 
     pub fn prev(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        if let Some(selected) = self.file_table_state.selected() {
-            if selected > 0 {
-                self.file_table_state.select(Some(selected - 1));
-            }
-        }
+        cursor::move_prev(&mut self.file_table_state, self.current_dir_files.len());
     }
 
     pub fn first(&mut self) {
@@ -249,20 +236,24 @@ impl FilerState {
         self.bookmarked_paths.contains(file.absolute_path())
     }
 
-    pub fn add_bookmarked_file(&mut self) -> bool {
-        if let Some(selected_file) = self.selected_file() {
-            let path = selected_file.absolute_path().to_string();
-            return self.bookmarked_paths.insert(path);
-        }
-        false
+    pub fn selected_bookmark_path(&self) -> Option<String> {
+        self.selected_file()
+            .map(|f| f.absolute_path().to_string())
+            .filter(|path| !self.bookmarked_paths.contains(path))
     }
 
-    pub fn remove_bookmarked_file(&mut self) -> bool {
-        if let Some(selected_file) = self.selected_file() {
-            let path = selected_file.absolute_path().to_string();
-            return self.bookmarked_paths.remove(&path);
-        }
-        false
+    pub fn selected_unbookmark_path(&self) -> Option<String> {
+        self.selected_file()
+            .map(|f| f.absolute_path().to_string())
+            .filter(|path| self.bookmarked_paths.contains(path))
+    }
+
+    pub fn insert_bookmark(&mut self, path: String) {
+        self.bookmarked_paths.insert(path);
+    }
+
+    pub fn remove_bookmark(&mut self, path: &str) {
+        self.bookmarked_paths.remove(path);
     }
 
     pub fn toggle_show_dot_file(&mut self) -> Result<()> {

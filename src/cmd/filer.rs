@@ -41,15 +41,21 @@ pub fn toggle_dot_files(state: &mut AppState) -> Result<()> {
 }
 
 pub fn add_bookmark(state: &mut AppState) -> Result<()> {
-    if state.filer.add_bookmarked_file() {
-        bookmark::save_bookmarks(&state.filer.bookmarked_paths)?;
+    if let Some(path) = state.filer.selected_bookmark_path() {
+        let mut new_bookmarks = state.filer.bookmarked_paths.clone();
+        new_bookmarks.insert(path.clone());
+        bookmark::save_bookmarks(&new_bookmarks)?;
+        state.filer.insert_bookmark(path);
     }
     Ok(())
 }
 
 pub fn remove_bookmark(state: &mut AppState) -> Result<()> {
-    if state.filer.remove_bookmarked_file() {
-        bookmark::save_bookmarks(&state.filer.bookmarked_paths)?;
+    if let Some(path) = state.filer.selected_unbookmark_path() {
+        let mut new_bookmarks = state.filer.bookmarked_paths.clone();
+        new_bookmarks.remove(&path);
+        bookmark::save_bookmarks(&new_bookmarks)?;
+        state.filer.remove_bookmark(&path);
     }
     Ok(())
 }

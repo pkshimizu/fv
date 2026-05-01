@@ -8,7 +8,7 @@ pub fn build_bookmark_list(state: &BookmarkListState) -> Table<'static> {
     let rows: Vec<Row> = state
         .paths
         .iter()
-        .map(|path| Row::new(vec![Cell::from(path.clone())]))
+        .map(|path| Row::new([Cell::from(path.clone())]))
         .collect();
     Table::new(rows, [Constraint::Fill(1)])
         .block(block)

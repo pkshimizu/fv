@@ -104,10 +104,10 @@ impl EventHandler {
     }
 
     fn bookmark_list_key_to_command(key: KeyEvent) -> Command {
-        match key.code {
-            KeyCode::Up => Command::BookmarkCursorUp,
-            KeyCode::Down => Command::BookmarkCursorDown,
-            KeyCode::Esc | KeyCode::Char('b') => Command::CloseBookmarkList,
+        match (key.modifiers, key.code) {
+            (_, KeyCode::Up) => Command::BookmarkCursorUp,
+            (_, KeyCode::Down) => Command::BookmarkCursorDown,
+            (_, KeyCode::Esc) | (_, KeyCode::Char('b')) => Command::CloseBookmarkList,
             _ => Command::None,
         }
     }
