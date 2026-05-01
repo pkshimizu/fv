@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::state::BookmarkListState;
 use crate::state::FilerState;
 use crate::state::InputMode;
 use anyhow::Result;
@@ -8,6 +9,7 @@ pub struct AppState {
     pub config: Config,
     pub running: bool,
     pub filer: FilerState,
+    pub bookmark_list: Option<BookmarkListState>,
     pub input: InputMode,
 }
 
@@ -18,6 +20,7 @@ impl AppState {
             config,
             running: true,
             filer: filer_state,
+            bookmark_list: None,
             input: InputMode::None,
         }
     }

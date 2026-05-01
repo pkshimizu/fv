@@ -45,11 +45,13 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self, input: &InputMode) -> Result<Command> {
+    pub fn next(&self, input: &InputMode, bookmark_list_active: bool) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => {
                 if input.is_active() {
                     Ok(Self::input_key_to_command(key, input))
+                } else if bookmark_list_active {
+                    Ok(Self::bookmark_list_key_to_command(key))
                 } else {
                     Ok(Self::key_to_command(key))
                 }
@@ -85,6 +87,7 @@ impl EventHandler {
             (_, KeyCode::Char('m')) => Command::InputMove,
             (_, KeyCode::Char('r')) => Command::InputRename,
             (_, KeyCode::Char('s')) => Command::InputSort,
+            (_, KeyCode::Char('b')) => Command::ShowBookmarkList,
             (_, KeyCode::Char('q')) => Command::Quit,
             (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
             (_, KeyCode::Char('.')) => Command::ToggleDotFiles,
@@ -96,6 +99,15 @@ impl EventHandler {
             (_, KeyCode::Right) => Command::MoveCursorRight,
             (_, KeyCode::Enter) => Command::EnterFile,
             (_, KeyCode::Backspace) => Command::ChangeParentDir,
+            _ => Command::None,
+        }
+    }
+
+    fn bookmark_list_key_to_command(key: KeyEvent) -> Command {
+        match key.code {
+            KeyCode::Up => Command::BookmarkCursorUp,
+            KeyCode::Down => Command::BookmarkCursorDown,
+            KeyCode::Esc | KeyCode::Char('b') => Command::CloseBookmarkList,
             _ => Command::None,
         }
     }

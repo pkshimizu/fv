@@ -1,4 +1,4 @@
-use crate::cmd::{app, file, filer, input};
+use crate::cmd::{app, bookmark_list, file, filer, input};
 use crate::state::AppState;
 use anyhow::Result;
 
@@ -14,6 +14,10 @@ pub enum Command {
     ToggleDotFiles,
     AddBookmark,
     RemoveBookmark,
+    ShowBookmarkList,
+    CloseBookmarkList,
+    BookmarkCursorUp,
+    BookmarkCursorDown,
     InputCopy,
     InputDelete,
     InputMkdir,
@@ -48,6 +52,10 @@ impl Command {
             Command::ToggleDotFiles => filer::toggle_dot_files(state),
             Command::AddBookmark => filer::add_bookmark(state),
             Command::RemoveBookmark => filer::remove_bookmark(state),
+            Command::ShowBookmarkList => bookmark_list::show(state),
+            Command::CloseBookmarkList => bookmark_list::close(state),
+            Command::BookmarkCursorUp => bookmark_list::up_cursor(state),
+            Command::BookmarkCursorDown => bookmark_list::down_cursor(state),
             Command::InputCopy => input::input_copy(state),
             Command::InputDelete => input::input_delete(state),
             Command::InputMkdir => input::input_mkdir(state),

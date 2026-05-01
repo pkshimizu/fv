@@ -341,5 +341,4 @@ impl FilerState {
         self.current_dir_files = files;
         Ok(())
     }
-
 }
