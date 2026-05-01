@@ -2,32 +2,79 @@ use crate::cmd::{app, file, filer, input};
 use crate::state::AppState;
 use anyhow::Result;
 
-pub enum Command {
+pub enum FilerCommand {
     MoveCursorUp,
     MoveCursorDown,
     MoveCursorLeft,
     MoveCursorRight,
     EnterFile,
     ChangeParentDir,
+    Copy,
+    Delete,
+    Mkdir,
+    Move,
+    Rename,
+    Sort,
+    Search,
     RefreshFiles,
     ToggleCheckedFile,
     ToggleDotFiles,
-    InputCopy,
-    InputDelete,
-    InputMkdir,
-    InputMove,
-    InputRename,
-    InputSort,
-    InputChar(char),
-    InputBackspace,
-    InputTab,
-    InputSelectLeft,
-    InputSelectRight,
-    InputOk,
-    InputCancel,
-    InputSearch,
-    InputSearchNext,
-    InputSearchPrev,
+}
+
+impl FilerCommand {
+    pub fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
+            FilerCommand::MoveCursorUp => filer::up_cursor(state),
+            FilerCommand::MoveCursorDown => filer::down_cursor(state),
+            FilerCommand::MoveCursorLeft => filer::first_cursor(state),
+            FilerCommand::MoveCursorRight => filer::last_cursor(state),
+            FilerCommand::EnterFile => file::enter_file(state),
+            FilerCommand::ChangeParentDir => filer::change_to_parent(state),
+            FilerCommand::Copy => filer::copy(state),
+            FilerCommand::Delete => filer::delete(state),
+            FilerCommand::Mkdir => filer::mkdir(state),
+            FilerCommand::Move => filer::move_to(state),
+            FilerCommand::Rename => filer::rename(state),
+            FilerCommand::Sort => filer::sort(state),
+            FilerCommand::Search => filer::search(state),
+            FilerCommand::RefreshFiles => filer::refresh_files(state),
+            FilerCommand::ToggleCheckedFile => filer::toggle_checked_file(state),
+            FilerCommand::ToggleDotFiles => filer::toggle_dot_files(state),
+        }
+    }
+}
+
+pub enum InputAreaCommand {
+    Char(char),
+    Backspace,
+    Tab,
+    SelectLeft,
+    SelectRight,
+    Ok,
+    Cancel,
+    SearchNext,
+    SearchPrev,
+}
+
+impl InputAreaCommand {
+    pub fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
+            InputAreaCommand::Char(c) => input::input_char(state, c),
+            InputAreaCommand::Backspace => input::input_backspace(state),
+            InputAreaCommand::Tab => input::input_tab(state),
+            InputAreaCommand::SelectLeft => input::input_select_left(state),
+            InputAreaCommand::SelectRight => input::input_select_right(state),
+            InputAreaCommand::Ok => input::input_ok(state),
+            InputAreaCommand::Cancel => input::input_cancel(state),
+            InputAreaCommand::SearchNext => input::input_search_next(state),
+            InputAreaCommand::SearchPrev => input::input_search_prev(state),
+        }
+    }
+}
+
+pub enum Command {
+    Filer(FilerCommand),
+    InputArea(InputAreaCommand),
     Quit,
     None,
 }
@@ -35,31 +82,8 @@ pub enum Command {
 impl Command {
     pub fn exec(self, state: &mut AppState) -> Result<()> {
         match self {
-            Command::MoveCursorUp => filer::up_cursor(state),
-            Command::MoveCursorDown => filer::down_cursor(state),
-            Command::MoveCursorLeft => filer::first_cursor(state),
-            Command::MoveCursorRight => filer::last_cursor(state),
-            Command::EnterFile => file::enter_file(state),
-            Command::ChangeParentDir => filer::change_to_parent(state),
-            Command::RefreshFiles => filer::refresh_files(state),
-            Command::ToggleCheckedFile => filer::toggle_checked_file(state),
-            Command::ToggleDotFiles => filer::toggle_dot_files(state),
-            Command::InputCopy => input::input_copy(state),
-            Command::InputDelete => input::input_delete(state),
-            Command::InputMkdir => input::input_mkdir(state),
-            Command::InputMove => input::input_move(state),
-            Command::InputRename => input::input_rename(state),
-            Command::InputSort => input::input_sort(state),
-            Command::InputChar(c) => input::input_char(state, c),
-            Command::InputBackspace => input::input_backspace(state),
-            Command::InputTab => input::input_tab(state),
-            Command::InputSelectLeft => input::input_select_left(state),
-            Command::InputSelectRight => input::input_select_right(state),
-            Command::InputOk => input::input_ok(state),
-            Command::InputCancel => input::input_cancel(state),
-            Command::InputSearch => input::input_search(state),
-            Command::InputSearchNext => input::input_search_next(state),
-            Command::InputSearchPrev => input::input_search_prev(state),
+            Command::Filer(cmd) => cmd.exec(state),
+            Command::InputArea(cmd) => cmd.exec(state),
             Command::Quit => app::quit(state),
             Command::None => Ok(()),
         }

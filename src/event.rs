@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::Command;
+use crate::cmd::command::{Command, FilerCommand, InputAreaCommand};
 use crate::state::InputMode;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
@@ -54,7 +54,7 @@ impl EventHandler {
                     Ok(Self::key_to_command(key))
                 }
             }
-            Ok(AppEvent::FileChange) => Ok(Command::RefreshFiles),
+            Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
             Err(_) => Ok(Command::None),
         }
     }
@@ -78,22 +78,22 @@ impl EventHandler {
 
     fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
-            (_, KeyCode::Char('c')) => Command::InputCopy,
-            (_, KeyCode::Char('f')) => Command::InputSearch,
-            (_, KeyCode::Char('d')) => Command::InputDelete,
-            (_, KeyCode::Char('k')) => Command::InputMkdir,
-            (_, KeyCode::Char('m')) => Command::InputMove,
-            (_, KeyCode::Char('r')) => Command::InputRename,
-            (_, KeyCode::Char('s')) => Command::InputSort,
+            (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::Copy),
+            (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::Search),
+            (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::Delete),
+            (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::Mkdir),
+            (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::Move),
+            (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::Rename),
+            (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::Sort),
             (_, KeyCode::Char('q')) => Command::Quit,
-            (_, KeyCode::Char(' ')) => Command::ToggleCheckedFile,
-            (_, KeyCode::Char('.')) => Command::ToggleDotFiles,
-            (_, KeyCode::Up) => Command::MoveCursorUp,
-            (_, KeyCode::Down) => Command::MoveCursorDown,
-            (_, KeyCode::Left) => Command::MoveCursorLeft,
-            (_, KeyCode::Right) => Command::MoveCursorRight,
-            (_, KeyCode::Enter) => Command::EnterFile,
-            (_, KeyCode::Backspace) => Command::ChangeParentDir,
+            (_, KeyCode::Char(' ')) => Command::Filer(FilerCommand::ToggleCheckedFile),
+            (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
+            (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
+            (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
+            (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
+            (_, KeyCode::Right) => Command::Filer(FilerCommand::MoveCursorRight),
+            (_, KeyCode::Enter) => Command::Filer(FilerCommand::EnterFile),
+            (_, KeyCode::Backspace) => Command::Filer(FilerCommand::ChangeParentDir),
             _ => Command::None,
         }
     }
@@ -101,43 +101,43 @@ impl EventHandler {
     fn input_key_to_command(key: KeyEvent, input: &InputMode) -> Command {
         match input {
             InputMode::Text { .. } => match key.code {
-                KeyCode::Char(c) => Command::InputChar(c),
-                KeyCode::Backspace => Command::InputBackspace,
-                KeyCode::Enter => Command::InputOk,
-                KeyCode::Esc => Command::InputCancel,
+                KeyCode::Char(c) => Command::InputArea(InputAreaCommand::Char(c)),
+                KeyCode::Backspace => Command::InputArea(InputAreaCommand::Backspace),
+                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
+                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
                 _ => Command::None,
             },
             InputMode::File { .. } => match key.code {
-                KeyCode::Char(c) => Command::InputChar(c),
-                KeyCode::Backspace => Command::InputBackspace,
-                KeyCode::Tab => Command::InputTab,
-                KeyCode::Enter => Command::InputOk,
-                KeyCode::Esc => Command::InputCancel,
+                KeyCode::Char(c) => Command::InputArea(InputAreaCommand::Char(c)),
+                KeyCode::Backspace => Command::InputArea(InputAreaCommand::Backspace),
+                KeyCode::Tab => Command::InputArea(InputAreaCommand::Tab),
+                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
+                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
                 _ => Command::None,
             },
             InputMode::Select { .. } => match key.code {
-                KeyCode::Left => Command::InputSelectLeft,
-                KeyCode::Right => Command::InputSelectRight,
-                KeyCode::Enter => Command::InputOk,
-                KeyCode::Esc => Command::InputCancel,
+                KeyCode::Left => Command::InputArea(InputAreaCommand::SelectLeft),
+                KeyCode::Right => Command::InputArea(InputAreaCommand::SelectRight),
+                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
+                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
                 _ => Command::None,
             },
             InputMode::Confirm { .. } => match key.code {
-                KeyCode::Char('y') | KeyCode::Enter => Command::InputOk,
-                KeyCode::Char('n') | KeyCode::Esc => Command::InputCancel,
+                KeyCode::Char('y') | KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
+                KeyCode::Char('n') | KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
                 _ => Command::None,
             },
             InputMode::Search { .. } => match key.code {
-                KeyCode::Char(c) => Command::InputChar(c),
-                KeyCode::Backspace => Command::InputBackspace,
-                KeyCode::Down => Command::InputSearchNext,
-                KeyCode::Up => Command::InputSearchPrev,
-                KeyCode::Enter => Command::InputOk,
-                KeyCode::Esc => Command::InputCancel,
+                KeyCode::Char(c) => Command::InputArea(InputAreaCommand::Char(c)),
+                KeyCode::Backspace => Command::InputArea(InputAreaCommand::Backspace),
+                KeyCode::Down => Command::InputArea(InputAreaCommand::SearchNext),
+                KeyCode::Up => Command::InputArea(InputAreaCommand::SearchPrev),
+                KeyCode::Enter => Command::InputArea(InputAreaCommand::Ok),
+                KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
                 _ => Command::None,
             },
             InputMode::Error { .. } => match key.code {
-                KeyCode::Enter | KeyCode::Esc => Command::InputCancel,
+                KeyCode::Enter | KeyCode::Esc => Command::InputArea(InputAreaCommand::Cancel),
                 _ => Command::None,
             },
             InputMode::None => Command::None,

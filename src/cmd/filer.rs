@@ -1,4 +1,7 @@
-use crate::state::AppState;
+use crate::fs::VFile;
+use crate::state::{
+    AppState, ConfirmAction, FileAction, InputMode, SelectAction, SortKey, TextAction,
+};
 use anyhow::Result;
 
 pub fn change_to_parent(state: &mut AppState) -> Result<()> {
@@ -25,6 +28,78 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn copy(state: &mut AppState) -> Result<()> {
+    start_file_input(state, "Copy to", |files| FileAction::Copy { files })
+}
+
+pub fn delete(state: &mut AppState) -> Result<()> {
+    let files = collect_action_targets(state);
+    if !files.is_empty() {
+        let title = action_title("Delete", &files);
+        state.input = InputMode::Confirm {
+            title,
+            action: ConfirmAction::Delete { files },
+        };
+    }
+    Ok(())
+}
+
+pub fn mkdir(state: &mut AppState) -> Result<()> {
+    let dir = state.filer.current_dir.clone();
+    if let Some(file_name) = dir.file_name() {
+        let title = format!("Create directory in {file_name}");
+        state.input = InputMode::Text {
+            title,
+            action: TextAction::Mkdir { dir },
+            value: String::new(),
+        };
+    }
+    Ok(())
+}
+
+pub fn move_to(state: &mut AppState) -> Result<()> {
+    start_file_input(state, "Move to", |files| FileAction::Move { files })
+}
+
+pub fn rename(state: &mut AppState) -> Result<()> {
+    let selected_file = state.filer.selected_file();
+    if let Some(selected_file) = selected_file {
+        if let Some(file_name) = selected_file.file_name() {
+            let title = format!("Rename {file_name}");
+            state.input = InputMode::Text {
+                title,
+                action: TextAction::Rename {
+                    file: selected_file.clone(),
+                },
+                value: file_name.to_string(),
+            };
+        }
+    }
+    Ok(())
+}
+
+pub fn sort(state: &mut AppState) -> Result<()> {
+    let options: Vec<String> = SortKey::ALL.iter().map(|k| k.label().to_string()).collect();
+    let selected_index = state.filer.sort_key.index();
+    state.input = InputMode::Select {
+        title: "Sort by".to_string(),
+        options,
+        selected_index,
+        action: SelectAction::Sort,
+    };
+    Ok(())
+}
+
+pub fn search(state: &mut AppState) -> Result<()> {
+    let original_index = state.filer.file_table_state.selected();
+    state.input = InputMode::Search {
+        title: "Search".to_string(),
+        value: String::new(),
+        original_index,
+    };
+    Ok(())
+}
+
 pub fn refresh_files(state: &mut AppState) -> Result<()> {
     state.filer.refresh_files()
 }
@@ -37,4 +112,54 @@ pub fn toggle_checked_file(state: &mut AppState) -> Result<()> {
 
 pub fn toggle_dot_files(state: &mut AppState) -> Result<()> {
     state.filer.toggle_show_dot_file()
+}
+
+fn start_file_input(
+    state: &mut AppState,
+    label: &str,
+    make_action: impl FnOnce(Vec<VFile>) -> FileAction,
+) -> Result<()> {
+    let files = collect_action_targets(state);
+    if !files.is_empty() {
+        let title = action_title(label, &files);
+        let init_value = if files.len() == 1 {
+            files[0].absolute_path()
+        } else {
+            state.filer.current_dir.absolute_path()
+        };
+        state.input = InputMode::File {
+            title,
+            value: init_value.to_string(),
+            candidates: Vec::new(),
+            candidate_index: None,
+            action: make_action(files),
+        };
+    }
+    Ok(())
+}
+
+fn collect_action_targets(state: &AppState) -> Vec<VFile> {
+    if state.filer.checked_paths.is_empty() {
+        state.filer.selected_file().cloned().into_iter().collect()
+    } else {
+        state
+            .filer
+            .current_dir_files
+            .iter()
+            .filter(|file| state.filer.checked_paths.contains(file.absolute_path()))
+            .cloned()
+            .collect()
+    }
+}
+
+fn action_title(action_name: &str, files: &[VFile]) -> String {
+    if files.len() == 1 {
+        format!(
+            "{} {}?",
+            action_name,
+            files[0].file_name().unwrap_or("(unknown)")
+        )
+    } else {
+        format!("{} {} files?", action_name, files.len())
+    }
 }
