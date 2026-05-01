@@ -1,6 +1,6 @@
 use crate::bookmark;
 use crate::state::AppState;
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 pub fn change_to_parent(state: &mut AppState) -> Result<()> {
     state.filer.change_dir_in_parent_dir()
@@ -42,20 +42,26 @@ pub fn toggle_dot_files(state: &mut AppState) -> Result<()> {
 
 pub fn add_bookmark(state: &mut AppState) -> Result<()> {
     if let Some(path) = state.filer.selected_bookmark_path() {
-        let mut new_bookmarks = state.filer.bookmarked_paths.clone();
-        new_bookmarks.insert(path.clone());
-        bookmark::save_bookmarks(&new_bookmarks)?;
-        state.filer.insert_bookmark(path);
+        state.filer.insert_bookmark(path.clone());
+        if let Err(e) = bookmark::save_bookmarks(&state.filer.bookmarked_paths)
+            .context("Failed to add bookmark")
+        {
+            state.filer.remove_bookmark(&path);
+            return Err(e);
+        }
     }
     Ok(())
 }
 
 pub fn remove_bookmark(state: &mut AppState) -> Result<()> {
     if let Some(path) = state.filer.selected_unbookmark_path() {
-        let mut new_bookmarks = state.filer.bookmarked_paths.clone();
-        new_bookmarks.remove(&path);
-        bookmark::save_bookmarks(&new_bookmarks)?;
         state.filer.remove_bookmark(&path);
+        if let Err(e) = bookmark::save_bookmarks(&state.filer.bookmarked_paths)
+            .context("Failed to remove bookmark")
+        {
+            state.filer.insert_bookmark(path);
+            return Err(e);
+        }
     }
     Ok(())
 }

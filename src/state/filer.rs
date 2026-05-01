@@ -129,7 +129,8 @@ impl FilerState {
         let current_dir_path = init_dir.to_str().context("Failed to get path string")?;
         self.load_current_dir(Some(VFile::new(current_dir_path)))?;
 
-        self.bookmarked_paths = bookmark::load_bookmarks()?;
+        self.bookmarked_paths =
+            bookmark::load_bookmarks().context("Failed to load bookmarks during initialization")?;
 
         self.file_table_state.select(Some(0));
         Ok(())
