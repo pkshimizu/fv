@@ -152,6 +152,20 @@ impl FilerState {
         cursor::move_last(&mut self.file_table_state, self.current_dir_files.len());
     }
 
+    pub fn navigate_to(&mut self, file_path: &str) -> Result<()> {
+        let path = std::path::Path::new(file_path);
+        let parent = path
+            .parent()
+            .and_then(|p| p.to_str())
+            .context("Invalid bookmark path")?;
+        self.change_to(parent)?;
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            self.set_pending_select_name(name.to_string());
+            self.refresh_files()?;
+        }
+        Ok(())
+    }
+
     pub fn change_to(&mut self, path: &str) -> Result<()> {
         self.load_current_dir(Some(VFile::new(path)))?;
         self.file_table_state.select(Some(0));
