@@ -107,6 +107,7 @@ impl EventHandler {
         match (key.modifiers, key.code) {
             (_, KeyCode::Up) => Command::BookmarkCursorUp,
             (_, KeyCode::Down) => Command::BookmarkCursorDown,
+            (_, KeyCode::Enter) => Command::SelectBookmark,
             (_, KeyCode::Esc) | (_, KeyCode::Char('b')) => Command::CloseBookmarkList,
             _ => Command::None,
         }
