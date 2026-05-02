@@ -1,5 +1,6 @@
 use crate::fs::VFileTime;
 use crate::state::FilerState;
+use crate::store::RootStore;
 use anyhow::Result;
 use num_format::{Locale, ToFormattedString};
 use ratatui::layout::{Alignment, Constraint};
@@ -17,7 +18,11 @@ fn format_time(time: Result<VFileTime>) -> String {
     "____-__-__ --:--:--".to_string()
 }
 
-pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Table<'static> {
+pub fn build_file_table(
+    block: Block<'static>,
+    filer_state: &FilerState,
+    store: &RootStore,
+) -> Table<'static> {
     let files = &filer_state.current_dir_files;
     let rows: Vec<Row> = files
         .iter()
@@ -31,9 +36,15 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
             let file_name = file.file_name().unwrap_or_default();
             let is_dotfile = file_name.starts_with('.');
             let is_dir = metadata.is_dir();
+            let is_bookmarked = store.bookmark.has(file.absolute_path());
             let row = Row::new(vec![
                 Cell::from(checked),
                 Cell::from(file_name.to_string()),
+                Cell::from(Text::from(if is_bookmarked {
+                    "B".to_string()
+                } else {
+                    " ".to_string()
+                })),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
                     Text::from(if is_dir {
@@ -60,6 +71,7 @@ pub fn build_file_table(block: Block<'static>, filer_state: &FilerState) -> Tabl
         [
             Constraint::Max(1),
             Constraint::Fill(1),
+            Constraint::Max(1),
             Constraint::Max(6),
             Constraint::Max(10),
             Constraint::Max(19),

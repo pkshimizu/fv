@@ -88,6 +88,8 @@ impl EventHandler {
             (_, KeyCode::Char('q')) => Box::new(AppCommand::Quit),
             (_, KeyCode::Char(' ')) => Box::new(FilerCommand::ToggleCheckedFile),
             (_, KeyCode::Char('.')) => Box::new(FilerCommand::ToggleDotFiles),
+            (_, KeyCode::Char('+')) => Box::new(FilerCommand::AddBookmark),
+            (_, KeyCode::Char('-')) => Box::new(FilerCommand::RemoveBookmark),
             (_, KeyCode::Up) => Box::new(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Box::new(FilerCommand::MoveCursorDown),
             (_, KeyCode::Left) => Box::new(FilerCommand::MoveCursorLeft),

@@ -2,6 +2,7 @@ use crate::fs::VFile;
 use crate::state::{
     AppState, ConfirmAction, FileAction, InputMode, SelectAction, SortKey, TextAction,
 };
+use crate::store::RootStore;
 use anyhow::Result;
 
 pub fn change_to_parent(state: &mut AppState) -> Result<()> {
@@ -97,6 +98,22 @@ pub fn prompt_search(state: &mut AppState) -> Result<()> {
         value: String::new(),
         original_index,
     };
+    Ok(())
+}
+
+pub fn add_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
+    if let Some(selected_file) = state.filer.selected_file() {
+        store.bookmark.add(selected_file.absolute_path());
+        store.bookmark.save()?;
+    }
+    Ok(())
+}
+
+pub fn remove_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
+    if let Some(selected_file) = state.filer.selected_file() {
+        store.bookmark.remove(selected_file.absolute_path());
+        store.bookmark.save()?;
+    }
     Ok(())
 }
 

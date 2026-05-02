@@ -1,9 +1,10 @@
 use crate::cmd::{app, file, filer, prompt};
 use crate::state::AppState;
+use crate::store::RootStore;
 use anyhow::Result;
 
 pub trait Executable {
-    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()>;
+    fn exec(self: Box<Self>, state: &mut AppState, store: &mut RootStore) -> Result<()>;
 }
 
 pub enum AppCommand {
@@ -12,7 +13,7 @@ pub enum AppCommand {
 }
 
 impl Executable for AppCommand {
-    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
+    fn exec(self: Box<Self>, state: &mut AppState, _: &mut RootStore) -> Result<()> {
         match *self {
             AppCommand::Quit => app::quit(state),
             AppCommand::None => Ok(()),
@@ -34,13 +35,15 @@ pub enum FilerCommand {
     PromptRename,
     PromptSort,
     PromptSearch,
+    AddBookmark,
+    RemoveBookmark,
     RefreshFiles,
     ToggleCheckedFile,
     ToggleDotFiles,
 }
 
 impl Executable for FilerCommand {
-    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
+    fn exec(self: Box<Self>, state: &mut AppState, store: &mut RootStore) -> Result<()> {
         match *self {
             FilerCommand::MoveCursorUp => filer::up_cursor(state),
             FilerCommand::MoveCursorDown => filer::down_cursor(state),
@@ -55,6 +58,8 @@ impl Executable for FilerCommand {
             FilerCommand::PromptRename => filer::prompt_rename(state),
             FilerCommand::PromptSort => filer::prompt_sort(state),
             FilerCommand::PromptSearch => filer::prompt_search(state),
+            FilerCommand::AddBookmark => filer::add_bookmark(state, store),
+            FilerCommand::RemoveBookmark => filer::remove_bookmark(state, store),
             FilerCommand::RefreshFiles => filer::refresh_files(state),
             FilerCommand::ToggleCheckedFile => filer::toggle_checked_file(state),
             FilerCommand::ToggleDotFiles => filer::toggle_dot_files(state),
@@ -75,7 +80,7 @@ pub enum PromptCommand {
 }
 
 impl Executable for PromptCommand {
-    fn exec(self: Box<Self>, state: &mut AppState) -> Result<()> {
+    fn exec(self: Box<Self>, state: &mut AppState, _: &mut RootStore) -> Result<()> {
         match *self {
             PromptCommand::Char(c) => prompt::input_char(state, c),
             PromptCommand::Backspace => prompt::input_backspace(state),
