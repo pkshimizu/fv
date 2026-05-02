@@ -20,7 +20,7 @@ impl BookmarkStore {
 
     pub fn load(&mut self) -> Result<()> {
         let path = &self.json_path;
-        match std::fs::read_to_string(&path) {
+        match std::fs::read_to_string(path) {
             Ok(content) => {
                 let paths: HashSet<String> =
                     serde_json::from_str(&content).context("Failed to parse bookmarks file")?;
@@ -41,21 +41,25 @@ impl BookmarkStore {
             std::fs::create_dir_all(parent)
                 .context("Failed to create bookmarks config directory")?;
         }
+        let mut paths: Vec<String> = self.paths.iter().cloned().collect();
+        paths.sort();
         let content =
-            serde_json::to_string_pretty(&self.paths).context("Failed to serialize bookmarks")?;
-        std::fs::write(&path, content).context("Failed to write bookmarks file")?;
+            serde_json::to_string_pretty(&paths).context("Failed to serialize bookmarks")?;
+        std::fs::write(path, content).context("Failed to write bookmarks file")?;
         Ok(())
     }
 
     pub fn add(&mut self, path: &str) -> Result<()> {
-        self.paths.insert(path.to_string());
-        self.save()?;
+        if self.paths.insert(path.to_string()) {
+            self.save()?;
+        }
         Ok(())
     }
 
     pub fn remove(&mut self, path: &str) -> Result<()> {
-        self.paths.remove(path);
-        self.save()?;
+        if self.paths.remove(path) {
+            self.save()?;
+        }
         Ok(())
     }
 
