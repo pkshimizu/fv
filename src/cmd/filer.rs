@@ -101,14 +101,14 @@ pub fn prompt_search(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn add_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
+pub fn add_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
         store.bookmark.add(selected_file.absolute_path())?
     }
     Ok(())
 }
 
-pub fn remove_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
+pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
         store.bookmark.remove(selected_file.absolute_path())?
     }

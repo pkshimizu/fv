@@ -1,20 +1,24 @@
 use anyhow::{Context, Result};
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct BookmarkStore {
     json_path: PathBuf,
-    paths: HashSet<String>,
+    paths: BTreeSet<String>,
 }
 
 impl BookmarkStore {
     pub fn new() -> Result<Self> {
         let config_dir = dirs::config_dir().context("Failed to get config directory")?;
         let json_path = config_dir.join("fv").join("bookmarks.json");
+        if let Some(parent) = json_path.parent() {
+            std::fs::create_dir_all(parent)
+                .context("Failed to create bookmarks config directory")?;
+        }
         Ok(BookmarkStore {
             json_path,
-            paths: HashSet::new(),
+            paths: BTreeSet::new(),
         })
     }
 
@@ -22,7 +26,7 @@ impl BookmarkStore {
         let path = &self.json_path;
         match std::fs::read_to_string(path) {
             Ok(content) => {
-                let paths: HashSet<String> =
+                let paths: BTreeSet<String> =
                     serde_json::from_str(&content).context("Failed to parse bookmarks file")?;
                 self.paths = paths;
                 Ok(())
@@ -37,14 +41,8 @@ impl BookmarkStore {
 
     fn save(&self) -> Result<()> {
         let path = &self.json_path;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create bookmarks config directory")?;
-        }
-        let mut paths: Vec<String> = self.paths.iter().cloned().collect();
-        paths.sort();
         let content =
-            serde_json::to_string_pretty(&paths).context("Failed to serialize bookmarks")?;
+            serde_json::to_string_pretty(&self.paths).context("Failed to serialize bookmarks")?;
         std::fs::write(path, content).context("Failed to write bookmarks file")?;
         Ok(())
     }
