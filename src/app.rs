@@ -24,7 +24,9 @@ impl App {
 
     pub fn init(&mut self) -> Result<()> {
         self.state.init()?;
-        self.store.init()?;
+        if let Err(e) = self.store.init() {
+            tracing::warn!("Failed to initialize bookmark: {}", e);
+        }
         Ok(())
     }
 

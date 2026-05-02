@@ -4,7 +4,7 @@ mod config;
 mod event;
 mod fs;
 mod state;
-pub mod store;
+mod store;
 mod ui;
 
 use anyhow::Result;

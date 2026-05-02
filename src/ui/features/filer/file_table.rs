@@ -40,11 +40,7 @@ pub fn build_file_table(
             let row = Row::new(vec![
                 Cell::from(checked),
                 Cell::from(file_name.to_string()),
-                Cell::from(Text::from(if is_bookmarked {
-                    "B".to_string()
-                } else {
-                    " ".to_string()
-                })),
+                Cell::from(Text::from(if is_bookmarked { "B" } else { " " })),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
                     Text::from(if is_dir {
