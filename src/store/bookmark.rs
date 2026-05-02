@@ -1,9 +1,8 @@
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug)]
 pub struct BookmarkStore {
     json_path: Option<PathBuf>,
     paths: HashSet<String>,
@@ -34,7 +33,7 @@ impl BookmarkStore {
         }
     }
 
-    fn save(&self) -> Result<()> {
+    fn save(&mut self) -> Result<()> {
         let path = self.get_json_path()?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -47,29 +46,28 @@ impl BookmarkStore {
     }
 
     pub fn add(&mut self, path: &str) -> Result<()> {
-        let target_path = path.to_string();
-        if !self.paths.contains(&target_path) {
-            self.paths.insert(target_path);
-        }
+        self.paths.insert(path.to_string());
         self.save()?;
         Ok(())
     }
 
     pub fn remove(&mut self, path: &str) -> Result<()> {
-        self.paths.retain(|p| p != &path);
+        self.paths.remove(path);
         self.save()?;
         Ok(())
     }
 
     pub fn has(&self, path: &str) -> bool {
-        self.paths.contains(&path.to_string())
+        self.paths.contains(path)
     }
 
-    fn get_json_path(&self) -> Result<PathBuf> {
+    fn get_json_path(&mut self) -> Result<PathBuf> {
         if let Some(path) = &self.json_path {
             return Ok(path.clone());
         }
         let config_dir = dirs::config_dir().context("Failed to get config directory")?;
-        Ok(config_dir.join("fv").join("bookmarks.json"))
+        let path = config_dir.join("fv").join("bookmarks.json");
+        self.json_path = Some(path.clone());
+        Ok(path)
     }
 }
