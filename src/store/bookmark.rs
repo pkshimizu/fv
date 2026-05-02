@@ -12,10 +12,6 @@ impl BookmarkStore {
     pub fn new() -> Result<Self> {
         let config_dir = dirs::config_dir().context("Failed to get config directory")?;
         let json_path = config_dir.join("fv").join("bookmarks.json");
-        if let Some(parent) = json_path.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create bookmarks config directory")?;
-        }
         Ok(BookmarkStore {
             json_path,
             paths: BTreeSet::new(),
@@ -35,15 +31,21 @@ impl BookmarkStore {
                 self.paths.clear();
                 Ok(())
             }
-            Err(e) => Err(anyhow::Error::from(e).context("Failed to read bookmarks file")),
+            Err(e) => Err(e).context("Failed to read bookmarks file"),
         }
     }
 
     fn save(&self) -> Result<()> {
-        let path = &self.json_path;
+        let json_path = &self.json_path;
+        if let Some(parent) = json_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .context("Failed to create bookmarks config directory")?;
+            }
+        }
         let content =
             serde_json::to_string_pretty(&self.paths).context("Failed to serialize bookmarks")?;
-        std::fs::write(path, content).context("Failed to write bookmarks file")?;
+        std::fs::write(json_path, content).context("Failed to write bookmarks file")?;
         Ok(())
     }
 
