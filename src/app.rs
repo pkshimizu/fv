@@ -14,12 +14,12 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: Config) -> Self {
-        Self {
+    pub fn new(config: Config) -> Result<Self> {
+        Ok(Self {
             state: AppState::new(config),
-            store: RootStore::new(),
+            store: RootStore::new()?,
             event_handler: EventHandler::default(),
-        }
+        })
     }
 
     pub fn init(&mut self) -> Result<()> {

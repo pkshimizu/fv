@@ -9,10 +9,10 @@ pub struct RootStore {
 }
 
 impl RootStore {
-    pub fn new() -> Self {
-        Self {
-            bookmark: BookmarkStore::new(),
-        }
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            bookmark: BookmarkStore::new()?,
+        })
     }
 
     pub fn init(&mut self) -> Result<()> {

@@ -4,20 +4,22 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct BookmarkStore {
-    json_path: Option<PathBuf>,
+    json_path: PathBuf,
     paths: HashSet<String>,
 }
 
 impl BookmarkStore {
-    pub fn new() -> Self {
-        BookmarkStore {
-            json_path: None,
+    pub fn new() -> Result<Self> {
+        let config_dir = dirs::config_dir().context("Failed to get config directory")?;
+        let json_path = config_dir.join("fv").join("bookmarks.json");
+        Ok(BookmarkStore {
+            json_path,
             paths: HashSet::new(),
-        }
+        })
     }
 
     pub fn load(&mut self) -> Result<()> {
-        let path = self.get_json_path()?;
+        let path = &self.json_path;
         match std::fs::read_to_string(&path) {
             Ok(content) => {
                 let paths: HashSet<String> =
@@ -33,8 +35,8 @@ impl BookmarkStore {
         }
     }
 
-    fn save(&mut self) -> Result<()> {
-        let path = self.get_json_path()?;
+    fn save(&self) -> Result<()> {
+        let path = &self.json_path;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .context("Failed to create bookmarks config directory")?;
@@ -59,15 +61,5 @@ impl BookmarkStore {
 
     pub fn has(&self, path: &str) -> bool {
         self.paths.contains(path)
-    }
-
-    fn get_json_path(&mut self) -> Result<PathBuf> {
-        if let Some(path) = &self.json_path {
-            return Ok(path.clone());
-        }
-        let config_dir = dirs::config_dir().context("Failed to get config directory")?;
-        let path = config_dir.join("fv").join("bookmarks.json");
-        self.json_path = Some(path.clone());
-        Ok(path)
     }
 }
