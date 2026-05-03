@@ -30,6 +30,20 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn enter_file(state: &mut AppState) -> Result<()> {
+    let Some(file) = state.filer.selected_file() else {
+        return Ok(());
+    };
+    let is_dir = file.is_dir();
+    let path = file.absolute_path().to_string();
+    if is_dir {
+        state.filer.change_to(&path)?;
+    } else {
+        open::that(path)?;
+    }
+    Ok(())
+}
+
 pub fn prompt_copy(state: &mut AppState) -> Result<()> {
     start_file_input(state, "Copy to", |files| FileAction::Copy { files })
 }
@@ -116,14 +130,10 @@ pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     Ok(())
 }
 
-pub fn toggle_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
-    if state.bookmark.is_none() {
-        state.bookmark = Some(BookmarkState::new(
-            store.bookmark.paths.iter().cloned().collect(),
-        ));
-    } else {
-        state.bookmark = None;
-    }
+pub fn show_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
+    state.bookmark = Some(BookmarkState::new(
+        store.bookmark.paths.iter().cloned().collect(),
+    ));
     Ok(())
 }
 

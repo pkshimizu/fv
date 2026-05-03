@@ -4,8 +4,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::{AppCommand, Command, FilerCommand, PromptCommand};
-use crate::state::PromptMode;
+use crate::cmd::command::{AppCommand, BookmarkCommand, Command, FilerCommand, PromptCommand};
+use crate::state::{AppState, PromptMode};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -45,11 +45,13 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self, input: &PromptMode) -> Result<Command> {
+    pub fn next(&self, state: &AppState) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => {
-                if input.is_active() {
-                    Ok(Self::prompt_key_to_command(key, input))
+                if state.prompt.is_active() {
+                    Ok(Self::prompt_key_to_command(key, &state.prompt))
+                } else if state.bookmark.is_some() {
+                    Ok(Self::bookmark_key_to_command(key))
                 } else {
                     Ok(Self::key_to_command(key))
                 }
@@ -90,7 +92,7 @@ impl EventHandler {
             (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
             (_, KeyCode::Char('+')) => Command::Filer(FilerCommand::AddBookmark),
             (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
-            (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ToggleBookmark),
+            (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ShowBookmark),
             (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
             (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
@@ -144,6 +146,19 @@ impl EventHandler {
                 _ => Command::App(AppCommand::None),
             },
             PromptMode::None => Command::App(AppCommand::None),
+        }
+    }
+
+    fn bookmark_key_to_command(key: KeyEvent) -> Command {
+        match (key.modifiers, key.code) {
+            (_, KeyCode::Char('-')) => Command::Bookmark(BookmarkCommand::RemoveBookmark),
+            (_, KeyCode::Char('b')) => Command::Bookmark(BookmarkCommand::HideBookmark),
+            (_, KeyCode::Up) => Command::Bookmark(BookmarkCommand::MoveCursorUp),
+            (_, KeyCode::Down) => Command::Bookmark(BookmarkCommand::MoveCursorDown),
+            (_, KeyCode::Left) => Command::Bookmark(BookmarkCommand::MoveCursorLeft),
+            (_, KeyCode::Right) => Command::Bookmark(BookmarkCommand::MoveCursorRight),
+            (_, KeyCode::Enter) => Command::Bookmark(BookmarkCommand::EnterFile),
+            _ => Command::App(AppCommand::None),
         }
     }
 }

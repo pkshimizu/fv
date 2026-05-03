@@ -1,4 +1,4 @@
-use crate::cmd::{app, file, filer, prompt};
+use crate::cmd::{app, bookmark, filer, prompt};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -7,6 +7,7 @@ pub enum Command {
     App(AppCommand),
     Filer(FilerCommand),
     Prompt(PromptCommand),
+    Bookmark(BookmarkCommand),
 }
 
 impl Command {
@@ -15,6 +16,7 @@ impl Command {
             Command::App(cmd) => cmd.exec(state),
             Command::Filer(cmd) => cmd.exec(state, store),
             Command::Prompt(cmd) => cmd.exec(state),
+            Command::Bookmark(cmd) => cmd.exec(state, store),
         }
     }
 }
@@ -49,7 +51,7 @@ pub enum FilerCommand {
     PromptSearch,
     AddBookmark,
     RemoveBookmark,
-    ToggleBookmark,
+    ShowBookmark,
     RefreshFiles,
     ToggleCheckedFile,
     ToggleDotFiles,
@@ -62,7 +64,7 @@ impl FilerCommand {
             FilerCommand::MoveCursorDown => filer::down_cursor(state),
             FilerCommand::MoveCursorLeft => filer::first_cursor(state),
             FilerCommand::MoveCursorRight => filer::last_cursor(state),
-            FilerCommand::EnterFile => file::enter_file(state),
+            FilerCommand::EnterFile => filer::enter_file(state),
             FilerCommand::ChangeParentDir => filer::change_to_parent(state),
             FilerCommand::PromptCopy => filer::prompt_copy(state),
             FilerCommand::PromptDelete => filer::prompt_delete(state),
@@ -73,7 +75,7 @@ impl FilerCommand {
             FilerCommand::PromptSearch => filer::prompt_search(state),
             FilerCommand::AddBookmark => filer::add_bookmark(state, store),
             FilerCommand::RemoveBookmark => filer::remove_bookmark(state, store),
-            FilerCommand::ToggleBookmark => filer::toggle_bookmark(state, store),
+            FilerCommand::ShowBookmark => filer::show_bookmark(state, store),
             FilerCommand::RefreshFiles => filer::refresh_files(state),
             FilerCommand::ToggleCheckedFile => filer::toggle_checked_file(state),
             FilerCommand::ToggleDotFiles => filer::toggle_dot_files(state),
@@ -105,6 +107,30 @@ impl PromptCommand {
             PromptCommand::Cancel => prompt::input_cancel(state),
             PromptCommand::SearchNext => prompt::input_search_next(state),
             PromptCommand::SearchPrev => prompt::input_search_prev(state),
+        }
+    }
+}
+
+pub enum BookmarkCommand {
+    MoveCursorUp,
+    MoveCursorDown,
+    MoveCursorLeft,
+    MoveCursorRight,
+    EnterFile,
+    RemoveBookmark,
+    HideBookmark,
+}
+
+impl BookmarkCommand {
+    fn exec(self, state: &mut AppState, store: &mut RootStore) -> Result<()> {
+        match self {
+            BookmarkCommand::MoveCursorUp => bookmark::up_cursor(state),
+            BookmarkCommand::MoveCursorDown => bookmark::down_cursor(state),
+            BookmarkCommand::MoveCursorLeft => bookmark::first_cursor(state),
+            BookmarkCommand::MoveCursorRight => bookmark::last_cursor(state),
+            BookmarkCommand::EnterFile => bookmark::select(state),
+            BookmarkCommand::RemoveBookmark => bookmark::remove_bookmark(state, store),
+            BookmarkCommand::HideBookmark => bookmark::hide_bookmark(state),
         }
     }
 }

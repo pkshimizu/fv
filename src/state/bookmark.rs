@@ -8,17 +8,51 @@ pub struct BookmarkState {
 
 impl BookmarkState {
     pub fn new(paths: Vec<String>) -> Self {
-        Self {
-            table_state: TableState::default(),
-            paths,
+        let mut table_state = TableState::default();
+        if !paths.is_empty() {
+            table_state.select(Some(0));
+        }
+        Self { table_state, paths }
+    }
+
+    pub fn next(&mut self) {
+        if self.paths.is_empty() {
+            return;
+        }
+        if let Some(selected) = self.table_state.selected() {
+            if selected < self.paths.len() - 1 {
+                self.table_state.select(Some(selected + 1));
+            }
         }
     }
 
-    pub fn next(&mut self) {}
+    pub fn prev(&mut self) {
+        if self.paths.is_empty() {
+            return;
+        }
+        if let Some(selected) = self.table_state.selected() {
+            if selected > 0 {
+                self.table_state.select(Some(selected - 1));
+            }
+        }
+    }
 
-    pub fn prev(&mut self) {}
+    pub fn first(&mut self) {
+        if self.paths.is_empty() {
+            return;
+        }
+        self.table_state.select(Some(0));
+    }
 
-    pub fn selected_path(&self) -> Option<&str> {
-        Some("")
+    pub fn last(&mut self) {
+        if self.paths.is_empty() {
+            return;
+        }
+        self.table_state.select(Some(self.paths.len() - 1));
+    }
+
+    pub fn selected_path(&self) -> Option<&String> {
+        let selected_index = self.table_state.selected();
+        selected_index.and_then(|i| self.paths.get(i))
     }
 }

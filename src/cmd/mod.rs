@@ -1,5 +1,5 @@
 mod app;
+mod bookmark;
 pub mod command;
-mod file;
 mod filer;
 mod prompt;
