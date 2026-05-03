@@ -1,11 +1,12 @@
 use anyhow::{Context, Result};
 use std::collections::BTreeSet;
+use std::collections::btree_set::Iter;
 use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct BookmarkStore {
     json_path: PathBuf,
-    pub paths: BTreeSet<String>,
+    paths: BTreeSet<String>,
 }
 
 impl BookmarkStore {
@@ -47,6 +48,10 @@ impl BookmarkStore {
         std::fs::write(&tmp_path, content).context("Failed to write bookmarks temp file")?;
         std::fs::rename(&tmp_path, json_path).context("Failed to save bookmarks file")?;
         Ok(())
+    }
+
+    pub fn get_paths(&self) -> Iter<String> {
+        self.paths.iter()
     }
 
     pub fn add(&mut self, path: &str) -> Result<()> {
