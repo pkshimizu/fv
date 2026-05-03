@@ -1,15 +1,15 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, InputMode, SelectAction, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey, TextAction,
 };
 use anyhow::{Context, Result};
 use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
-    match &mut state.input {
-        InputMode::Text { value, .. }
-        | InputMode::File { value, .. }
-        | InputMode::Search { value, .. } => {
+    match &mut state.prompt {
+        PromptMode::Text { value, .. }
+        | PromptMode::File { value, .. }
+        | PromptMode::Search { value, .. } => {
             value.push(c);
         }
         _ => {}
@@ -19,10 +19,10 @@ pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
 }
 
 pub fn input_backspace(state: &mut AppState) -> Result<()> {
-    match &mut state.input {
-        InputMode::Text { value, .. }
-        | InputMode::File { value, .. }
-        | InputMode::Search { value, .. } => {
+    match &mut state.prompt {
+        PromptMode::Text { value, .. }
+        | PromptMode::File { value, .. }
+        | PromptMode::Search { value, .. } => {
             value.pop();
         }
         _ => {}
@@ -32,18 +32,18 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
 }
 
 fn after_input_value_changed(state: &mut AppState) {
-    state.input.reset_candidates();
-    if let InputMode::Search { value, .. } = &state.input {
+    state.prompt.reset_candidates();
+    if let PromptMode::Search { value, .. } = &state.prompt {
         state.filer.select_matching_file(value);
     }
 }
 
 pub fn input_select_left(state: &mut AppState) -> Result<()> {
-    if let InputMode::Select {
+    if let PromptMode::Select {
         selected_index,
         options,
         ..
-    } = &mut state.input
+    } = &mut state.prompt
     {
         if *selected_index > 0 {
             *selected_index -= 1;
@@ -55,11 +55,11 @@ pub fn input_select_left(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_select_right(state: &mut AppState) -> Result<()> {
-    if let InputMode::Select {
+    if let PromptMode::Select {
         selected_index,
         options,
         ..
-    } = &mut state.input
+    } = &mut state.prompt
     {
         if *selected_index + 1 < options.len() {
             *selected_index += 1;
@@ -71,12 +71,12 @@ pub fn input_select_right(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_tab(state: &mut AppState) -> Result<()> {
-    if let InputMode::File {
+    if let PromptMode::File {
         value,
         candidates,
         candidate_index,
         ..
-    } = &mut state.input
+    } = &mut state.prompt
     {
         if candidates.is_empty() {
             *candidates = compute_path_candidates(value)?;
@@ -95,28 +95,32 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 
 pub fn input_ok(state: &mut AppState) -> Result<()> {
     // Search モードでは Enter でカーソル位置を維持したまま検索を終了する
-    if matches!(state.input, InputMode::Search { .. }) {
-        state.input = InputMode::None;
+    if matches!(state.prompt, PromptMode::Search { .. }) {
+        state.prompt = PromptMode::None;
         return Ok(());
     }
-    let input = std::mem::replace(&mut state.input, InputMode::None);
+    let input = std::mem::replace(&mut state.prompt, PromptMode::None);
     let skip_clear = matches!(
         input,
-        InputMode::Select {
+        PromptMode::Select {
             action: SelectAction::Sort,
             ..
         }
     );
     match input {
-        InputMode::Confirm { action, .. } => execute_confirm_action(state, action),
-        InputMode::Text { action, value, .. } => execute_text_action(state, action, value.as_str()),
-        InputMode::File { action, value, .. } => execute_file_action(state, action, value.as_str()),
-        InputMode::Select {
+        PromptMode::Confirm { action, .. } => execute_confirm_action(state, action),
+        PromptMode::Text { action, value, .. } => {
+            execute_text_action(state, action, value.as_str())
+        }
+        PromptMode::File { action, value, .. } => {
+            execute_file_action(state, action, value.as_str())
+        }
+        PromptMode::Select {
             action,
             selected_index,
             ..
         } => execute_select_action(state, action, selected_index),
-        InputMode::None | InputMode::Error { .. } | InputMode::Search { .. } => Ok(()),
+        PromptMode::None | PromptMode::Error { .. } | PromptMode::Search { .. } => Ok(()),
     }?;
     if !skip_clear {
         state.filer.checked_paths.clear();
@@ -125,22 +129,22 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_cancel(state: &mut AppState) -> Result<()> {
-    if let InputMode::Search { original_index, .. } = &state.input {
+    if let PromptMode::Search { original_index, .. } = &state.prompt {
         state.filer.file_table_state.select(*original_index);
     }
-    state.input = InputMode::None;
+    state.prompt = PromptMode::None;
     Ok(())
 }
 
 pub fn input_search_next(state: &mut AppState) -> Result<()> {
-    if let InputMode::Search { value, .. } = &state.input {
+    if let PromptMode::Search { value, .. } = &state.prompt {
         state.filer.select_next_matching_file(value);
     }
     Ok(())
 }
 
 pub fn input_search_prev(state: &mut AppState) -> Result<()> {
-    if let InputMode::Search { value, .. } = &state.input {
+    if let PromptMode::Search { value, .. } = &state.prompt {
         state.filer.select_prev_matching_file(value);
     }
     Ok(())

@@ -2,7 +2,7 @@ use ratatui::DefaultTerminal;
 
 use crate::config::Config;
 use crate::event::EventHandler;
-use crate::state::{AppState, InputMode};
+use crate::state::{AppState, PromptMode};
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::Result;
@@ -38,9 +38,9 @@ impl App {
             terminal.draw(|frame| ui::render_main_view(frame, &mut self.state, &self.store))?;
 
             // イベントを取得してコマンドに変換
-            let command = self.event_handler.next(&self.state.input)?;
+            let command = self.event_handler.next(&self.state.prompt)?;
             if let Err(e) = command.exec(&mut self.state, &mut self.store) {
-                self.state.input = InputMode::Error {
+                self.state.prompt = PromptMode::Error {
                     message: format!("{e}"),
                 };
             }

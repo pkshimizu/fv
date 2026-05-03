@@ -1,6 +1,6 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, InputMode, SelectAction, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use anyhow::Result;
@@ -37,7 +37,7 @@ pub fn prompt_delete(state: &mut AppState) -> Result<()> {
     let files = collect_action_targets(state);
     if !files.is_empty() {
         let title = action_title("Delete", &files);
-        state.input = InputMode::Confirm {
+        state.prompt = PromptMode::Confirm {
             title,
             action: ConfirmAction::Delete { files },
         };
@@ -49,7 +49,7 @@ pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
     let dir = state.filer.current_dir.clone();
     if let Some(file_name) = dir.file_name() {
         let title = format!("Create directory in {file_name}");
-        state.input = InputMode::Text {
+        state.prompt = PromptMode::Text {
             title,
             action: TextAction::Mkdir { dir },
             value: String::new(),
@@ -67,7 +67,7 @@ pub fn prompt_rename(state: &mut AppState) -> Result<()> {
     if let Some(selected_file) = selected_file {
         if let Some(file_name) = selected_file.file_name() {
             let title = format!("Rename {file_name}");
-            state.input = InputMode::Text {
+            state.prompt = PromptMode::Text {
                 title,
                 action: TextAction::Rename {
                     file: selected_file.clone(),
@@ -82,7 +82,7 @@ pub fn prompt_rename(state: &mut AppState) -> Result<()> {
 pub fn prompt_sort(state: &mut AppState) -> Result<()> {
     let options: Vec<String> = SortKey::ALL.iter().map(|k| k.label().to_string()).collect();
     let selected_index = state.filer.sort_key.index();
-    state.input = InputMode::Select {
+    state.prompt = PromptMode::Select {
         title: "Sort by".to_string(),
         options,
         selected_index,
@@ -93,7 +93,7 @@ pub fn prompt_sort(state: &mut AppState) -> Result<()> {
 
 pub fn prompt_search(state: &mut AppState) -> Result<()> {
     let original_index = state.filer.file_table_state.selected();
-    state.input = InputMode::Search {
+    state.prompt = PromptMode::Search {
         title: "Search".to_string(),
         value: String::new(),
         original_index,
@@ -142,7 +142,7 @@ fn start_file_input(
         } else {
             state.filer.current_dir.absolute_path()
         };
-        state.input = InputMode::File {
+        state.prompt = PromptMode::File {
             title,
             value: init_value.to_string(),
             candidates: Vec::new(),

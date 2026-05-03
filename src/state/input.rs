@@ -23,7 +23,7 @@ pub enum SelectAction {
 }
 
 #[derive(Debug, Default)]
-pub enum InputMode {
+pub enum PromptMode {
     #[default]
     None,
     Text {
@@ -58,13 +58,13 @@ pub enum InputMode {
     },
 }
 
-impl InputMode {
+impl PromptMode {
     pub fn is_active(&self) -> bool {
-        !matches!(self, InputMode::None)
+        !matches!(self, PromptMode::None)
     }
 
     pub fn reset_candidates(&mut self) {
-        if let InputMode::File {
+        if let PromptMode::File {
             candidates,
             candidate_index,
             ..

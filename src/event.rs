@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::{AppCommand, Command, FilerCommand, PromptCommand};
-use crate::state::InputMode;
+use crate::state::PromptMode;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -45,7 +45,7 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self, input: &InputMode) -> Result<Command> {
+    pub fn next(&self, input: &PromptMode) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => {
                 if input.is_active() {
@@ -100,16 +100,16 @@ impl EventHandler {
         }
     }
 
-    fn prompt_key_to_command(key: KeyEvent, input: &InputMode) -> Command {
+    fn prompt_key_to_command(key: KeyEvent, input: &PromptMode) -> Command {
         match input {
-            InputMode::Text { .. } => match key.code {
+            PromptMode::Text { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            InputMode::File { .. } => match key.code {
+            PromptMode::File { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
@@ -117,19 +117,19 @@ impl EventHandler {
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            InputMode::Select { .. } => match key.code {
+            PromptMode::Select { .. } => match key.code {
                 KeyCode::Left => Command::Prompt(PromptCommand::SelectLeft),
                 KeyCode::Right => Command::Prompt(PromptCommand::SelectRight),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            InputMode::Confirm { .. } => match key.code {
+            PromptMode::Confirm { .. } => match key.code {
                 KeyCode::Char('y') | KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Char('n') | KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            InputMode::Search { .. } => match key.code {
+            PromptMode::Search { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Down => Command::Prompt(PromptCommand::SearchNext),
@@ -138,11 +138,11 @@ impl EventHandler {
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            InputMode::Error { .. } => match key.code {
+            PromptMode::Error { .. } => match key.code {
                 KeyCode::Enter | KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            InputMode::None => Command::App(AppCommand::None),
+            PromptMode::None => Command::App(AppCommand::None),
         }
     }
 }

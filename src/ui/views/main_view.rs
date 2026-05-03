@@ -20,5 +20,5 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
         filer_area,
         &mut state.filer.file_table_state,
     );
-    frame.render_widget(build_prompt_view(&state.input), input_area);
+    frame.render_widget(build_prompt_view(&state.prompt), input_area);
 }

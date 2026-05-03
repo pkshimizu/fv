@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::state::FilerState;
-use crate::state::InputMode;
+use crate::state::PromptMode;
 use anyhow::Result;
 
 #[derive(Debug)]
@@ -8,7 +8,7 @@ pub struct AppState {
     pub config: Config,
     pub running: bool,
     pub filer: FilerState,
-    pub input: InputMode,
+    pub prompt: PromptMode,
 }
 
 impl AppState {
@@ -18,7 +18,7 @@ impl AppState {
             config,
             running: true,
             filer: filer_state,
-            input: InputMode::None,
+            prompt: PromptMode::None,
         }
     }
 

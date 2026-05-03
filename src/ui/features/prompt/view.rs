@@ -1,21 +1,21 @@
-use crate::state::InputMode;
+use crate::state::PromptMode;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Padding, Paragraph};
 
-pub fn build_prompt_view(input: &InputMode) -> Paragraph {
+pub fn build_prompt_view(input: &PromptMode) -> Paragraph {
     match input {
-        InputMode::None => {
+        PromptMode::None => {
             Paragraph::new("q: Quit").block(Block::bordered().padding(Padding::horizontal(1)))
         }
-        InputMode::Text { title, value, .. }
-        | InputMode::File { title, value, .. }
-        | InputMode::Search { title, value, .. } => Paragraph::new(format!("{value}_")).block(
+        PromptMode::Text { title, value, .. }
+        | PromptMode::File { title, value, .. }
+        | PromptMode::Search { title, value, .. } => Paragraph::new(format!("{value}_")).block(
             Block::bordered()
                 .title(title.as_str())
                 .padding(Padding::horizontal(1)),
         ),
-        InputMode::Select {
+        PromptMode::Select {
             title,
             options,
             selected_index,
@@ -41,12 +41,12 @@ pub fn build_prompt_view(input: &InputMode) -> Paragraph {
                     .padding(Padding::horizontal(1)),
             )
         }
-        InputMode::Confirm { title, .. } => Paragraph::new("Yes(y) No(n)").block(
+        PromptMode::Confirm { title, .. } => Paragraph::new("Yes(y) No(n)").block(
             Block::bordered()
                 .title(title.as_str())
                 .padding(Padding::horizontal(1)),
         ),
-        InputMode::Error { message } => Paragraph::new(message.as_str())
+        PromptMode::Error { message } => Paragraph::new(message.as_str())
             .style(Style::default().fg(Color::Red))
             .block(
                 Block::bordered()
