@@ -3,8 +3,20 @@ use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
 
-pub trait Executable {
-    fn exec(self: Box<Self>, state: &mut AppState, store: &mut RootStore) -> Result<()>;
+pub enum Command {
+    App(AppCommand),
+    Filer(FilerCommand),
+    Prompt(PromptCommand),
+}
+
+impl Command {
+    pub fn exec(self, state: &mut AppState, store: &mut RootStore) -> Result<()> {
+        match self {
+            Command::App(cmd) => cmd.exec(state),
+            Command::Filer(cmd) => cmd.exec(state, store),
+            Command::Prompt(cmd) => cmd.exec(state),
+        }
+    }
 }
 
 pub enum AppCommand {
@@ -12,9 +24,9 @@ pub enum AppCommand {
     None,
 }
 
-impl Executable for AppCommand {
-    fn exec(self: Box<Self>, state: &mut AppState, _: &mut RootStore) -> Result<()> {
-        match *self {
+impl AppCommand {
+    fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
             AppCommand::Quit => app::quit(state),
             AppCommand::None => Ok(()),
         }
@@ -42,9 +54,9 @@ pub enum FilerCommand {
     ToggleDotFiles,
 }
 
-impl Executable for FilerCommand {
-    fn exec(self: Box<Self>, state: &mut AppState, store: &mut RootStore) -> Result<()> {
-        match *self {
+impl FilerCommand {
+    fn exec(self, state: &mut AppState, store: &mut RootStore) -> Result<()> {
+        match self {
             FilerCommand::MoveCursorUp => filer::up_cursor(state),
             FilerCommand::MoveCursorDown => filer::down_cursor(state),
             FilerCommand::MoveCursorLeft => filer::first_cursor(state),
@@ -79,9 +91,9 @@ pub enum PromptCommand {
     SearchPrev,
 }
 
-impl Executable for PromptCommand {
-    fn exec(self: Box<Self>, state: &mut AppState, _: &mut RootStore) -> Result<()> {
-        match *self {
+impl PromptCommand {
+    fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
             PromptCommand::Char(c) => prompt::input_char(state, c),
             PromptCommand::Backspace => prompt::input_backspace(state),
             PromptCommand::Tab => prompt::input_tab(state),

@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::{AppCommand, Executable, FilerCommand, PromptCommand};
+use crate::cmd::command::{AppCommand, Command, FilerCommand, PromptCommand};
 use crate::state::InputMode;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
@@ -45,17 +45,17 @@ impl EventHandler {
         }
     }
 
-    pub fn next(&self, input: &InputMode) -> Result<Box<dyn Executable>> {
+    pub fn next(&self, input: &InputMode) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => {
                 if input.is_active() {
-                    Ok(Self::prompt_key_to_executable(key, input))
+                    Ok(Self::prompt_key_to_command(key, input))
                 } else {
-                    Ok(Self::key_to_executable(key))
+                    Ok(Self::key_to_command(key))
                 }
             }
-            Ok(AppEvent::FileChange) => Ok(Box::new(FilerCommand::RefreshFiles)),
-            Err(_) => Ok(Box::new(AppCommand::None)),
+            Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
+            Err(_) => Ok(Command::App(AppCommand::None)),
         }
     }
 
@@ -76,73 +76,73 @@ impl EventHandler {
         Ok(())
     }
 
-    fn key_to_executable(key: KeyEvent) -> Box<dyn Executable> {
+    fn key_to_command(key: KeyEvent) -> Command {
         match (key.modifiers, key.code) {
-            (_, KeyCode::Char('c')) => Box::new(FilerCommand::PromptCopy),
-            (_, KeyCode::Char('f')) => Box::new(FilerCommand::PromptSearch),
-            (_, KeyCode::Char('d')) => Box::new(FilerCommand::PromptDelete),
-            (_, KeyCode::Char('k')) => Box::new(FilerCommand::PromptMkdir),
-            (_, KeyCode::Char('m')) => Box::new(FilerCommand::PromptMove),
-            (_, KeyCode::Char('r')) => Box::new(FilerCommand::PromptRename),
-            (_, KeyCode::Char('s')) => Box::new(FilerCommand::PromptSort),
-            (_, KeyCode::Char('q')) => Box::new(AppCommand::Quit),
-            (_, KeyCode::Char(' ')) => Box::new(FilerCommand::ToggleCheckedFile),
-            (_, KeyCode::Char('.')) => Box::new(FilerCommand::ToggleDotFiles),
-            (_, KeyCode::Char('+')) => Box::new(FilerCommand::AddBookmark),
-            (_, KeyCode::Char('-')) => Box::new(FilerCommand::RemoveBookmark),
-            (_, KeyCode::Up) => Box::new(FilerCommand::MoveCursorUp),
-            (_, KeyCode::Down) => Box::new(FilerCommand::MoveCursorDown),
-            (_, KeyCode::Left) => Box::new(FilerCommand::MoveCursorLeft),
-            (_, KeyCode::Right) => Box::new(FilerCommand::MoveCursorRight),
-            (_, KeyCode::Enter) => Box::new(FilerCommand::EnterFile),
-            (_, KeyCode::Backspace) => Box::new(FilerCommand::ChangeParentDir),
-            _ => Box::new(AppCommand::None),
+            (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::PromptCopy),
+            (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::PromptSearch),
+            (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::PromptDelete),
+            (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::PromptMkdir),
+            (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),
+            (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::PromptRename),
+            (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::PromptSort),
+            (_, KeyCode::Char('q')) => Command::App(AppCommand::Quit),
+            (_, KeyCode::Char(' ')) => Command::Filer(FilerCommand::ToggleCheckedFile),
+            (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
+            (_, KeyCode::Char('+')) => Command::Filer(FilerCommand::AddBookmark),
+            (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
+            (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
+            (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
+            (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
+            (_, KeyCode::Right) => Command::Filer(FilerCommand::MoveCursorRight),
+            (_, KeyCode::Enter) => Command::Filer(FilerCommand::EnterFile),
+            (_, KeyCode::Backspace) => Command::Filer(FilerCommand::ChangeParentDir),
+            _ => Command::App(AppCommand::None),
         }
     }
 
-    fn prompt_key_to_executable(key: KeyEvent, input: &InputMode) -> Box<dyn Executable> {
+    fn prompt_key_to_command(key: KeyEvent, input: &InputMode) -> Command {
         match input {
             InputMode::Text { .. } => match key.code {
-                KeyCode::Char(c) => Box::new(PromptCommand::Char(c)),
-                KeyCode::Backspace => Box::new(PromptCommand::Backspace),
-                KeyCode::Enter => Box::new(PromptCommand::Ok),
-                KeyCode::Esc => Box::new(PromptCommand::Cancel),
-                _ => Box::new(AppCommand::None),
+                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
+                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
+                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
+                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
+                _ => Command::App(AppCommand::None),
             },
             InputMode::File { .. } => match key.code {
-                KeyCode::Char(c) => Box::new(PromptCommand::Char(c)),
-                KeyCode::Backspace => Box::new(PromptCommand::Backspace),
-                KeyCode::Tab => Box::new(PromptCommand::Tab),
-                KeyCode::Enter => Box::new(PromptCommand::Ok),
-                KeyCode::Esc => Box::new(PromptCommand::Cancel),
-                _ => Box::new(AppCommand::None),
+                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
+                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
+                KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
+                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
+                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
+                _ => Command::App(AppCommand::None),
             },
             InputMode::Select { .. } => match key.code {
-                KeyCode::Left => Box::new(PromptCommand::SelectLeft),
-                KeyCode::Right => Box::new(PromptCommand::SelectRight),
-                KeyCode::Enter => Box::new(PromptCommand::Ok),
-                KeyCode::Esc => Box::new(PromptCommand::Cancel),
-                _ => Box::new(AppCommand::None),
+                KeyCode::Left => Command::Prompt(PromptCommand::SelectLeft),
+                KeyCode::Right => Command::Prompt(PromptCommand::SelectRight),
+                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
+                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
+                _ => Command::App(AppCommand::None),
             },
             InputMode::Confirm { .. } => match key.code {
-                KeyCode::Char('y') | KeyCode::Enter => Box::new(PromptCommand::Ok),
-                KeyCode::Char('n') | KeyCode::Esc => Box::new(PromptCommand::Cancel),
-                _ => Box::new(AppCommand::None),
+                KeyCode::Char('y') | KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
+                KeyCode::Char('n') | KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
+                _ => Command::App(AppCommand::None),
             },
             InputMode::Search { .. } => match key.code {
-                KeyCode::Char(c) => Box::new(PromptCommand::Char(c)),
-                KeyCode::Backspace => Box::new(PromptCommand::Backspace),
-                KeyCode::Down => Box::new(PromptCommand::SearchNext),
-                KeyCode::Up => Box::new(PromptCommand::SearchPrev),
-                KeyCode::Enter => Box::new(PromptCommand::Ok),
-                KeyCode::Esc => Box::new(PromptCommand::Cancel),
-                _ => Box::new(AppCommand::None),
+                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
+                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
+                KeyCode::Down => Command::Prompt(PromptCommand::SearchNext),
+                KeyCode::Up => Command::Prompt(PromptCommand::SearchPrev),
+                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
+                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
+                _ => Command::App(AppCommand::None),
             },
             InputMode::Error { .. } => match key.code {
-                KeyCode::Enter | KeyCode::Esc => Box::new(PromptCommand::Cancel),
-                _ => Box::new(AppCommand::None),
+                KeyCode::Enter | KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
+                _ => Command::App(AppCommand::None),
             },
-            InputMode::None => Box::new(AppCommand::None),
+            InputMode::None => Command::App(AppCommand::None),
         }
     }
 }
