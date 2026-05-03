@@ -1,7 +1,8 @@
+pub mod bookmark;
 mod filer;
 mod header;
-mod input_area;
+mod prompt;
 
 pub use filer::build_filer;
 pub use header::*;
-pub use input_area::build_input_area;
+pub use prompt::view::build_prompt_view;

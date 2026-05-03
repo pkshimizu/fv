@@ -4,6 +4,7 @@ mod config;
 mod event;
 mod fs;
 mod state;
+mod store;
 mod ui;
 
 use anyhow::Result;
@@ -12,7 +13,7 @@ use config::Config;
 
 fn main() -> Result<()> {
     let mut terminal = ratatui::init();
-    let mut app = App::new(Config::default());
+    let mut app = App::new(Config::default())?;
     app.init()?;
     let result = app.run(&mut terminal);
 

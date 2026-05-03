@@ -1,4 +1,5 @@
 use crate::fs::VFile;
+use crate::state::table_cursor::TableCursor;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
 use std::cmp::Ordering;
@@ -129,41 +130,24 @@ impl FilerState {
         Ok(())
     }
 
+    fn cursor(&mut self) -> TableCursor {
+        TableCursor::new(&mut self.file_table_state, self.current_dir_files.len())
+    }
+
     pub fn next(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        if let Some(selected) = self.file_table_state.selected() {
-            if selected < self.current_dir_files.len() - 1 {
-                self.file_table_state.select(Some(selected + 1));
-            }
-        }
+        self.cursor().next();
     }
 
     pub fn prev(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        if let Some(selected) = self.file_table_state.selected() {
-            if selected > 0 {
-                self.file_table_state.select(Some(selected - 1));
-            }
-        }
+        self.cursor().prev();
     }
 
     pub fn first(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        self.file_table_state.select(Some(0));
+        self.cursor().first();
     }
 
     pub fn last(&mut self) {
-        if self.current_dir_files.is_empty() {
-            return;
-        }
-        self.file_table_state
-            .select(Some(self.current_dir_files.len() - 1));
+        self.cursor().last();
     }
 
     pub fn change_to(&mut self, path: &str) -> Result<()> {
@@ -314,6 +298,20 @@ impl FilerState {
         }
 
         self.current_dir_files = files;
+        Ok(())
+    }
+
+    pub fn jump_to(&mut self, file_path: &str) -> Result<()> {
+        let path = std::path::Path::new(file_path);
+        let parent = path
+            .parent()
+            .and_then(|p| p.to_str())
+            .context("Invalid path")?;
+        self.change_to(parent)?;
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            self.set_pending_select_name(name.to_string());
+            self.refresh_files()?;
+        }
         Ok(())
     }
 }

@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::state::FilerState;
-use crate::state::InputMode;
+use crate::state::PromptMode;
+use crate::state::bookmark::BookmarkState;
 use anyhow::Result;
 
 #[derive(Debug)]
@@ -8,17 +9,18 @@ pub struct AppState {
     pub config: Config,
     pub running: bool,
     pub filer: FilerState,
-    pub input: InputMode,
+    pub prompt: PromptMode,
+    pub bookmark: Option<BookmarkState>,
 }
 
 impl AppState {
     pub fn new(config: Config) -> Self {
-        let filer_state = FilerState::new();
         Self {
             config,
             running: true,
-            filer: filer_state,
-            input: InputMode::None,
+            filer: FilerState::new(),
+            prompt: PromptMode::None,
+            bookmark: None,
         }
     }
 
