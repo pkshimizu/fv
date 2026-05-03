@@ -51,12 +51,19 @@ impl BookmarkState {
         self.table_state.select(Some(self.paths.len() - 1));
     }
 
-    pub fn selected_path(&self) -> Option<&String> {
+    pub fn selected_path(&self) -> Option<&str> {
         let selected_index = self.table_state.selected();
-        selected_index.and_then(|i| self.paths.get(i))
+        selected_index.and_then(|i| self.paths.get(i).map(String::as_str))
     }
 
     pub fn remove(&mut self, path: &str) {
         self.paths.retain(|p| p != path);
+        if let Some(selected) = self.table_state.selected() {
+            if self.paths.is_empty() {
+                self.table_state.select(None);
+            } else if selected >= self.paths.len() {
+                self.table_state.select(Some(self.paths.len() - 1));
+            }
+        }
     }
 }

@@ -47,11 +47,10 @@ pub fn select(state: &mut AppState) -> Result<()> {
 }
 
 pub fn remove_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
-    if let Some(selected_file) = state.filer.selected_file() {
-        let path = selected_file.absolute_path();
-        store.bookmark.remove(path)?;
-        if let Some(bookmark) = &mut state.bookmark {
-            bookmark.remove(path);
+    if let Some(bookmark) = &mut state.bookmark {
+        if let Some(path) = bookmark.selected_path().map(String::from) {
+            store.bookmark.remove(&path)?;
+            bookmark.remove(&path);
         }
     }
     Ok(())
