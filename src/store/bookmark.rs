@@ -43,7 +43,9 @@ impl BookmarkStore {
         }
         let content =
             serde_json::to_string_pretty(&self.paths).context("Failed to serialize bookmarks")?;
-        std::fs::write(json_path, content).context("Failed to write bookmarks file")?;
+        let tmp_path = json_path.with_extension("json.tmp");
+        std::fs::write(&tmp_path, content).context("Failed to write bookmarks temp file")?;
+        std::fs::rename(&tmp_path, json_path).context("Failed to save bookmarks file")?;
         Ok(())
     }
 
