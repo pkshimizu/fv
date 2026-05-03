@@ -48,7 +48,7 @@ impl BookmarkStore {
     }
 
     pub fn add(&mut self, path: &str) -> Result<()> {
-        if !self.has(path) && self.paths.insert(path.to_string()) {
+        if self.paths.insert(path.to_string()) {
             self.save()?;
         }
         Ok(())
