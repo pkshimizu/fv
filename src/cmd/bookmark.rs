@@ -1,6 +1,6 @@
 use crate::state::AppState;
 use crate::store::RootStore;
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 pub fn up_cursor(state: &mut AppState) -> Result<()> {
     if let Some(bookmark) = &mut state.bookmark {
@@ -31,12 +31,28 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
+    let selected = state
+        .bookmark
+        .as_ref()
+        .and_then(|bookmark_state| bookmark_state.selected_path().map(String::from));
+    state.bookmark = None;
+
+    if let Some(path) = selected {
+        state
+            .filer
+            .jump_to(&path)
+            .context("Failed to navigate to bookmark")?;
+    }
     Ok(())
 }
 
-pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
+pub fn remove_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
-        store.bookmark.remove(selected_file.absolute_path())?;
+        let path = selected_file.absolute_path();
+        store.bookmark.remove(path)?;
+        if let Some(bookmark) = &mut state.bookmark {
+            bookmark.remove(path);
+        }
     }
     Ok(())
 }

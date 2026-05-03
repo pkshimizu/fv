@@ -55,4 +55,8 @@ impl BookmarkState {
         let selected_index = self.table_state.selected();
         selected_index.and_then(|i| self.paths.get(i))
     }
+
+    pub fn remove(&mut self, path: &str) {
+        self.paths.retain(|p| p != path);
+    }
 }

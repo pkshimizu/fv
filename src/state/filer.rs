@@ -316,4 +316,18 @@ impl FilerState {
         self.current_dir_files = files;
         Ok(())
     }
+
+    pub fn jump_to(&mut self, file_path: &str) -> Result<()> {
+        let path = std::path::Path::new(file_path);
+        let parent = path
+            .parent()
+            .and_then(|p| p.to_str())
+            .context("Invalid path")?;
+        self.change_to(parent)?;
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            self.set_pending_select_name(name.to_string());
+            self.refresh_files()?;
+        }
+        Ok(())
+    }
 }
