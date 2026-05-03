@@ -1,6 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey, TextAction,
+    AppState, BookmarkState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey,
+    TextAction,
 };
 use crate::store::RootStore;
 use anyhow::Result;
@@ -111,6 +112,17 @@ pub fn add_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
 pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
         store.bookmark.remove(selected_file.absolute_path())?;
+    }
+    Ok(())
+}
+
+pub fn toggle_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
+    if state.bookmark.is_none() {
+        state.bookmark = Some(BookmarkState::new(
+            store.bookmark.paths.iter().cloned().collect(),
+        ));
+    } else {
+        state.bookmark = None;
     }
     Ok(())
 }

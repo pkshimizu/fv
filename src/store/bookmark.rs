@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub struct BookmarkStore {
     json_path: PathBuf,
-    paths: BTreeSet<String>,
+    pub paths: BTreeSet<String>,
 }
 
 impl BookmarkStore {

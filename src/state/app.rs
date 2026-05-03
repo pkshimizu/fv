@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::state::FilerState;
 use crate::state::PromptMode;
+use crate::state::bookmark::BookmarkState;
 use anyhow::Result;
 
 #[derive(Debug)]
@@ -9,16 +10,17 @@ pub struct AppState {
     pub running: bool,
     pub filer: FilerState,
     pub prompt: PromptMode,
+    pub bookmark: Option<BookmarkState>,
 }
 
 impl AppState {
     pub fn new(config: Config) -> Self {
-        let filer_state = FilerState::new();
         Self {
             config,
             running: true,
-            filer: filer_state,
+            filer: FilerState::new(),
             prompt: PromptMode::None,
+            bookmark: None,
         }
     }
 

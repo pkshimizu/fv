@@ -1,3 +1,4 @@
+pub mod bookmark;
 mod filer;
 mod header;
 mod prompt;

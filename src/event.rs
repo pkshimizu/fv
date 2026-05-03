@@ -90,6 +90,7 @@ impl EventHandler {
             (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
             (_, KeyCode::Char('+')) => Command::Filer(FilerCommand::AddBookmark),
             (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
+            (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ToggleBookmark),
             (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
             (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
