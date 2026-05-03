@@ -10,6 +10,8 @@ use ratatui::widgets::{Block, Cell, Row, Table};
 
 const DOTFILE_STYLE: Style = Style::new().fg(Color::Blue);
 const DIR_STYLE: Style = Style::new().fg(Color::Green);
+const CHECKED_SYMBOL: &str = "*";
+const BOOKMARK_SYMBOL: &str = "B";
 
 fn format_time(time: Result<VFileTime>) -> String {
     if let Ok(time) = time {
@@ -29,7 +31,7 @@ pub fn build_file_table(
         .filter_map(|file| {
             let metadata = file.metadata().ok()?;
             let checked = if filer_state.is_checked(file) {
-                "*"
+                CHECKED_SYMBOL
             } else {
                 " "
             };
@@ -40,7 +42,7 @@ pub fn build_file_table(
             let row = Row::new(vec![
                 Cell::from(checked),
                 Cell::from(file_name.to_string()),
-                Cell::from(Text::from(if is_bookmarked { "B" } else { " " })),
+                Cell::from(Text::from(if is_bookmarked { BOOKMARK_SYMBOL } else { " " })),
                 Cell::from(metadata.permissions().to_rwx_string()),
                 Cell::from(
                     Text::from(if is_dir {
