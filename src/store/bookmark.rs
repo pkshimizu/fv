@@ -38,10 +38,8 @@ impl BookmarkStore {
     fn save(&self) -> Result<()> {
         let json_path = &self.json_path;
         if let Some(parent) = json_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)
-                    .context("Failed to create bookmarks config directory")?;
-            }
+            std::fs::create_dir_all(parent)
+                .context("Failed to create bookmarks config directory")?;
         }
         let content =
             serde_json::to_string_pretty(&self.paths).context("Failed to serialize bookmarks")?;
@@ -50,7 +48,7 @@ impl BookmarkStore {
     }
 
     pub fn add(&mut self, path: &str) -> Result<()> {
-        if self.paths.insert(path.to_string()) {
+        if !self.has(path) && self.paths.insert(path.to_string()) {
             self.save()?;
         }
         Ok(())

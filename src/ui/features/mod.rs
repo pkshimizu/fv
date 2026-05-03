@@ -1,6 +1,6 @@
 mod filer;
 mod header;
-pub mod prompt;
+mod prompt;
 
 pub use filer::build_filer;
 pub use header::*;
