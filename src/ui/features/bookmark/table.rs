@@ -1,11 +1,12 @@
 use crate::state::BookmarkState;
+use crate::ui::widgets::build_bordered_block;
 use ratatui::layout::Constraint;
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Cell, Row, Table};
+use ratatui::widgets::{Cell, Row, Table};
 
 pub fn build_bookmark_table(state: &BookmarkState) -> Table<'static> {
     let paths = &state.paths;
-    let block = Block::bordered().title(format!("Bookmarks ({})", paths.len()));
+    let block = build_bordered_block(format!("Bookmarks ({})", paths.len()).as_str(), true);
     let rows: Vec<Row> = paths
         .iter()
         .map(|path| Row::new([Cell::from(path.clone())]))

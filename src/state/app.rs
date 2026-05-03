@@ -4,6 +4,13 @@ use crate::state::PromptMode;
 use crate::state::bookmark::BookmarkState;
 use anyhow::Result;
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum Area {
+    Filer,
+    Prompt,
+    Bookmark,
+}
+
 #[derive(Debug)]
 pub struct AppState {
     pub config: Config,
@@ -31,5 +38,19 @@ impl AppState {
 
     pub fn quit(&mut self) {
         self.running = false;
+    }
+
+    pub fn active_area(&self) -> Area {
+        if self.prompt.is_active() {
+            return Area::Prompt;
+        }
+        if self.bookmark.is_some() {
+            return Area::Bookmark;
+        }
+        Area::Filer
+    }
+
+    pub fn is_active(&self, area: Area) -> bool {
+        self.active_area() == area
     }
 }
