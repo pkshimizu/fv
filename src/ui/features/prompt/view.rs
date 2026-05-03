@@ -40,6 +40,6 @@ pub fn build_prompt_view(mode: &PromptMode) -> Paragraph {
             .block(build_bordered_block(title.as_str(), BorderStyle::Active)),
         PromptMode::Error { message } => Paragraph::new(message.as_str())
             .style(Style::default().fg(Color::Red))
-            .block(build_bordered_block("Error", BorderStyle::Active)),
+            .block(build_bordered_block("Error", BorderStyle::Error)),
     }
 }
