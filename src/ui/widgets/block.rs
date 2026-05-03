@@ -1,11 +1,17 @@
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Padding};
 
-pub fn build_bordered_block(title: &str, is_active: bool) -> Block<'static> {
-    let fg_color = if is_active {
-        Color::White
-    } else {
-        Color::DarkGray
+pub enum BorderStyle {
+    Active,
+    Inactive,
+    Error,
+}
+
+pub fn build_bordered_block(title: &str, style: BorderStyle) -> Block<'static> {
+    let fg_color = match style {
+        BorderStyle::Active => Color::Reset,
+        BorderStyle::Inactive => Color::DarkGray,
+        BorderStyle::Error => Color::Red,
     };
     Block::bordered()
         .title(title.to_string())

@@ -1,21 +1,18 @@
 use crate::state::PromptMode;
-use crate::ui::widgets::build_bordered_block;
+use crate::ui::widgets::{BorderStyle, build_bordered_block};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Padding, Paragraph};
+use ratatui::widgets::Paragraph;
 
 pub fn build_prompt_view(mode: &PromptMode) -> Paragraph {
     match mode {
         PromptMode::None => {
-            Paragraph::new("q: Quit").block(build_bordered_block("Commands", false))
+            Paragraph::new("q: Quit").block(build_bordered_block("Commands", BorderStyle::Inactive))
         }
         PromptMode::Text { title, value, .. }
         | PromptMode::File { title, value, .. }
-        | PromptMode::Search { title, value, .. } => Paragraph::new(format!("{value}_")).block(
-            Block::bordered()
-                .title(title.as_str())
-                .padding(Padding::horizontal(1)),
-        ),
+        | PromptMode::Search { title, value, .. } => Paragraph::new(format!("{value}_"))
+            .block(build_bordered_block(title.as_ref(), BorderStyle::Active)),
         PromptMode::Select {
             title,
             options,
@@ -36,13 +33,13 @@ pub fn build_prompt_view(mode: &PromptMode) -> Paragraph {
                     spans.push(Span::raw(format!(" {opt} ")));
                 }
             }
-            Paragraph::new(Line::from(spans)).block(build_bordered_block(title.as_str(), true))
+            Paragraph::new(Line::from(spans))
+                .block(build_bordered_block(title.as_str(), BorderStyle::Active))
         }
-        PromptMode::Confirm { title, .. } => {
-            Paragraph::new("Yes(y) No(n)").block(build_bordered_block(title.as_str(), true))
-        }
+        PromptMode::Confirm { title, .. } => Paragraph::new("Yes(y) No(n)")
+            .block(build_bordered_block(title.as_str(), BorderStyle::Active)),
         PromptMode::Error { message } => Paragraph::new(message.as_str())
             .style(Style::default().fg(Color::Red))
-            .block(build_bordered_block("Error", true)),
+            .block(build_bordered_block("Error", BorderStyle::Active)),
     }
 }
