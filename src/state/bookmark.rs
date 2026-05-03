@@ -1,3 +1,4 @@
+use crate::state::table_cursor::TableCursor;
 use ratatui::widgets::TableState;
 
 #[derive(Debug)]
@@ -15,45 +16,30 @@ impl BookmarkState {
         Self { table_state, paths }
     }
 
+    fn cursor(&mut self) -> TableCursor {
+        TableCursor::new(&mut self.table_state, self.paths.len())
+    }
+
     pub fn next(&mut self) {
-        if self.paths.is_empty() {
-            return;
-        }
-        if let Some(selected) = self.table_state.selected() {
-            if selected < self.paths.len() - 1 {
-                self.table_state.select(Some(selected + 1));
-            }
-        }
+        self.cursor().next();
     }
 
     pub fn prev(&mut self) {
-        if self.paths.is_empty() {
-            return;
-        }
-        if let Some(selected) = self.table_state.selected() {
-            if selected > 0 {
-                self.table_state.select(Some(selected - 1));
-            }
-        }
+        self.cursor().prev();
     }
 
     pub fn first(&mut self) {
-        if self.paths.is_empty() {
-            return;
-        }
-        self.table_state.select(Some(0));
+        self.cursor().first();
     }
 
     pub fn last(&mut self) {
-        if self.paths.is_empty() {
-            return;
-        }
-        self.table_state.select(Some(self.paths.len() - 1));
+        self.cursor().last();
     }
 
     pub fn selected_path(&self) -> Option<&str> {
-        let selected_index = self.table_state.selected();
-        selected_index.and_then(|i| self.paths.get(i).map(String::as_str))
+        self.table_state
+            .selected()
+            .and_then(|i| self.paths.get(i).map(String::as_str))
     }
 
     pub fn remove(&mut self, path: &str) {
