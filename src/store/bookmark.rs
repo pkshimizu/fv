@@ -51,7 +51,7 @@ impl BookmarkStore {
     }
 
     pub fn get_paths(&self) -> Iter<String> {
-        self.paths.iter()
+        self.paths.iter().clone()
     }
 
     pub fn add(&mut self, path: &str) -> Result<()> {

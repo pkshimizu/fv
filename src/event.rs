@@ -153,6 +153,7 @@ impl EventHandler {
         match (key.modifiers, key.code) {
             (_, KeyCode::Char('-')) => Command::Bookmark(BookmarkCommand::RemoveBookmark),
             (_, KeyCode::Char('b')) => Command::Bookmark(BookmarkCommand::HideBookmark),
+            (_, KeyCode::Esc) => Command::Bookmark(BookmarkCommand::HideBookmark),
             (_, KeyCode::Up) => Command::Bookmark(BookmarkCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Bookmark(BookmarkCommand::MoveCursorDown),
             (_, KeyCode::Left) => Command::Bookmark(BookmarkCommand::MoveCursorLeft),
