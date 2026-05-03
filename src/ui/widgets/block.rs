@@ -1,6 +1,7 @@
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Padding};
 
+#[derive(Debug)]
 pub enum BorderStyle {
     Active,
     Inactive,
