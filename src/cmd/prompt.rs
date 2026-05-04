@@ -220,6 +220,7 @@ fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> 
 }
 
 fn execute_grep(state: &mut AppState, _value: &str) -> Result<()> {
+    // TODO ファイル検索スレッドの実装
     state.grep = Some(GrepState::new(Vec::new()));
     Ok(())
 }

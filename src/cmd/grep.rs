@@ -37,7 +37,10 @@ pub fn select(state: &mut AppState) -> Result<()> {
     state.grep = None;
 
     if let Some(path) = selected {
-        state.filer.jump_to(&path).context("Failed to navigate")?;
+        state
+            .filer
+            .jump_to(&path)
+            .context("Failed to navigate to grep")?;
     }
     Ok(())
 }

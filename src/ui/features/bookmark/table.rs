@@ -6,10 +6,7 @@ use ratatui::widgets::{Cell, Row, Table};
 
 pub fn build_bookmark_table(state: &BookmarkState) -> Table<'static> {
     let paths = &state.paths;
-    let block = build_bordered_block(
-        format!("Bookmarks ({})", paths.len()).as_str(),
-        BorderStyle::Active,
-    );
+    let block = build_bordered_block(&format!("Bookmarks ({})", paths.len()), BorderStyle::Active);
     let rows: Vec<Row> = paths
         .iter()
         .map(|path| Row::new([Cell::from(path.clone())]))
