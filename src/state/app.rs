@@ -1,7 +1,6 @@
 use crate::config::Config;
-use crate::state::PromptMode;
-use crate::state::bookmark::BookmarkState;
-use crate::state::{FilerState, GrepState};
+use crate::state::{PathListState, PromptMode};
+use crate::state::{FilerState};
 use anyhow::Result;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -18,8 +17,8 @@ pub struct AppState {
     pub running: bool,
     pub filer: FilerState,
     pub prompt: PromptMode,
-    pub bookmark: Option<BookmarkState>,
-    pub grep: Option<GrepState>,
+    pub bookmark: Option<PathListState>,
+    pub grep: Option<PathListState>,
 }
 
 impl AppState {

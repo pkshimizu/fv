@@ -1,8 +1,5 @@
 use crate::fs::VFile;
-use crate::state::{
-    AppState, BookmarkState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey,
-    TextAction,
-};
+use crate::state::{AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey, TextAction};
 use crate::store::RootStore;
 use anyhow::Result;
 
@@ -140,7 +137,7 @@ pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
 }
 
 pub fn show_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
-    state.bookmark = Some(BookmarkState::new(
+    state.bookmark = Some(PathListState::new(
         store.bookmark.get_paths().cloned().collect(),
     ));
     Ok(())

@@ -1,10 +1,10 @@
-use crate::state::GrepState;
+use crate::state::{PathListState};
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
 use ratatui::layout::Constraint;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Cell, Row, Table};
 
-pub fn build_grep_table(state: &GrepState) -> Table<'static> {
+pub fn build_grep_table(state: &PathListState) -> Table<'static> {
     let paths = &state.paths;
     let block = build_bordered_block(&format!("Grep ({})", paths.len()), BorderStyle::Active);
     let rows: Vec<Row> = paths

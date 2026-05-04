@@ -1,7 +1,5 @@
 use crate::fs::VFile;
-use crate::state::{
-    AppState, ConfirmAction, FileAction, GrepState, PromptMode, SelectAction, SortKey, TextAction,
-};
+use crate::state::{AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey, TextAction};
 use anyhow::{Context, Result};
 use std::path::Path;
 
@@ -221,7 +219,7 @@ fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> 
 
 fn execute_grep(state: &mut AppState, _value: &str) -> Result<()> {
     // TODO ファイル検索スレッドの実装
-    state.grep = Some(GrepState::new(Vec::new()));
+    state.grep = Some(PathListState::new(Vec::new()));
     Ok(())
 }
 
