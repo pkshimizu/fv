@@ -1,5 +1,8 @@
 use crate::fs::VFile;
-use crate::state::{AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey, TextAction};
+use crate::state::{
+    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey,
+    TextAction,
+};
 use crate::store::RootStore;
 use anyhow::Result;
 

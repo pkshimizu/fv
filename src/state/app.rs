@@ -1,6 +1,6 @@
 use crate::config::Config;
+use crate::state::FilerState;
 use crate::state::{PathListState, PromptMode};
-use crate::state::{FilerState};
 use anyhow::Result;
 
 #[derive(Debug, Eq, PartialEq)]

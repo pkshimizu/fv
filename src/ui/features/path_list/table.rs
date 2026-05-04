@@ -1,12 +1,12 @@
+use crate::state::PathListState;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
 use ratatui::layout::Constraint;
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Cell, Row, Table};
-use crate::state::PathListState;
 
-pub fn build_bookmark_table(state: &PathListState) -> Table<'static> {
+pub fn build_path_table(state: &PathListState, title: &str) -> Table<'static> {
     let paths = &state.paths;
-    let block = build_bordered_block(&format!("Bookmarks ({})", paths.len()), BorderStyle::Active);
+    let block = build_bordered_block(&format!("{} ({})", title, paths.len()), BorderStyle::Active);
     let rows: Vec<Row> = paths
         .iter()
         .map(|path| Row::new([Cell::from(path.clone())]))
