@@ -82,6 +82,7 @@ impl EventHandler {
         match (key.modifiers, key.code) {
             (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::PromptCopy),
             (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::PromptSearch),
+            (_, KeyCode::Char('g')) => Command::Filer(FilerCommand::PromptGrep),
             (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::PromptDelete),
             (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::PromptMkdir),
             (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),

@@ -116,6 +116,15 @@ pub fn prompt_search(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn prompt_grep(state: &mut AppState) -> Result<()> {
+    state.prompt = PromptMode::Text {
+        title: "Grep".to_string(),
+        value: String::new(),
+        action: TextAction::Grep,
+    };
+    Ok(())
+}
+
 pub fn add_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
         store.bookmark.add(selected_file.absolute_path())?;

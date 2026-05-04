@@ -160,6 +160,7 @@ fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) ->
     match action {
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
         TextAction::Rename { file } => execute_rename(state, file, value),
+        TextAction::Grep => execute_grep(state, value),
     }
 }
 
@@ -215,6 +216,10 @@ fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
 fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> {
     file.rename(value)?;
     state.filer.set_pending_select_name(value.to_string());
+    Ok(())
+}
+
+fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     Ok(())
 }
 
