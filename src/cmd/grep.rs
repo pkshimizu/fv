@@ -3,45 +3,45 @@ use crate::store::RootStore;
 use anyhow::{Context, Result};
 
 pub fn up_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
-        bookmark.prev();
+    if let Some(grep) = &mut state.grep {
+        grep.prev();
     }
     Ok(())
 }
 
 pub fn down_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
-        bookmark.next();
+    if let Some(grep) = &mut state.grep {
+        grep.next();
     }
     Ok(())
 }
 
 pub fn first_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
-        bookmark.first();
+    if let Some(grep) = &mut state.grep {
+        grep.first();
     }
     Ok(())
 }
 
 pub fn last_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
-        bookmark.last();
+    if let Some(grep) = &mut state.grep {
+        grep.last();
     }
     Ok(())
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
     let selected = state
-        .bookmark
+        .grep
         .as_ref()
-        .and_then(|bookmark_state| bookmark_state.selected_path().map(String::from));
-    state.bookmark = None;
+        .and_then(|grep_state| grep_state.selected_path().map(String::from));
+    state.grep = None;
 
     if let Some(path) = selected {
         state
             .filer
             .jump_to(&path)
-            .context("Failed to navigate to bookmark")?;
+            .context("Failed to navigate")?;
     }
     Ok(())
 }
