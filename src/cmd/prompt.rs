@@ -219,7 +219,7 @@ fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> 
     Ok(())
 }
 
-fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
+fn execute_grep(state: &mut AppState, _value: &str) -> Result<()> {
     state.grep = Some(GrepState::new(Vec::new()));
     Ok(())
 }
