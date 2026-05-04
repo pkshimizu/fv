@@ -1,7 +1,7 @@
 use crate::config::Config;
-use crate::state::FilerState;
 use crate::state::PromptMode;
 use crate::state::bookmark::BookmarkState;
+use crate::state::{FilerState, GrepState};
 use anyhow::Result;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -9,6 +9,7 @@ pub enum Area {
     Filer,
     Prompt,
     Bookmark,
+    Grep,
 }
 
 #[derive(Debug)]
@@ -18,6 +19,7 @@ pub struct AppState {
     pub filer: FilerState,
     pub prompt: PromptMode,
     pub bookmark: Option<BookmarkState>,
+    pub grep: Option<GrepState>,
 }
 
 impl AppState {
@@ -28,6 +30,7 @@ impl AppState {
             filer: FilerState::new(),
             prompt: PromptMode::None,
             bookmark: None,
+            grep: None,
         }
     }
 
@@ -46,6 +49,9 @@ impl AppState {
         }
         if self.bookmark.is_some() {
             return Area::Bookmark;
+        }
+        if self.grep.is_some() {
+            return Area::Grep;
         }
         Area::Filer
     }

@@ -1,7 +1,8 @@
 use crate::state::AppState;
 use crate::store::RootStore;
-use crate::ui::features::bookmark::table::build_bookmark_table;
-use crate::ui::features::{build_filer, build_header, build_prompt_view};
+use crate::ui::features::{
+    build_bookmark_table, build_filer, build_grep_table, build_header, build_prompt_view,
+};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
@@ -27,6 +28,12 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
             bookmark_area,
             &mut bookmark.table_state,
         )
+    } else if let Some(grep) = &mut state.grep {
+        let [filer_area, grep_area] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas(content_area);
+        frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
+        frame.render_stateful_widget(build_grep_table(grep), grep_area, &mut grep.table_state)
     } else {
         frame.render_stateful_widget(filer, content_area, &mut state.filer.file_table_state);
     }

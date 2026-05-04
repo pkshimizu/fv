@@ -1,6 +1,6 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, GrepState, PromptMode, SelectAction, SortKey, TextAction,
 };
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -220,6 +220,7 @@ fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> 
 }
 
 fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
+    state.grep = Some(GrepState::new(Vec::new()));
     Ok(())
 }
 
