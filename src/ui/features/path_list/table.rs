@@ -6,7 +6,11 @@ use ratatui::widgets::{Cell, Row, Table};
 
 pub fn build_path_table(state: &PathListState, title: &str) -> Table<'static> {
     let paths = &state.paths;
-    let block = build_bordered_block(&format!("{} ({})", title, paths.len()), BorderStyle::Active);
+    let status = if state.rx.is_some() { "Running" } else { "" };
+    let block = build_bordered_block(
+        &format!("{} ({}) {}", title, paths.len(), status),
+        BorderStyle::Active,
+    );
     let rows = paths
         .iter()
         .map(|path| Row::new([Cell::from(path.clone())]));

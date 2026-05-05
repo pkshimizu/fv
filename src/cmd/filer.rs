@@ -142,6 +142,7 @@ pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
 pub fn show_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
     state.bookmark = Some(PathListState::new(
         store.bookmark.get_paths().cloned().collect(),
+        None,
     ));
     Ok(())
 }

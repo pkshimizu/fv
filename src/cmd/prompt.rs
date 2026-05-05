@@ -220,9 +220,39 @@ fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> 
     Ok(())
 }
 
-fn execute_grep(state: &mut AppState, _value: &str) -> Result<()> {
-    // TODO ファイル検索スレッドの実装
-    state.grep = Some(PathListState::new(Vec::new()));
+fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
+    if value.is_empty() {
+        return Ok(());
+    }
+
+    let dir_path = state.filer.current_dir.absolute_path().to_string();
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let pattern = value.to_string();
+
+    std::thread::spawn(move || {
+        let Ok(mut child) = std::process::Command::new("grep")
+            .args(["-rl", "--binary-files=without-match", &pattern, &dir_path])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        else {
+            return;
+        };
+
+        let stdout = child.stdout.take().unwrap();
+        let reader = std::io::BufReader::new(stdout);
+        use std::io::BufRead;
+        for line in reader.lines() {
+            let Ok(path) = line else { break };
+            if tx.send(path).is_err() {
+                break;
+            }
+        }
+        let _ = child.wait();
+    });
+
+    state.grep = Some(PathListState::new(Vec::new(), Some(rx)));
     Ok(())
 }
 

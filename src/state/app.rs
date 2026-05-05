@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::state::FilerState;
 use crate::state::{PathListState, PromptMode};
 use anyhow::Result;
+use std::sync::mpsc::Receiver;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Area {
@@ -11,7 +12,6 @@ pub enum Area {
     Grep,
 }
 
-#[derive(Debug)]
 pub struct AppState {
     pub config: Config,
     pub running: bool,
@@ -57,5 +57,25 @@ impl AppState {
 
     pub fn is_active(&self, area: Area) -> bool {
         self.active_area() == area
+    }
+
+    pub fn receive_grep_results(&mut self) {
+        let Some(grep) = &mut self.grep else {
+            return;
+        };
+
+        let Some(rx) = &mut grep.rx else {
+            return;
+        };
+
+        let mut count = 0;
+        while let Ok(path) = rx.try_recv() {
+            grep.paths.push(path);
+            count += 1;
+        }
+
+        if count > 0 && grep.table_state.selected().is_none() {
+            grep.table_state.select(Some(0));
+        }
     }
 }

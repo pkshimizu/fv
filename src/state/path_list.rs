@@ -1,19 +1,25 @@
 use crate::state::table_cursor::TableCursor;
 use ratatui::widgets::TableState;
+use std::sync::mpsc::Receiver;
 
 #[derive(Debug)]
 pub struct PathListState {
     pub table_state: TableState,
     pub paths: Vec<String>,
+    pub rx: Option<Receiver<String>>,
 }
 
 impl PathListState {
-    pub fn new(paths: Vec<String>) -> Self {
+    pub fn new(paths: Vec<String>, rx: Option<Receiver<String>>) -> Self {
         let mut table_state = TableState::default();
         if !paths.is_empty() {
             table_state.select(Some(0));
         }
-        Self { table_state, paths }
+        Self {
+            table_state,
+            paths,
+            rx,
+        }
     }
 
     fn cursor(&mut self) -> TableCursor {
