@@ -228,22 +228,20 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
 
     let dir_path = state.filer.current_dir.absolute_path().to_string();
 
-    let (tx, rx) = std::sync::mpsc::channel();
     let pattern = value.to_string();
 
-    std::thread::spawn(move || {
-        let Ok(mut child) = std::process::Command::new("grep")
-            .args(["-rl", "--binary-files=without-match", &pattern, &dir_path])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            return;
-        };
+    let mut child = std::process::Command::new("grep")
+        .args(["-rl", "--binary-files=without-match", &pattern, &dir_path])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .context("Failed to execute grep")?;
 
-        let Some(stdout) = child.stdout.take() else {
-            return;
-        };
+    let stdout = child.stdout.take().context("Failed to take stdout")?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    std::thread::spawn(move || {
         let reader = std::io::BufReader::new(stdout);
         for line in reader.lines() {
             let Ok(path) = line else { break };
