@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::state::FilerState;
 use crate::state::{PathListState, PromptMode};
 use anyhow::Result;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::TryRecvError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Area {
@@ -69,9 +69,18 @@ impl AppState {
         };
 
         let mut count = 0;
-        while let Ok(path) = rx.try_recv() {
-            grep.paths.push(path);
-            count += 1;
+        loop {
+            match rx.try_recv() {
+                Ok(path) => {
+                    grep.paths.push(path);
+                    count += 1;
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    grep.rx = None;
+                    break;
+                }
+            }
         }
 
         if count > 0 && grep.table_state.selected().is_none() {

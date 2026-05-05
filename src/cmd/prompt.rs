@@ -4,6 +4,7 @@ use crate::state::{
     TextAction,
 };
 use anyhow::{Context, Result};
+use std::io::BufRead;
 use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
@@ -240,15 +241,17 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
             return;
         };
 
-        let stdout = child.stdout.take().unwrap();
+        let Some(stdout) = child.stdout.take() else {
+            return;
+        };
         let reader = std::io::BufReader::new(stdout);
-        use std::io::BufRead;
         for line in reader.lines() {
             let Ok(path) = line else { break };
             if tx.send(path).is_err() {
                 break;
             }
         }
+        let _ = child.kill();
         let _ = child.wait();
     });
 

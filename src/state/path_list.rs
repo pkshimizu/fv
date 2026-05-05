@@ -58,4 +58,8 @@ impl PathListState {
             }
         }
     }
+
+    pub fn is_running(&self) -> bool {
+        self.rx.is_some()
+    }
 }
