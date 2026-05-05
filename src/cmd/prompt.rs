@@ -231,7 +231,7 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     let pattern = value.to_string();
 
     let mut child = std::process::Command::new("grep")
-        .args(["-rl", "--binary-files=without-match", &pattern, &dir_path])
+        .args(["-rl", "--binary-files=without-match", "--", &pattern, &dir_path])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn()
@@ -243,13 +243,17 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
 
     std::thread::spawn(move || {
         let reader = std::io::BufReader::new(stdout);
+        let mut canceled = false;
         for line in reader.lines() {
             let Ok(path) = line else { break };
             if tx.send(path).is_err() {
+                canceled = true;
                 break;
             }
         }
-        let _ = child.kill();
+        if canceled {
+            let _ = child.kill();
+        }
         let _ = child.wait();
     });
 

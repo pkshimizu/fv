@@ -12,6 +12,7 @@ pub enum Area {
     Grep,
 }
 
+#[derive(Debug)]
 pub struct AppState {
     pub config: Config,
     pub running: bool,
