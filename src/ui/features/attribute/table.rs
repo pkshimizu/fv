@@ -55,9 +55,9 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
         ("Device ID", metadata.dev().to_string()),
         ("Block Size", metadata.blksize().to_string()),
         ("Blocks", metadata.blocks().to_string()),
-        ("Modified", modified),
-        ("Accessed", accessed),
         ("Created", created),
+        ("Accessed", accessed),
+        ("Modified", modified),
     ];
 
     entries
