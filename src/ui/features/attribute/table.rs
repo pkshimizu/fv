@@ -31,7 +31,8 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
         .unwrap_or_else(|_| "-".to_string());
 
     let label_style = Style::default().fg(Color::Yellow);
-    let entries: Vec<(&str, String)> = vec![
+
+    let mut entries = vec![
         ("File Type", file_type.to_string()),
         (
             "Size",
@@ -40,13 +41,14 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
                 metadata.file_size().to_formatted_string(&Locale::en)
             ),
         ),
+        ("Permissions", metadata.permissions().to_rwx_string()),
+    ];
+
+    #[cfg(unix)]
+    entries.extend([
         (
-            "Permissions",
-            format!(
-                "{} ({:04o})",
-                metadata.permissions().to_rwx_string(),
-                metadata.mode() & 0o7777
-            ),
+            "Mode",
+            format!("{:04o}", metadata.mode() & 0o7777),
         ),
         ("Owner (UID)", metadata.uid().to_string()),
         ("Group (GID)", metadata.gid().to_string()),
@@ -55,16 +57,21 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
         ("Device ID", metadata.dev().to_string()),
         ("Block Size", metadata.blksize().to_string()),
         ("Blocks", metadata.blocks().to_string()),
+    ]);
+
+    entries.extend([
         ("Created", created),
         ("Accessed", accessed),
         ("Modified", modified),
-    ];
+    ]);
+
+    debug_assert_eq!(entries.len(), VFileMetadata::attribute_count());
 
     entries
         .into_iter()
         .map(|(label, value)| {
             Row::new([
-                Cell::from(label.to_string()).style(label_style),
+                Cell::from(label).style(label_style),
                 Cell::from(value),
             ])
         })

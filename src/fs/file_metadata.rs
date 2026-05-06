@@ -1,6 +1,7 @@
 use crate::fs::VFileTime;
 use crate::fs::permissions::VPermissions;
 use std::fs::Metadata;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 
 #[derive(Debug, Clone)]
@@ -48,35 +49,56 @@ impl VFileMetadata {
         VPermissions::new(self.metadata.permissions())
     }
 
+    #[cfg(unix)]
     pub fn mode(&self) -> u32 {
         self.metadata.mode()
     }
 
+    #[cfg(unix)]
     pub fn uid(&self) -> u32 {
         self.metadata.uid()
     }
 
+    #[cfg(unix)]
     pub fn gid(&self) -> u32 {
         self.metadata.gid()
     }
 
+    #[cfg(unix)]
     pub fn nlink(&self) -> u64 {
         self.metadata.nlink()
     }
 
+    #[cfg(unix)]
     pub fn ino(&self) -> u64 {
         self.metadata.ino()
     }
 
+    #[cfg(unix)]
     pub fn dev(&self) -> u64 {
         self.metadata.dev()
     }
 
+    #[cfg(unix)]
     pub fn blksize(&self) -> u64 {
         self.metadata.blksize()
     }
 
+    #[cfg(unix)]
     pub fn blocks(&self) -> u64 {
         self.metadata.blocks()
+    }
+
+    /// 属性表示で使用する項目数を返す。
+    /// build_rows のエントリ数と一致させること。
+    pub fn attribute_count() -> usize {
+        #[cfg(unix)]
+        {
+            14
+        }
+        #[cfg(not(unix))]
+        {
+            6
+        }
     }
 }

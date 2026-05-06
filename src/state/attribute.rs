@@ -2,8 +2,6 @@ use crate::fs::{VFile, VFileMetadata};
 use crate::state::table_cursor::TableCursor;
 use ratatui::widgets::TableState;
 
-const ATTRIBUTE_COUNT: usize = 13;
-
 #[derive(Debug)]
 pub struct AttributeState {
     pub table_state: TableState,
@@ -27,7 +25,7 @@ impl AttributeState {
     }
 
     fn cursor(&mut self) -> TableCursor {
-        TableCursor::new(&mut self.table_state, ATTRIBUTE_COUNT)
+        TableCursor::new(&mut self.table_state, VFileMetadata::attribute_count())
     }
 
     pub fn next(&mut self) {
