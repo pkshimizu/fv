@@ -69,10 +69,15 @@ impl PathListState {
         };
 
         const MAX_RECV_PER_FRAME: usize = 100;
+        const MAX_PATHS_SIZE: usize = 10000;
 
         let mut count = 0;
         loop {
             if count >= MAX_RECV_PER_FRAME {
+                break;
+            }
+            if count + self.paths.len() >= MAX_PATHS_SIZE {
+                self.rx = None;
                 break;
             }
             match rx.try_recv() {

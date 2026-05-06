@@ -232,7 +232,7 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
 
     let mut child = std::process::Command::new("grep")
         .args([
-            "-rl",
+            "-rlF",
             "--binary-files=without-match",
             "--",
             &pattern,

@@ -2,7 +2,6 @@ use crate::config::Config;
 use crate::state::FilerState;
 use crate::state::{PathListState, PromptMode};
 use anyhow::Result;
-use std::sync::mpsc::TryRecvError;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Area {
