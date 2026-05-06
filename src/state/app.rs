@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::state::AttributeState;
 use crate::state::FilerState;
 use crate::state::{PathListState, PromptMode};
 use anyhow::Result;
@@ -9,6 +10,7 @@ pub enum Area {
     Prompt,
     Bookmark,
     Grep,
+    Attribute,
 }
 
 #[derive(Debug)]
@@ -19,6 +21,7 @@ pub struct AppState {
     pub prompt: PromptMode,
     pub bookmark: Option<PathListState>,
     pub grep: Option<PathListState>,
+    pub attribute: Option<AttributeState>,
 }
 
 impl AppState {
@@ -30,6 +33,7 @@ impl AppState {
             prompt: PromptMode::None,
             bookmark: None,
             grep: None,
+            attribute: None,
         }
     }
 
@@ -45,6 +49,9 @@ impl AppState {
     pub fn active_area(&self) -> Area {
         if self.prompt.is_active() {
             return Area::Prompt;
+        }
+        if self.attribute.is_some() {
+            return Area::Attribute;
         }
         if self.bookmark.is_some() {
             return Area::Bookmark;

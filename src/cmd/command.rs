@@ -1,4 +1,4 @@
-use crate::cmd::{app, bookmark, filer, grep, prompt};
+use crate::cmd::{app, attribute, bookmark, filer, grep, prompt};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -9,6 +9,7 @@ pub enum Command {
     Prompt(PromptCommand),
     Bookmark(BookmarkCommand),
     Grep(GrepCommand),
+    Attribute(AttributeCommand),
 }
 
 impl Command {
@@ -19,6 +20,7 @@ impl Command {
             Command::Prompt(cmd) => cmd.exec(state),
             Command::Bookmark(cmd) => cmd.exec(state, store),
             Command::Grep(cmd) => cmd.exec(state),
+            Command::Attribute(cmd) => cmd.exec(state),
         }
     }
 }
@@ -57,6 +59,7 @@ pub enum FilerCommand {
     ShowBookmark,
     RefreshFiles,
     ToggleCheckedFile,
+    ShowAttribute,
     ToggleDotFiles,
 }
 
@@ -82,6 +85,7 @@ impl FilerCommand {
             FilerCommand::ShowBookmark => filer::show_bookmark(state, store),
             FilerCommand::RefreshFiles => filer::refresh_files(state),
             FilerCommand::ToggleCheckedFile => filer::toggle_checked_file(state),
+            FilerCommand::ShowAttribute => attribute::show_attribute(state),
             FilerCommand::ToggleDotFiles => filer::toggle_dot_files(state),
         }
     }
@@ -157,6 +161,22 @@ impl GrepCommand {
             GrepCommand::MoveCursorRight => grep::last_cursor(state),
             GrepCommand::EnterFile => grep::select(state),
             GrepCommand::HideGrep => grep::hide_grep(state),
+        }
+    }
+}
+
+pub enum AttributeCommand {
+    MoveCursorUp,
+    MoveCursorDown,
+    HideAttribute,
+}
+
+impl AttributeCommand {
+    fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
+            AttributeCommand::MoveCursorUp => attribute::up_cursor(state),
+            AttributeCommand::MoveCursorDown => attribute::down_cursor(state),
+            AttributeCommand::HideAttribute => attribute::hide_attribute(state),
         }
     }
 }

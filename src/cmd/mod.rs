@@ -1,4 +1,5 @@
 mod app;
+mod attribute;
 mod bookmark;
 pub mod command;
 mod filer;

@@ -1,6 +1,8 @@
 use crate::state::AppState;
 use crate::store::RootStore;
-use crate::ui::features::{build_filer, build_header, build_path_table, build_prompt_view};
+use crate::ui::features::{
+    build_attribute_table, build_filer, build_header, build_path_table, build_prompt_view,
+};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
@@ -16,7 +18,17 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
 
     frame.render_widget(build_header(state), header_area);
     let filer = build_filer(state, store);
-    if let Some(bookmark) = &mut state.bookmark {
+    if let Some(attribute) = &mut state.attribute {
+        let [filer_area, attribute_area] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas(content_area);
+        frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
+        frame.render_stateful_widget(
+            build_attribute_table(attribute),
+            attribute_area,
+            &mut attribute.table_state,
+        )
+    } else if let Some(bookmark) = &mut state.bookmark {
         let [filer_area, bookmark_area] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas(content_area);
