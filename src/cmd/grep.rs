@@ -40,7 +40,7 @@ pub fn select(state: &mut AppState) -> Result<()> {
         state
             .filer
             .jump_to(&path)
-            .context("Failed to navigate to grep")?;
+            .context("Failed to navigate to grep result")?;
     }
     Ok(())
 }
