@@ -65,32 +65,6 @@ impl AppState {
             return;
         };
 
-        let Some(rx) = &mut grep.rx else {
-            return;
-        };
-
-        const MAX_RECV_PER_FRAME: usize = 100;
-
-        let mut count = 0;
-        loop {
-            if count >= MAX_RECV_PER_FRAME {
-                break;
-            }
-            match rx.try_recv() {
-                Ok(path) => {
-                    grep.paths.push(path);
-                    count += 1;
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    grep.rx = None;
-                    break;
-                }
-            }
-        }
-
-        if count > 0 && grep.table_state.selected().is_none() {
-            grep.table_state.select(Some(0));
-        }
+        grep.receive_results();
     }
 }

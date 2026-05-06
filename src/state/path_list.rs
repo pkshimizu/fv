@@ -1,6 +1,6 @@
 use crate::state::table_cursor::TableCursor;
 use ratatui::widgets::TableState;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 #[derive(Debug)]
 pub struct PathListState {
@@ -61,5 +61,35 @@ impl PathListState {
 
     pub fn is_running(&self) -> bool {
         self.rx.is_some()
+    }
+
+    pub fn receive_results(&mut self) {
+        let Some(rx) = &mut self.rx else {
+            return;
+        };
+
+        const MAX_RECV_PER_FRAME: usize = 100;
+
+        let mut count = 0;
+        loop {
+            if count >= MAX_RECV_PER_FRAME {
+                break;
+            }
+            match rx.try_recv() {
+                Ok(path) => {
+                    self.paths.push(path);
+                    count += 1;
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    self.rx = None;
+                    break;
+                }
+            }
+        }
+
+        if count > 0 && self.table_state.selected().is_none() {
+            self.table_state.select(Some(0));
+        }
     }
 }
