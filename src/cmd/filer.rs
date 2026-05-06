@@ -1,6 +1,6 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, BookmarkState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey,
+    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey,
     TextAction,
 };
 use crate::store::RootStore;
@@ -116,6 +116,15 @@ pub fn prompt_search(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn prompt_grep(state: &mut AppState) -> Result<()> {
+    state.prompt = PromptMode::Text {
+        title: "Grep".to_string(),
+        value: String::new(),
+        action: TextAction::Grep,
+    };
+    Ok(())
+}
+
 pub fn add_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
         store.bookmark.add(selected_file.absolute_path())?;
@@ -131,8 +140,9 @@ pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
 }
 
 pub fn show_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
-    state.bookmark = Some(BookmarkState::new(
+    state.bookmark = Some(PathListState::new(
         store.bookmark.get_paths().cloned().collect(),
+        None,
     ));
     Ok(())
 }

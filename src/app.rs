@@ -45,6 +45,9 @@ impl App {
                 };
             }
 
+            // grep 結果の受信
+            self.state.receive_grep_results();
+
             // カレントディレクトリの監視
             let current_dir_path = self.state.filer.current_dir.absolute_path();
             if current_dir_path != watching_dir_path {

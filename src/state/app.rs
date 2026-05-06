@@ -1,7 +1,6 @@
 use crate::config::Config;
 use crate::state::FilerState;
-use crate::state::PromptMode;
-use crate::state::bookmark::BookmarkState;
+use crate::state::{PathListState, PromptMode};
 use anyhow::Result;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -9,6 +8,7 @@ pub enum Area {
     Filer,
     Prompt,
     Bookmark,
+    Grep,
 }
 
 #[derive(Debug)]
@@ -17,7 +17,8 @@ pub struct AppState {
     pub running: bool,
     pub filer: FilerState,
     pub prompt: PromptMode,
-    pub bookmark: Option<BookmarkState>,
+    pub bookmark: Option<PathListState>,
+    pub grep: Option<PathListState>,
 }
 
 impl AppState {
@@ -28,6 +29,7 @@ impl AppState {
             filer: FilerState::new(),
             prompt: PromptMode::None,
             bookmark: None,
+            grep: None,
         }
     }
 
@@ -47,10 +49,21 @@ impl AppState {
         if self.bookmark.is_some() {
             return Area::Bookmark;
         }
+        if self.grep.is_some() {
+            return Area::Grep;
+        }
         Area::Filer
     }
 
     pub fn is_active(&self, area: Area) -> bool {
         self.active_area() == area
+    }
+
+    pub fn receive_grep_results(&mut self) {
+        let Some(grep) = &mut self.grep else {
+            return;
+        };
+
+        grep.receive_results();
     }
 }

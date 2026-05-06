@@ -1,4 +1,4 @@
-use crate::cmd::{app, bookmark, filer, prompt};
+use crate::cmd::{app, bookmark, filer, grep, prompt};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -8,6 +8,7 @@ pub enum Command {
     Filer(FilerCommand),
     Prompt(PromptCommand),
     Bookmark(BookmarkCommand),
+    Grep(GrepCommand),
 }
 
 impl Command {
@@ -17,6 +18,7 @@ impl Command {
             Command::Filer(cmd) => cmd.exec(state, store),
             Command::Prompt(cmd) => cmd.exec(state),
             Command::Bookmark(cmd) => cmd.exec(state, store),
+            Command::Grep(cmd) => cmd.exec(state),
         }
     }
 }
@@ -49,6 +51,7 @@ pub enum FilerCommand {
     PromptRename,
     PromptSort,
     PromptSearch,
+    PromptGrep,
     AddBookmark,
     RemoveBookmark,
     ShowBookmark,
@@ -73,6 +76,7 @@ impl FilerCommand {
             FilerCommand::PromptRename => filer::prompt_rename(state),
             FilerCommand::PromptSort => filer::prompt_sort(state),
             FilerCommand::PromptSearch => filer::prompt_search(state),
+            FilerCommand::PromptGrep => filer::prompt_grep(state),
             FilerCommand::AddBookmark => filer::add_bookmark(state, store),
             FilerCommand::RemoveBookmark => filer::remove_bookmark(state, store),
             FilerCommand::ShowBookmark => filer::show_bookmark(state, store),
@@ -131,6 +135,28 @@ impl BookmarkCommand {
             BookmarkCommand::EnterFile => bookmark::select(state),
             BookmarkCommand::RemoveBookmark => bookmark::remove_bookmark(state, store),
             BookmarkCommand::HideBookmark => bookmark::hide_bookmark(state),
+        }
+    }
+}
+
+pub enum GrepCommand {
+    MoveCursorUp,
+    MoveCursorDown,
+    MoveCursorLeft,
+    MoveCursorRight,
+    EnterFile,
+    HideGrep,
+}
+
+impl GrepCommand {
+    fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
+            GrepCommand::MoveCursorUp => grep::up_cursor(state),
+            GrepCommand::MoveCursorDown => grep::down_cursor(state),
+            GrepCommand::MoveCursorLeft => grep::first_cursor(state),
+            GrepCommand::MoveCursorRight => grep::last_cursor(state),
+            GrepCommand::EnterFile => grep::select(state),
+            GrepCommand::HideGrep => grep::hide_grep(state),
         }
     }
 }

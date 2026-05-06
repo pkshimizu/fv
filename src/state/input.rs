@@ -4,6 +4,7 @@ use crate::fs::VFile;
 pub enum TextAction {
     Mkdir { dir: VFile },
     Rename { file: VFile },
+    Grep,
 }
 
 #[derive(Debug)]

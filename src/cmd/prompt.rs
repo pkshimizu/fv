@@ -1,8 +1,10 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PromptMode, SelectAction, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey,
+    TextAction,
 };
 use anyhow::{Context, Result};
+use std::io::BufRead;
 use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
@@ -160,6 +162,7 @@ fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) ->
     match action {
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
         TextAction::Rename { file } => execute_rename(state, file, value),
+        TextAction::Grep => execute_grep(state, value),
     }
 }
 
@@ -215,6 +218,52 @@ fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
 fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> {
     file.rename(value)?;
     state.filer.set_pending_select_name(value.to_string());
+    Ok(())
+}
+
+fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
+    if value.is_empty() {
+        return Ok(());
+    }
+
+    let dir_path = state.filer.current_dir.absolute_path().to_string();
+
+    let pattern = value.to_string();
+
+    let mut child = std::process::Command::new("grep")
+        .args([
+            "-rlF",
+            "--binary-files=without-match",
+            "--",
+            &pattern,
+            &dir_path,
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .context("Failed to execute grep")?;
+
+    let stdout = child.stdout.take().context("Failed to take stdout")?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stdout);
+        let mut canceled = false;
+        for line in reader.lines() {
+            let Ok(path) = line else { break };
+            if tx.send(path).is_err() {
+                canceled = true;
+                break;
+            }
+        }
+        if canceled {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    });
+
+    state.grep = Some(PathListState::new(Vec::new(), Some(rx)));
     Ok(())
 }
 
