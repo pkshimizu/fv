@@ -69,8 +69,13 @@ impl AppState {
             return;
         };
 
+        const MAX_RECV_PER_FRAME: usize = 100;
+
         let mut count = 0;
         loop {
+            if count >= MAX_RECV_PER_FRAME {
+                break;
+            }
             match rx.try_recv() {
                 Ok(path) => {
                     grep.paths.push(path);
