@@ -2,6 +2,7 @@ use crate::fs::VFile;
 use crate::fs::VFileMetadata;
 use crate::state::table_cursor::TableCursor;
 use anyhow::Result;
+use num_format::{Locale, ToFormattedString};
 use ratatui::widgets::TableState;
 
 #[derive(Debug)]
@@ -36,6 +37,58 @@ impl AttributeState {
         #[cfg(not(unix))]
         let unix_fields = 0;
         base + unix_fields + timestamps
+    }
+
+    pub fn entries(&self) -> Vec<(&'static str, String)> {
+        let mut entries = Vec::new();
+        entries.extend([
+            ("File Type", self.metadata.file_type()),
+            (
+                "Size",
+                format!(
+                    "{} bytes",
+                    self.metadata.file_size().to_formatted_string(&Locale::en)
+                ),
+            ),
+            ("Permissions", self.metadata.permissions().to_rwx_string()),
+        ]);
+
+        #[cfg(unix)]
+        entries.extend([
+            ("Mode", format!("{:04o}", self.metadata.mode() & 0o7777)),
+            ("Owner (UID)", self.metadata.uid().to_string()),
+            ("Group (GID)", self.metadata.gid().to_string()),
+            ("Hard Links", self.metadata.nlink().to_string()),
+            ("Inode", self.metadata.ino().to_string()),
+            ("Device ID", self.metadata.dev().to_string()),
+            ("Block Size", self.metadata.blksize().to_string()),
+            ("Blocks", self.metadata.blocks().to_string()),
+        ]);
+
+        entries.extend([
+            (
+                "Created",
+                self.metadata
+                    .created()
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|_| "-".to_string()),
+            ),
+            (
+                "Accessed",
+                self.metadata
+                    .accessed()
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|_| "-".to_string()),
+            ),
+            (
+                "Modified",
+                self.metadata
+                    .modified()
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|_| "-".to_string()),
+            ),
+        ]);
+        entries
     }
 
     fn cursor(&mut self) -> TableCursor {
