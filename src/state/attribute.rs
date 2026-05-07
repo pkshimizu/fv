@@ -23,11 +23,11 @@ impl AttributeState {
             table_state,
             metadata,
             file_name,
-            row_count: Self::compute_row_count(),
+            row_count: Self::row_count(),
         })
     }
 
-    fn compute_row_count() -> usize {
+    pub fn row_count() -> usize {
         let base = 3; // File Type, Size, Permissions
         let timestamps = 3; // Created, Accessed, Modified
         #[cfg(unix)]

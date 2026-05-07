@@ -21,17 +21,18 @@ const RWX_BITS: [(u32, char); 9] = [
 ];
 
 impl VPermissions {
-    pub fn new(permissions: Permissions) -> VPermissions {
+    pub fn new(permissions: Permissions) -> Self {
         Self { permissions }
     }
 
     #[cfg(unix)]
     pub fn to_rwx_string(&self) -> String {
         let mode = self.permissions.mode();
-        RWX_BITS
-            .iter()
-            .map(|&(mask, ch)| if mode & mask != 0 { ch } else { '-' })
-            .collect()
+        let mut s = String::with_capacity(9);
+        for &(mask, ch) in &RWX_BITS {
+            s.push(if mode & mask != 0 { ch } else { '-' });
+        }
+        s
     }
 
     #[cfg(not(unix))]

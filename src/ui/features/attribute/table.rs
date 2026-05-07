@@ -32,7 +32,9 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
 
     let label_style = Style::default().fg(Color::Yellow);
 
-    let mut entries = vec![
+    let row_count = AttributeState::row_count();
+    let mut entries = Vec::with_capacity(row_count);
+    entries.extend([
         ("File Type", file_type.to_string()),
         (
             "Size",
@@ -42,7 +44,7 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
             ),
         ),
         ("Permissions", metadata.permissions().to_rwx_string()),
-    ];
+    ]);
 
     #[cfg(unix)]
     entries.extend([
