@@ -7,11 +7,16 @@ use ratatui::widgets::{Cell, Row, Table};
 pub fn build_attribute_table(state: &AttributeState) -> Table<'static> {
     let title = format!("Attribute - {}", state.file_name);
     let block = build_bordered_block(&title, BorderStyle::Active);
-    let entries = state.entries();
     let label_style = Style::default().fg(Color::Yellow);
-    let rows: Vec<Row> = entries
-        .into_iter()
-        .map(|(label, value)| Row::new([Cell::from(label).style(label_style), Cell::from(value)]))
+    let rows: Vec<Row> = state
+        .entries
+        .iter()
+        .map(|(label, value)| {
+            Row::new([
+                Cell::from(*label).style(label_style),
+                Cell::from(value.clone()),
+            ])
+        })
         .collect();
     Table::new(rows, [Constraint::Max(14), Constraint::Fill(1)])
         .block(block)

@@ -18,15 +18,15 @@ impl VFileMetadata {
         self.metadata.len()
     }
 
-    pub fn file_type(&self) -> String {
+    pub fn file_type(&self) -> &str {
         if self.is_symlink() {
-            "Symlink".to_string()
+            "Symlink"
         } else if self.is_dir() {
-            "Directory".to_string()
+            "Directory"
         } else if self.is_file() {
-            "File".to_string()
+            "File"
         } else {
-            "Other".to_string()
+            "Other"
         }
     }
 
