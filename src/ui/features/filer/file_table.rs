@@ -74,7 +74,7 @@ pub fn build_file_table(
             Constraint::Max(1),
             Constraint::Fill(1),
             Constraint::Max(1),
-            Constraint::Max(6),
+            Constraint::Max(9),
             Constraint::Max(10),
             Constraint::Max(19),
         ],

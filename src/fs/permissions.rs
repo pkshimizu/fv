@@ -1,74 +1,46 @@
 use std::fs::Permissions;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug)]
 pub struct VPermissions {
-    pub permissions: Permissions,
+    permissions: Permissions,
 }
 
+#[cfg(unix)]
+const RWX_BITS: [(u32, char); 9] = [
+    (0o400, 'r'),
+    (0o200, 'w'),
+    (0o100, 'x'),
+    (0o040, 'r'),
+    (0o020, 'w'),
+    (0o010, 'x'),
+    (0o004, 'r'),
+    (0o002, 'w'),
+    (0o001, 'x'),
+];
+
 impl VPermissions {
-    pub fn new(permissions: Permissions) -> VPermissions {
+    pub fn new(permissions: Permissions) -> Self {
         Self { permissions }
     }
 
-    #[allow(dead_code)]
-    pub fn owner_read(&self) -> bool {
-        self.permissions.mode() & 0o400 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn owner_write(&self) -> bool {
-        self.permissions.mode() & 0o200 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn owner_exec(&self) -> bool {
-        self.permissions.mode() & 0o100 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn group_read(&self) -> bool {
-        self.permissions.mode() & 0o040 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn group_write(&self) -> bool {
-        self.permissions.mode() & 0o020 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn group_exec(&self) -> bool {
-        self.permissions.mode() & 0o010 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn other_read(&self) -> bool {
-        self.permissions.mode() & 0o004 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn other_write(&self) -> bool {
-        self.permissions.mode() & 0o002 != 0
-    }
-
-    #[allow(dead_code)]
-    pub fn other_exec(&self) -> bool {
-        self.permissions.mode() & 0o001 != 0
-    }
-
+    #[cfg(unix)]
     pub fn to_rwx_string(&self) -> String {
         let mode = self.permissions.mode();
-        format!(
-            "{}{}{}{}{}{}{}{}{}",
-            if mode & 0o400 != 0 { "r" } else { "-" },
-            if mode & 0o200 != 0 { "w" } else { "-" },
-            if mode & 0o100 != 0 { "x" } else { "-" },
-            if mode & 0o040 != 0 { "r" } else { "-" },
-            if mode & 0o020 != 0 { "w" } else { "-" },
-            if mode & 0o010 != 0 { "x" } else { "-" },
-            if mode & 0o004 != 0 { "r" } else { "-" },
-            if mode & 0o002 != 0 { "w" } else { "-" },
-            if mode & 0o001 != 0 { "x" } else { "-" },
-        )
+        let mut s = String::with_capacity(9);
+        for &(mask, ch) in &RWX_BITS {
+            s.push(if mode & mask != 0 { ch } else { '-' });
+        }
+        s
+    }
+
+    #[cfg(not(unix))]
+    pub fn to_rwx_string(&self) -> String {
+        if self.permissions.readonly() {
+            "readonly".to_string()
+        } else {
+            "read-write".to_string()
+        }
     }
 }

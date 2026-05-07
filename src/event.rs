@@ -5,7 +5,8 @@ use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::{
-    AppCommand, BookmarkCommand, Command, FilerCommand, GrepCommand, PromptCommand,
+    AppCommand, AttributeCommand, BookmarkCommand, Command, FilerCommand, GrepCommand,
+    PromptCommand,
 };
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
@@ -52,6 +53,8 @@ impl EventHandler {
             Ok(AppEvent::Key(key)) => {
                 if state.is_active(Area::Prompt) {
                     Ok(Self::prompt_key_to_command(key, &state.prompt))
+                } else if state.is_active(Area::Attribute) {
+                    Ok(Self::attribute_key_to_command(key))
                 } else if state.is_active(Area::Bookmark) {
                     Ok(Self::bookmark_key_to_command(key))
                 } else if state.is_active(Area::Grep) {
@@ -97,6 +100,7 @@ impl EventHandler {
             (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
             (_, KeyCode::Char('+')) => Command::Filer(FilerCommand::AddBookmark),
             (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
+            (_, KeyCode::Char('a')) => Command::Filer(FilerCommand::ShowAttribute),
             (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ShowBookmark),
             (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
@@ -177,6 +181,16 @@ impl EventHandler {
             (_, KeyCode::Left) => Command::Grep(GrepCommand::MoveCursorLeft),
             (_, KeyCode::Right) => Command::Grep(GrepCommand::MoveCursorRight),
             (_, KeyCode::Enter) => Command::Grep(GrepCommand::EnterFile),
+            _ => Command::App(AppCommand::None),
+        }
+    }
+
+    fn attribute_key_to_command(key: KeyEvent) -> Command {
+        match (key.modifiers, key.code) {
+            (_, KeyCode::Char('a')) => Command::Attribute(AttributeCommand::HideAttribute),
+            (_, KeyCode::Esc) => Command::Attribute(AttributeCommand::HideAttribute),
+            (_, KeyCode::Up) => Command::Attribute(AttributeCommand::MoveCursorUp),
+            (_, KeyCode::Down) => Command::Attribute(AttributeCommand::MoveCursorDown),
             _ => Command::App(AppCommand::None),
         }
     }
