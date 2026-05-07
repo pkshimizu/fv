@@ -48,10 +48,7 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
 
     #[cfg(unix)]
     entries.extend([
-        (
-            "Mode",
-            format!("{:04o}", metadata.mode() & 0o7777),
-        ),
+        ("Mode", format!("{:04o}", metadata.mode() & 0o7777)),
         ("Owner (UID)", metadata.uid().to_string()),
         ("Group (GID)", metadata.gid().to_string()),
         ("Hard Links", metadata.nlink().to_string()),
@@ -69,12 +66,7 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
 
     entries
         .into_iter()
-        .map(|(label, value)| {
-            Row::new([
-                Cell::from(label).style(label_style),
-                Cell::from(value),
-            ])
-        })
+        .map(|(label, value)| Row::new([Cell::from(label).style(label_style), Cell::from(value)]))
         .collect()
 }
 

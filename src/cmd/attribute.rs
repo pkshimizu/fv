@@ -3,7 +3,7 @@ use anyhow::Result;
 
 pub fn show_attribute(state: &mut AppState) -> Result<()> {
     if let Some(file) = state.filer.selected_file() {
-        state.attribute = AttributeState::new(file);
+        state.attribute = Some(AttributeState::new(file)?);
     }
     Ok(())
 }

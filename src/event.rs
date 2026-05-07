@@ -53,12 +53,12 @@ impl EventHandler {
             Ok(AppEvent::Key(key)) => {
                 if state.is_active(Area::Prompt) {
                     Ok(Self::prompt_key_to_command(key, &state.prompt))
+                } else if state.is_active(Area::Attribute) {
+                    Ok(Self::attribute_key_to_command(key))
                 } else if state.is_active(Area::Bookmark) {
                     Ok(Self::bookmark_key_to_command(key))
                 } else if state.is_active(Area::Grep) {
                     Ok(Self::grep_key_to_command(key))
-                } else if state.is_active(Area::Attribute) {
-                    Ok(Self::attribute_key_to_command(key))
                 } else {
                     Ok(Self::key_to_command(key))
                 }

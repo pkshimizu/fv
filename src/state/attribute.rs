@@ -1,6 +1,7 @@
 use crate::fs::VFile;
 use crate::fs::VFileMetadata;
 use crate::state::table_cursor::TableCursor;
+use anyhow::Result;
 use ratatui::widgets::TableState;
 
 #[derive(Debug)]
@@ -12,14 +13,14 @@ pub struct AttributeState {
 }
 
 impl AttributeState {
-    pub fn new(file: &VFile) -> Option<Self> {
-        let metadata = file.metadata().ok()?.clone();
+    pub fn new(file: &VFile) -> Result<Self> {
+        let metadata = file.metadata()?.clone();
         let file_name = file.file_name().unwrap_or("(unknown)").to_string();
 
         let mut table_state = TableState::default();
         table_state.select(Some(0));
 
-        Some(Self {
+        Ok(Self {
             table_state,
             metadata,
             file_name,
