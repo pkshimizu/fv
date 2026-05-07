@@ -23,8 +23,11 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas(content_area);
         frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
-        let table = build_attribute_table(attribute);
-        frame.render_stateful_widget(table, attribute_area, &mut attribute.table_state)
+        frame.render_stateful_widget(
+            build_attribute_table(attribute),
+            attribute_area,
+            &mut attribute.table_state,
+        )
     } else if let Some(bookmark) = &mut state.bookmark {
         let [filer_area, bookmark_area] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])

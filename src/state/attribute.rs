@@ -1,4 +1,5 @@
-use crate::fs::{VFile, VFileMetadata};
+use crate::fs::VFile;
+use crate::fs::VFileMetadata;
 use crate::state::table_cursor::TableCursor;
 use ratatui::widgets::TableState;
 
@@ -22,12 +23,18 @@ impl AttributeState {
             table_state,
             metadata,
             file_name,
-            row_count: 0,
+            row_count: Self::compute_row_count(),
         })
     }
 
-    pub fn set_row_count(&mut self, count: usize) {
-        self.row_count = count;
+    fn compute_row_count() -> usize {
+        let base = 3; // File Type, Size, Permissions
+        let timestamps = 3; // Created, Accessed, Modified
+        #[cfg(unix)]
+        let unix_fields = 8; // Mode, UID, GID, Hard Links, Inode, Device ID, Block Size, Blocks
+        #[cfg(not(unix))]
+        let unix_fields = 0;
+        base + unix_fields + timestamps
     }
 
     fn cursor(&mut self) -> TableCursor {
