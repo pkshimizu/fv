@@ -7,6 +7,7 @@ pub struct AttributeState {
     pub table_state: TableState,
     pub metadata: VFileMetadata,
     pub file_name: String,
+    row_count: usize,
 }
 
 impl AttributeState {
@@ -21,11 +22,16 @@ impl AttributeState {
             table_state,
             metadata,
             file_name,
+            row_count: 0,
         })
     }
 
+    pub fn set_row_count(&mut self, count: usize) {
+        self.row_count = count;
+    }
+
     fn cursor(&mut self) -> TableCursor {
-        TableCursor::new(&mut self.table_state, VFileMetadata::attribute_count())
+        TableCursor::new(&mut self.table_state, self.row_count)
     }
 
     pub fn next(&mut self) {

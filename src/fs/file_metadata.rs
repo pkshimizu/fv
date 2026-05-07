@@ -88,17 +88,4 @@ impl VFileMetadata {
     pub fn blocks(&self) -> u64 {
         self.metadata.blocks()
     }
-
-    /// 属性表示で使用する項目数を返す。
-    /// build_rows のエントリ数と一致させること。
-    pub fn attribute_count() -> usize {
-        #[cfg(unix)]
-        {
-            14
-        }
-        #[cfg(not(unix))]
-        {
-            6
-        }
-    }
 }

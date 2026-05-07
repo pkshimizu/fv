@@ -65,8 +65,6 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
         ("Modified", modified),
     ]);
 
-    debug_assert_eq!(entries.len(), VFileMetadata::attribute_count());
-
     entries
         .into_iter()
         .map(|(label, value)| {
@@ -78,10 +76,11 @@ fn build_rows(metadata: &VFileMetadata) -> Vec<Row<'static>> {
         .collect()
 }
 
-pub fn build_attribute_table(state: &AttributeState) -> Table<'static> {
+pub fn build_attribute_table(state: &mut AttributeState) -> Table<'static> {
     let title = format!("Attribute - {}", state.file_name);
     let block = build_bordered_block(&title, BorderStyle::Active);
     let rows = build_rows(&state.metadata);
+    state.set_row_count(rows.len());
     Table::new(rows, [Constraint::Max(14), Constraint::Fill(1)])
         .block(block)
         .highlight_symbol("> ")

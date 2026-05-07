@@ -4,7 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug)]
 pub struct VPermissions {
-    pub permissions: Permissions,
+    permissions: Permissions,
 }
 
 impl VPermissions {
