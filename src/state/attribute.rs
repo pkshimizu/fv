@@ -14,9 +14,9 @@ pub struct AttributeState {
 
 impl AttributeState {
     pub fn new(file: &VFile) -> Result<Self> {
-        let metadata = file.metadata()?.clone();
+        let metadata = file.metadata()?;
         let file_name = file.file_name().unwrap_or("(unknown)").to_string();
-        let entries = Self::build_entries(&metadata);
+        let entries = Self::build_entries(metadata);
 
         let mut table_state = TableState::default();
         table_state.select(Some(0));
