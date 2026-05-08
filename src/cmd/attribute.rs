@@ -9,7 +9,9 @@ pub fn show_attribute(state: &mut AppState) -> Result<()> {
 }
 
 pub fn hide_attribute(state: &mut AppState) -> Result<()> {
-    state.side_panel = None;
+    if matches!(state.side_panel, Some(SidePanel::Attribute(_))) {
+        state.side_panel = None;
+    }
     Ok(())
 }
 

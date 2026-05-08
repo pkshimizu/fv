@@ -30,10 +30,10 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
-    let selected = match &state.side_panel {
-        Some(SidePanel::Grep(grep)) => grep.selected_path().map(String::from),
-        _ => None,
+    let Some(SidePanel::Grep(grep)) = &state.side_panel else {
+        return Ok(());
     };
+    let selected = grep.selected_path().map(String::from);
     state.side_panel = None;
 
     if let Some(path) = selected {
@@ -46,6 +46,8 @@ pub fn select(state: &mut AppState) -> Result<()> {
 }
 
 pub fn hide_grep(state: &mut AppState) -> Result<()> {
-    state.side_panel = None;
+    if matches!(state.side_panel, Some(SidePanel::Grep(_))) {
+        state.side_panel = None;
+    }
     Ok(())
 }
