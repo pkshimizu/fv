@@ -1,7 +1,5 @@
 use crate::config::Config;
-use crate::state::FilerState;
-use crate::state::PromptMode;
-use crate::state::SidePanel;
+use crate::state::{FilerState, PromptMode, SidePanel};
 use anyhow::Result;
 
 #[derive(Debug, Eq, PartialEq)]
