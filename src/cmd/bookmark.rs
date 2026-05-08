@@ -1,41 +1,41 @@
-use crate::state::AppState;
+use crate::state::{AppState, SidePanel};
 use crate::store::RootStore;
 use anyhow::{Context, Result};
 
 pub fn up_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
+    if let Some(SidePanel::Bookmark(bookmark)) = &mut state.side_panel {
         bookmark.prev();
     }
     Ok(())
 }
 
 pub fn down_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
+    if let Some(SidePanel::Bookmark(bookmark)) = &mut state.side_panel {
         bookmark.next();
     }
     Ok(())
 }
 
 pub fn first_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
+    if let Some(SidePanel::Bookmark(bookmark)) = &mut state.side_panel {
         bookmark.first();
     }
     Ok(())
 }
 
 pub fn last_cursor(state: &mut AppState) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
+    if let Some(SidePanel::Bookmark(bookmark)) = &mut state.side_panel {
         bookmark.last();
     }
     Ok(())
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
-    let selected = state
-        .bookmark
-        .as_ref()
-        .and_then(|bookmark_state| bookmark_state.selected_path().map(String::from));
-    state.bookmark = None;
+    let selected = match &state.side_panel {
+        Some(SidePanel::Bookmark(bookmark)) => bookmark.selected_path().map(String::from),
+        _ => None,
+    };
+    state.side_panel = None;
 
     if let Some(path) = selected {
         state
@@ -47,7 +47,7 @@ pub fn select(state: &mut AppState) -> Result<()> {
 }
 
 pub fn remove_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
-    if let Some(bookmark) = &mut state.bookmark {
+    if let Some(SidePanel::Bookmark(bookmark)) = &mut state.side_panel {
         if let Some(path) = bookmark.selected_path().map(String::from) {
             store.bookmark.remove(&path)?;
             bookmark.remove(&path);
@@ -57,6 +57,6 @@ pub fn remove_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()
 }
 
 pub fn hide_bookmark(state: &mut AppState) -> Result<()> {
-    state.bookmark = None;
+    state.side_panel = None;
     Ok(())
 }

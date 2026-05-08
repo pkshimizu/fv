@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SortKey,
-    TextAction,
+    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SidePanel,
+    SortKey, TextAction,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -263,7 +263,7 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
         let _ = child.wait();
     });
 
-    state.grep = Some(PathListState::new(Vec::new(), Some(rx)));
+    state.side_panel = Some(SidePanel::Grep(PathListState::new(Vec::new(), Some(rx))));
     Ok(())
 }
 
