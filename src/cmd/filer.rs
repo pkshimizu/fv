@@ -140,10 +140,12 @@ pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
 }
 
 pub fn show_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
-    state.side_panel = Some(SidePanel::Bookmark(PathListState::new(
-        store.bookmark.get_paths().cloned().collect(),
-        None,
-    )));
+    if matches!(state.filer.selected_file(), None) {
+        state.side_panel = Some(SidePanel::Bookmark(PathListState::new(
+            store.bookmark.get_paths().cloned().collect(),
+            None,
+        )));
+    }
     Ok(())
 }
 

@@ -3,7 +3,9 @@ use anyhow::Result;
 
 pub fn show_attribute(state: &mut AppState) -> Result<()> {
     if let Some(file) = state.filer.selected_file() {
-        state.side_panel = Some(SidePanel::Attribute(AttributeState::new(file)?));
+        if matches!(state.side_panel, None) {
+            state.side_panel = Some(SidePanel::Attribute(AttributeState::new(file)?));
+        }
     }
     Ok(())
 }
