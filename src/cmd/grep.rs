@@ -34,7 +34,7 @@ pub fn select(state: &mut AppState) -> Result<()> {
         return Ok(());
     }
     let Some(SidePanel::Grep(grep)) = state.side_panel.take() else {
-        unreachable!()
+        unreachable!("guarded by matches! above")
     };
     if let Some(path) = grep.selected_path() {
         state

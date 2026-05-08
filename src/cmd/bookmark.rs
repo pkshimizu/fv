@@ -35,7 +35,7 @@ pub fn select(state: &mut AppState) -> Result<()> {
         return Ok(());
     }
     let Some(SidePanel::Bookmark(bookmark)) = state.side_panel.take() else {
-        unreachable!()
+        unreachable!("guarded by matches! above")
     };
     if let Some(path) = bookmark.selected_path() {
         state
