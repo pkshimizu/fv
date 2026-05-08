@@ -19,38 +19,34 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
     frame.render_widget(build_header(state), header_area);
     let filer = build_filer(state, store);
     match &mut state.side_panel {
-        Some(SidePanel::Attribute(attribute)) => {
-            let [filer_area, attribute_area] =
+        Some(panel) => {
+            let [filer_area, panel_area] =
                 Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .areas(content_area);
             frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
-            frame.render_stateful_widget(
-                build_attribute_table(attribute),
-                attribute_area,
-                &mut attribute.table_state,
-            )
-        }
-        Some(SidePanel::Bookmark(bookmark)) => {
-            let [filer_area, bookmark_area] =
-                Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-                    .areas(content_area);
-            frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
-            frame.render_stateful_widget(
-                build_path_table(bookmark, "Bookmark"),
-                bookmark_area,
-                &mut bookmark.table_state,
-            )
-        }
-        Some(SidePanel::Grep(grep)) => {
-            let [filer_area, grep_area] =
-                Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-                    .areas(content_area);
-            frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
-            frame.render_stateful_widget(
-                build_path_table(grep, "Grep"),
-                grep_area,
-                &mut grep.table_state,
-            )
+            match panel {
+                SidePanel::Attribute(attribute) => {
+                    frame.render_stateful_widget(
+                        build_attribute_table(attribute),
+                        panel_area,
+                        &mut attribute.table_state,
+                    );
+                }
+                SidePanel::Bookmark(bookmark) => {
+                    frame.render_stateful_widget(
+                        build_path_table(bookmark, "Bookmark"),
+                        panel_area,
+                        &mut bookmark.table_state,
+                    );
+                }
+                SidePanel::Grep(grep) => {
+                    frame.render_stateful_widget(
+                        build_path_table(grep, "Grep"),
+                        panel_area,
+                        &mut grep.table_state,
+                    );
+                }
+            }
         }
         None => {
             frame.render_stateful_widget(filer, content_area, &mut state.filer.file_table_state);
