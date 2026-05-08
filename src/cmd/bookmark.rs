@@ -31,18 +31,13 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
-    let Some(SidePanel::Bookmark(bookmark)) = &state.side_panel else {
+    let Some(SidePanel::Bookmark(bookmark)) = &state.side_panel.take() else {
         return Ok(());
     };
-    let selected = bookmark.selected_path().map(String::from);
-    state.side_panel = None;
-
-    if let Some(path) = selected {
-        state
-            .filer
-            .jump_to(&path)
-            .context("Failed to navigate to bookmark")?;
+    if let Some(path) = bookmark.selected_path() {
+        state.filer.jump_to(path).context("Failed to navigate to bookmark")?;
     }
+    state.side_panel = None;
     Ok(())
 }
 

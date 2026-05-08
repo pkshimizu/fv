@@ -30,18 +30,13 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
-    let Some(SidePanel::Grep(grep)) = &state.side_panel else {
+    let Some(SidePanel::Grep(grep)) = &state.side_panel.take() else {
         return Ok(());
     };
-    let selected = grep.selected_path().map(String::from);
-    state.side_panel = None;
-
-    if let Some(path) = selected {
-        state
-            .filer
-            .jump_to(&path)
-            .context("Failed to navigate to grep result")?;
+    if let Some(path) = grep.selected_path() {
+        state.filer.jump_to(path).context("Failed to navigate to grep result")?;
     }
+    state.side_panel = None;
     Ok(())
 }
 
