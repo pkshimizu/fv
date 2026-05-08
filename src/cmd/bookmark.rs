@@ -35,7 +35,10 @@ pub fn select(state: &mut AppState) -> Result<()> {
         return Ok(());
     };
     if let Some(path) = bookmark.selected_path() {
-        state.filer.jump_to(path).context("Failed to navigate to bookmark")?;
+        state
+            .filer
+            .jump_to(path)
+            .context("Failed to navigate to bookmark")?;
     }
     state.side_panel = None;
     Ok(())

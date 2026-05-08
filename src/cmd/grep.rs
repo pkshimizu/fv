@@ -34,7 +34,10 @@ pub fn select(state: &mut AppState) -> Result<()> {
         return Ok(());
     };
     if let Some(path) = grep.selected_path() {
-        state.filer.jump_to(path).context("Failed to navigate to grep result")?;
+        state
+            .filer
+            .jump_to(path)
+            .context("Failed to navigate to grep result")?;
     }
     state.side_panel = None;
     Ok(())
