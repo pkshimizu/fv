@@ -30,8 +30,11 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
-    let Some(SidePanel::Grep(grep)) = &state.side_panel.take() else {
+    if !matches!(state.side_panel, Some(SidePanel::Grep(_))) {
         return Ok(());
+    }
+    let Some(SidePanel::Grep(grep)) = state.side_panel.take() else {
+        unreachable!()
     };
     if let Some(path) = grep.selected_path() {
         state
@@ -39,7 +42,6 @@ pub fn select(state: &mut AppState) -> Result<()> {
             .jump_to(path)
             .context("Failed to navigate to grep result")?;
     }
-    state.side_panel = None;
     Ok(())
 }
 

@@ -263,6 +263,7 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
         let _ = child.wait();
     });
 
+    // grep実行時は既存のサイドパネルを置き換える（ユーザーが明示的に検索を実行した操作のため）
     state.side_panel = Some(SidePanel::Grep(PathListState::new(Vec::new(), Some(rx))));
     Ok(())
 }

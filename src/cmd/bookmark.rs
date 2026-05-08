@@ -31,8 +31,11 @@ pub fn last_cursor(state: &mut AppState) -> Result<()> {
 }
 
 pub fn select(state: &mut AppState) -> Result<()> {
-    let Some(SidePanel::Bookmark(bookmark)) = &state.side_panel.take() else {
+    if !matches!(state.side_panel, Some(SidePanel::Bookmark(_))) {
         return Ok(());
+    }
+    let Some(SidePanel::Bookmark(bookmark)) = state.side_panel.take() else {
+        unreachable!()
     };
     if let Some(path) = bookmark.selected_path() {
         state
@@ -40,7 +43,6 @@ pub fn select(state: &mut AppState) -> Result<()> {
             .jump_to(path)
             .context("Failed to navigate to bookmark")?;
     }
-    state.side_panel = None;
     Ok(())
 }
 
