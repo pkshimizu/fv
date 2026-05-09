@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SidePanel,
-    SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, ShellAction,
+    SidePanel, SortKey, TextAction,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -201,7 +201,9 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
         PromptMode::File { action, value, .. } => {
             execute_file_action(state, action, value.as_str())
         }
-        PromptMode::Shell { value, .. } => execute_shell_action(state, value.as_str()),
+        PromptMode::Shell { action, value, .. } => {
+            execute_shell_action(state, action, value.as_str())
+        }
         PromptMode::Select {
             action,
             selected_index,
@@ -353,9 +355,13 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn execute_shell_action(_state: &mut AppState, _command: &str) -> Result<()> {
-    // TODO: シェルコマンドの実行は次のタスクで対応
-    Ok(())
+fn execute_shell_action(_state: &mut AppState, action: ShellAction, _command: &str) -> Result<()> {
+    match action {
+        ShellAction::Execute => {
+            // TODO: シェルコマンドの実行は次のタスクで対応
+            Ok(())
+        }
+    }
 }
 
 fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
