@@ -370,7 +370,6 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
     }
 
     let path_var = std::env::var("PATH").unwrap_or_default();
-    let mut seen = std::collections::HashSet::new();
     let mut candidates = Vec::new();
 
     for dir in path_var.split(':') {
@@ -380,13 +379,14 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with(prefix) && seen.insert(name.clone()) {
+            if name.starts_with(prefix) {
                 candidates.push(name);
             }
         }
     }
 
     candidates.sort();
+    candidates.dedup();
     Ok(candidates)
 }
 
