@@ -126,6 +126,7 @@ impl EventHandler {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
+                KeyCode::BackTab => Command::Prompt(PromptCommand::BackTab),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),

@@ -98,24 +98,32 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_back_tab(state: &mut AppState) -> Result<()> {
-    if let PromptMode::Shell {
-        value,
-        candidates,
-        candidate_index,
-        ..
-    } = &mut state.prompt
-    {
-        if !candidates.is_empty() {
-            if let Some(index) = candidate_index {
-                let prev = if *index == 0 {
-                    candidates.len() - 1
-                } else {
-                    *index - 1
-                };
-                *candidate_index = Some(prev);
-                *value = candidates[prev].clone();
+    match &mut state.prompt {
+        PromptMode::File {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        }
+        | PromptMode::Shell {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            if !candidates.is_empty() {
+                if let Some(index) = candidate_index {
+                    let prev = if *index == 0 {
+                        candidates.len() - 1
+                    } else {
+                        *index - 1
+                    };
+                    *candidate_index = Some(prev);
+                    *value = candidates[prev].clone();
+                }
             }
         }
+        _ => {}
     }
     Ok(())
 }
