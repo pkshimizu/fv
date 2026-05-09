@@ -138,6 +138,7 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
 
 type ComputeCandidates = fn(&str) -> Result<Vec<String>>;
 
+#[derive(Debug)]
 enum CycleDirection {
     Forward,
     Backward,
@@ -374,7 +375,7 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
 
     // PATH未設定時は候補なしとして扱う
     let path_var = std::env::var("PATH").unwrap_or_default();
-    let mut candidates = Vec::new();
+    let mut candidates = std::collections::BTreeSet::new();
 
     'outer: for dir in path_var.split(':') {
         let dir_path = Path::new(dir);
@@ -383,9 +384,10 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
             continue;
         };
         for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
+            let os_name = entry.file_name();
+            let name = os_name.to_string_lossy();
             if name.starts_with(prefix) && is_executable(&entry) {
-                candidates.push(name);
+                candidates.insert(name.into_owned());
                 if candidates.len() >= MAX_SHELL_CANDIDATES {
                     break 'outer;
                 }
@@ -393,16 +395,14 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
         }
     }
 
-    candidates.sort();
-    candidates.dedup();
-    Ok(candidates)
+    Ok(candidates.into_iter().collect())
 }
 
 fn is_executable(entry: &std::fs::DirEntry) -> bool {
     use std::os::unix::fs::PermissionsExt;
     entry
         .metadata()
-        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
 }
 
