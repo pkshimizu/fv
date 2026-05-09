@@ -372,11 +372,13 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
         return Ok(Vec::new());
     }
 
+    // PATH未設定時は候補なしとして扱う
     let path_var = std::env::var("PATH").unwrap_or_default();
     let mut candidates = Vec::new();
 
     'outer: for dir in path_var.split(':') {
         let dir_path = Path::new(dir);
+        // 存在しないディレクトリや権限不足はスキップ
         let Ok(entries) = std::fs::read_dir(dir_path) else {
             continue;
         };
