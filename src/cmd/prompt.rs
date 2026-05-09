@@ -82,7 +82,13 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
             candidate_index,
             ..
         } => {
-            cycle_candidates(value, candidates, candidate_index, compute_path_candidates)?;
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Forward,
+                Some(compute_path_candidates),
+            )?;
         }
         PromptMode::Shell {
             value,
@@ -90,7 +96,13 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
             candidate_index,
             ..
         } => {
-            cycle_candidates(value, candidates, candidate_index, compute_shell_candidates)?;
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Forward,
+                Some(compute_shell_candidates),
+            )?;
         }
         _ => {}
     }
@@ -111,37 +123,56 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
             candidate_index,
             ..
         } => {
-            if !candidates.is_empty() {
-                if let Some(index) = candidate_index {
-                    let prev = if *index == 0 {
-                        candidates.len() - 1
-                    } else {
-                        *index - 1
-                    };
-                    *candidate_index = Some(prev);
-                    *value = candidates[prev].clone();
-                }
-            }
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Backward,
+                None,
+            )?;
         }
         _ => {}
     }
     Ok(())
 }
 
+type ComputeCandidates = fn(&str) -> Result<Vec<String>>;
+
+enum CycleDirection {
+    Forward,
+    Backward,
+}
+
 fn cycle_candidates(
     value: &mut String,
     candidates: &mut Vec<String>,
     candidate_index: &mut Option<usize>,
-    compute: fn(&str) -> Result<Vec<String>>,
+    direction: CycleDirection,
+    compute: Option<ComputeCandidates>,
 ) -> Result<()> {
     if candidates.is_empty() {
-        *candidates = compute(value)?;
-        if !candidates.is_empty() {
-            *candidate_index = Some(0);
-            *value = candidates[0].clone();
+        if let Some(compute) = compute {
+            *candidates = compute(value)?;
+            if !candidates.is_empty() {
+                let start = match direction {
+                    CycleDirection::Forward => 0,
+                    CycleDirection::Backward => candidates.len() - 1,
+                };
+                *candidate_index = Some(start);
+                *value = candidates[start].clone();
+            }
         }
     } else if let Some(index) = candidate_index {
-        let next = (*index + 1) % candidates.len();
+        let next = match direction {
+            CycleDirection::Forward => (*index + 1) % candidates.len(),
+            CycleDirection::Backward => {
+                if *index == 0 {
+                    candidates.len() - 1
+                } else {
+                    *index - 1
+                }
+            }
+        };
         *candidate_index = Some(next);
         *value = candidates[next].clone();
     }
