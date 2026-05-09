@@ -8,6 +8,11 @@ pub enum TextAction {
 }
 
 #[derive(Debug)]
+pub enum ShellAction {
+    Execute,
+}
+
+#[derive(Debug)]
 pub enum ConfirmAction {
     Delete { files: Vec<VFile> },
 }
@@ -57,6 +62,13 @@ pub enum PromptMode {
         value: String,
         original_index: Option<usize>,
     },
+    Shell {
+        title: String,
+        value: String,
+        candidates: Vec<String>,
+        candidate_index: Option<usize>,
+        action: ShellAction,
+    },
 }
 
 impl PromptMode {
@@ -65,14 +77,21 @@ impl PromptMode {
     }
 
     pub fn reset_candidates(&mut self) {
-        if let PromptMode::File {
-            candidates,
-            candidate_index,
-            ..
-        } = self
-        {
-            candidates.clear();
-            *candidate_index = None;
+        match self {
+            PromptMode::File {
+                candidates,
+                candidate_index,
+                ..
+            }
+            | PromptMode::Shell {
+                candidates,
+                candidate_index,
+                ..
+            } => {
+                candidates.clear();
+                *candidate_index = None;
+            }
+            _ => {}
         }
     }
 }

@@ -11,7 +11,8 @@ pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.prompt {
         PromptMode::Text { value, .. }
         | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. } => {
+        | PromptMode::Search { value, .. }
+        | PromptMode::Shell { value, .. } => {
             value.push(c);
         }
         _ => {}
@@ -24,7 +25,8 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::Text { value, .. }
         | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. } => {
+        | PromptMode::Search { value, .. }
+        | PromptMode::Shell { value, .. } => {
             value.pop();
         }
         _ => {}
@@ -73,24 +75,67 @@ pub fn input_select_right(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_tab(state: &mut AppState) -> Result<()> {
-    if let PromptMode::File {
+    match &mut state.prompt {
+        PromptMode::File {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            cycle_candidates(value, candidates, candidate_index, compute_path_candidates)?;
+        }
+        PromptMode::Shell {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            cycle_candidates(value, candidates, candidate_index, compute_shell_candidates)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub fn input_back_tab(state: &mut AppState) -> Result<()> {
+    if let PromptMode::Shell {
         value,
         candidates,
         candidate_index,
         ..
     } = &mut state.prompt
     {
-        if candidates.is_empty() {
-            *candidates = compute_path_candidates(value)?;
-            if !candidates.is_empty() {
-                *candidate_index = Some(0);
-                *value = candidates[0].clone();
+        if !candidates.is_empty() {
+            if let Some(index) = candidate_index {
+                let prev = if *index == 0 {
+                    candidates.len() - 1
+                } else {
+                    *index - 1
+                };
+                *candidate_index = Some(prev);
+                *value = candidates[prev].clone();
             }
-        } else if let Some(index) = candidate_index {
-            let next = (*index + 1) % candidates.len();
-            *candidate_index = Some(next);
-            *value = candidates[next].clone();
         }
+    }
+    Ok(())
+}
+
+fn cycle_candidates(
+    value: &mut String,
+    candidates: &mut Vec<String>,
+    candidate_index: &mut Option<usize>,
+    compute: fn(&str) -> Result<Vec<String>>,
+) -> Result<()> {
+    if candidates.is_empty() {
+        *candidates = compute(value)?;
+        if !candidates.is_empty() {
+            *candidate_index = Some(0);
+            *value = candidates[0].clone();
+        }
+    } else if let Some(index) = candidate_index {
+        let next = (*index + 1) % candidates.len();
+        *candidate_index = Some(next);
+        *value = candidates[next].clone();
     }
     Ok(())
 }
@@ -117,6 +162,7 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
         PromptMode::File { action, value, .. } => {
             execute_file_action(state, action, value.as_str())
         }
+        PromptMode::Shell { value, .. } => execute_shell_action(state, value.as_str()),
         PromptMode::Select {
             action,
             selected_index,
@@ -266,6 +312,38 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     // grep実行時は既存のサイドパネルを置き換える（ユーザーが明示的に検索を実行した操作のため）
     state.side_panel = Some(SidePanel::Grep(PathListState::new(Vec::new(), Some(rx))));
     Ok(())
+}
+
+fn execute_shell_action(_state: &mut AppState, _command: &str) -> Result<()> {
+    // TODO: シェルコマンドの実行は次のタスクで対応
+    Ok(())
+}
+
+fn compute_shell_candidates(input: &str) -> Result<Vec<String>> {
+    let prefix = input;
+    if prefix.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let path_var = std::env::var("PATH").unwrap_or_default();
+    let mut seen = std::collections::HashSet::new();
+    let mut candidates = Vec::new();
+
+    for dir in path_var.split(':') {
+        let dir_path = Path::new(dir);
+        let Ok(entries) = std::fs::read_dir(dir_path) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with(prefix) && seen.insert(name.clone()) {
+                candidates.push(name);
+            }
+        }
+    }
+
+    candidates.sort();
+    Ok(candidates)
 }
 
 fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
