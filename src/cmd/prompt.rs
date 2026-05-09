@@ -359,10 +359,13 @@ fn execute_shell_action(_state: &mut AppState, action: ShellAction, _command: &s
     match action {
         ShellAction::Execute => {
             // TODO: シェルコマンドの実行は次のタスクで対応
+            // 注意: sh -c 経由ではなく Command::new(program).args(args) で直接実行すること
             Ok(())
         }
     }
 }
+
+const MAX_SHELL_CANDIDATES: usize = 1000;
 
 fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
     if prefix.is_empty() {
@@ -372,15 +375,18 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
     let path_var = std::env::var("PATH").unwrap_or_default();
     let mut candidates = Vec::new();
 
-    for dir in path_var.split(':') {
+    'outer: for dir in path_var.split(':') {
         let dir_path = Path::new(dir);
         let Ok(entries) = std::fs::read_dir(dir_path) else {
             continue;
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with(prefix) {
+            if name.starts_with(prefix) && is_executable(&entry) {
                 candidates.push(name);
+                if candidates.len() >= MAX_SHELL_CANDIDATES {
+                    break 'outer;
+                }
             }
         }
     }
@@ -388,6 +394,14 @@ fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
     candidates.sort();
     candidates.dedup();
     Ok(candidates)
+}
+
+fn is_executable(entry: &std::fs::DirEntry) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    entry
+        .metadata()
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
 }
 
 fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
