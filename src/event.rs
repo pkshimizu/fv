@@ -122,7 +122,7 @@ impl EventHandler {
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            PromptMode::File { .. } => match key.code {
+            PromptMode::File { .. } | PromptMode::Shell { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
@@ -148,15 +148,6 @@ impl EventHandler {
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Down => Command::Prompt(PromptCommand::SearchNext),
                 KeyCode::Up => Command::Prompt(PromptCommand::SearchPrev),
-                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
-                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::Shell { .. } => match key.code {
-                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
-                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
-                KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
-                KeyCode::BackTab => Command::Prompt(PromptCommand::BackTab),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
