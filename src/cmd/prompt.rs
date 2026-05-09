@@ -358,8 +358,7 @@ fn execute_shell_action(_state: &mut AppState, _command: &str) -> Result<()> {
     Ok(())
 }
 
-fn compute_shell_candidates(input: &str) -> Result<Vec<String>> {
-    let prefix = input;
+fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
     if prefix.is_empty() {
         return Ok(Vec::new());
     }
