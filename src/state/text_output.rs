@@ -1,4 +1,5 @@
 use std::sync::mpsc::{Receiver, TryRecvError};
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug)]
 pub struct TextOutputState {
@@ -53,19 +54,18 @@ impl TextOutputState {
 
     fn total_visual_lines(&self) -> u16 {
         if self.visible_width == 0 {
-            return self.lines.len() as u16;
+            return (self.lines.len() as u32).min(u16::MAX as u32) as u16;
         }
-        self.lines
+        let width = self.visible_width as u32;
+        let total: u32 = self
+            .lines
             .iter()
             .map(|line| {
-                let len = line.len() as u16;
-                if len == 0 {
-                    1
-                } else {
-                    len.div_ceil(self.visible_width)
-                }
+                let len = line.width() as u32;
+                if len == 0 { 1 } else { len.div_ceil(width) }
             })
-            .sum()
+            .sum();
+        total.min(u16::MAX as u32) as u16
     }
 
     fn clamp_scroll(&mut self) {

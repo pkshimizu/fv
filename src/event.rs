@@ -50,21 +50,14 @@ impl EventHandler {
 
     pub fn next(&self, state: &AppState) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(AppEvent::Key(key)) => {
-                if state.is_active(Area::Prompt) {
-                    Ok(Self::prompt_key_to_command(key, &state.prompt))
-                } else if state.is_active(Area::Attribute) {
-                    Ok(Self::attribute_key_to_command(key))
-                } else if state.is_active(Area::Bookmark) {
-                    Ok(Self::bookmark_key_to_command(key))
-                } else if state.is_active(Area::Grep) {
-                    Ok(Self::grep_key_to_command(key))
-                } else if state.is_active(Area::Shell) {
-                    Ok(Self::shell_key_to_command(key))
-                } else {
-                    Ok(Self::key_to_command(key))
-                }
-            }
+            Ok(AppEvent::Key(key)) => Ok(match state.active_area() {
+                Area::Prompt => Self::prompt_key_to_command(key, &state.prompt),
+                Area::Attribute => Self::attribute_key_to_command(key),
+                Area::Bookmark => Self::bookmark_key_to_command(key),
+                Area::Grep => Self::grep_key_to_command(key),
+                Area::Shell => Self::shell_key_to_command(key),
+                Area::Filer => Self::key_to_command(key),
+            }),
             Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
             Err(_) => Ok(Command::App(AppCommand::None)),
         }

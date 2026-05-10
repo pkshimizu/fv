@@ -1,6 +1,6 @@
 use crate::state::TextOutputState;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
-use ratatui::text::Text;
+use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Wrap};
 
 pub fn build_text_output(state: &TextOutputState, title: &str) -> Paragraph<'static> {
@@ -10,9 +10,9 @@ pub fn build_text_output(state: &TextOutputState, title: &str) -> Paragraph<'sta
         format!("{title} ({})", state.lines.len())
     };
 
-    let text = Text::from(state.lines.join("\n"));
+    let lines: Vec<Line<'static>> = state.lines.iter().map(|s| Line::from(s.clone())).collect();
 
-    Paragraph::new(text)
+    Paragraph::new(lines)
         .block(build_bordered_block(&title, BorderStyle::Active))
         .wrap(Wrap { trim: false })
         .scroll((state.scroll_offset, 0))

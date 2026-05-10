@@ -367,7 +367,7 @@ fn execute_shell(state: &mut AppState, command: &str) -> Result<()> {
         return Ok(());
     }
 
-    let args: Vec<&str> = command.split_whitespace().collect();
+    let args = shell_words::split(command).context("Failed to parse command")?;
     let (program, program_args) = args.split_first().context("Empty command")?;
 
     let dir_path = state.filer.current_dir.absolute_path().to_string();
@@ -398,11 +398,16 @@ fn execute_shell(state: &mut AppState, command: &str) -> Result<()> {
 
     std::thread::spawn(move || {
         let reader = std::io::BufReader::new(stderr);
+        let mut canceled = false;
         for line in reader.lines() {
             let Ok(line) = line else { break };
             if tx.send(line).is_err() {
+                canceled = true;
                 break;
             }
+        }
+        if canceled {
+            let _ = child.kill();
         }
         let _ = child.wait();
     });
