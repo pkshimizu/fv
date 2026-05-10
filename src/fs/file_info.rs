@@ -17,7 +17,7 @@ impl FileInfo {
 
         // 共通項目
         entries.push(("Path", path.to_string()));
-        entries.push(("Size", format_size(metadata.file_size())));
+        entries.push(("Size", metadata.formatted_size()));
 
         // VFile::metadataはシンボリックリンクを辿るため、symlink_metadataで別途判定
         let is_symlink = std::fs::symlink_metadata(path)
@@ -211,8 +211,7 @@ fn detect_encoding(path: &str) -> Result<String> {
     let n = file.read(&mut buf).context("Failed to read file")?;
     buf.truncate(n);
 
-    let mut detector =
-        chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
     detector.feed(&buf, true);
     let encoding = detector.guess(None, chardetng::Utf8Detection::Allow);
     Ok(encoding.name().to_string())
@@ -245,7 +244,12 @@ fn get_media_duration(path: &str) -> Option<f64> {
     }
 
     let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
         .ok()?;
 
     let reader = probed.format;
@@ -266,23 +270,6 @@ fn format_duration(seconds: f64) -> String {
         format!("{h}:{m:02}:{s:02}")
     } else {
         format!("{m}:{s:02}")
-    }
-}
-
-fn format_size(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = 1024 * KB;
-    const GB: u64 = 1024 * MB;
-
-    let formatted = bytes.to_formatted_string(&Locale::en);
-    if bytes >= GB {
-        format!("{formatted} bytes ({:.1} GB)", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{formatted} bytes ({:.1} MB)", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{formatted} bytes ({:.1} KB)", bytes as f64 / KB as f64)
-    } else {
-        format!("{formatted} bytes")
     }
 }
 

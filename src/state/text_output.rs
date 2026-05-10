@@ -63,8 +63,7 @@ impl TextOutputState {
 
     fn recalculate_visual_lines(&mut self) {
         let width = self.visible_width;
-        self.cached_total_visual_lines =
-            self.lines.iter().map(|l| visual_lines(width, l)).sum();
+        self.cached_total_visual_lines = self.lines.iter().map(|l| visual_lines(width, l)).sum();
     }
 
     /// 表示に必要な行範囲と、その範囲内でのスクロールオフセットを返す
@@ -149,5 +148,9 @@ fn visual_lines(visible_width: u16, line: &str) -> u32 {
         return 1;
     }
     let len = line.width() as u32;
-    if len == 0 { 1 } else { len.div_ceil(visible_width as u32) }
+    if len == 0 {
+        1
+    } else {
+        len.div_ceil(visible_width as u32)
+    }
 }
