@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, SidePanel,
-    SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, ShellAction,
+    SidePanel, SortKey, TextAction, TextOutputState,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -11,7 +11,8 @@ pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.prompt {
         PromptMode::Text { value, .. }
         | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. } => {
+        | PromptMode::Search { value, .. }
+        | PromptMode::Shell { value, .. } => {
             value.push(c);
         }
         _ => {}
@@ -24,7 +25,8 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::Text { value, .. }
         | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. } => {
+        | PromptMode::Search { value, .. }
+        | PromptMode::Shell { value, .. } => {
             value.pop();
         }
         _ => {}
@@ -73,24 +75,107 @@ pub fn input_select_right(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_tab(state: &mut AppState) -> Result<()> {
-    if let PromptMode::File {
-        value,
-        candidates,
-        candidate_index,
-        ..
-    } = &mut state.prompt
-    {
-        if candidates.is_empty() {
-            *candidates = compute_path_candidates(value)?;
-            if !candidates.is_empty() {
-                *candidate_index = Some(0);
-                *value = candidates[0].clone();
-            }
-        } else if let Some(index) = candidate_index {
-            let next = (*index + 1) % candidates.len();
-            *candidate_index = Some(next);
-            *value = candidates[next].clone();
+    match &mut state.prompt {
+        PromptMode::File {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Forward,
+                Some(compute_path_candidates),
+            )?;
         }
+        PromptMode::Shell {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Forward,
+                Some(compute_shell_candidates),
+            )?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub fn input_back_tab(state: &mut AppState) -> Result<()> {
+    match &mut state.prompt {
+        PromptMode::File {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        }
+        | PromptMode::Shell {
+            value,
+            candidates,
+            candidate_index,
+            ..
+        } => {
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Backward,
+                None,
+            )?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+type ComputeCandidates = fn(&str) -> Result<Vec<String>>;
+
+#[derive(Debug)]
+enum CycleDirection {
+    Forward,
+    Backward,
+}
+
+fn cycle_candidates(
+    value: &mut String,
+    candidates: &mut Vec<String>,
+    candidate_index: &mut Option<usize>,
+    direction: CycleDirection,
+    compute: Option<ComputeCandidates>,
+) -> Result<()> {
+    if candidates.is_empty() {
+        if let Some(compute) = compute {
+            *candidates = compute(value)?;
+            if !candidates.is_empty() {
+                let start = match direction {
+                    CycleDirection::Forward => 0,
+                    CycleDirection::Backward => candidates.len() - 1,
+                };
+                *candidate_index = Some(start);
+                *value = candidates[start].clone();
+            }
+        }
+    } else if let Some(index) = candidate_index {
+        let next = match direction {
+            CycleDirection::Forward => (*index + 1) % candidates.len(),
+            CycleDirection::Backward => {
+                if *index == 0 {
+                    candidates.len() - 1
+                } else {
+                    *index - 1
+                }
+            }
+        };
+        *candidate_index = Some(next);
+        *value = candidates[next].clone();
     }
     Ok(())
 }
@@ -116,6 +201,9 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
         }
         PromptMode::File { action, value, .. } => {
             execute_file_action(state, action, value.as_str())
+        }
+        PromptMode::Shell { action, value, .. } => {
+            execute_shell_action(state, action, value.as_str())
         }
         PromptMode::Select {
             action,
@@ -266,6 +354,106 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     // grep実行時は既存のサイドパネルを置き換える（ユーザーが明示的に検索を実行した操作のため）
     state.side_panel = Some(SidePanel::Grep(PathListState::new(Vec::new(), Some(rx))));
     Ok(())
+}
+
+fn execute_shell_action(state: &mut AppState, action: ShellAction, command: &str) -> Result<()> {
+    match action {
+        ShellAction::Execute => execute_shell(state, command),
+    }
+}
+
+fn execute_shell(state: &mut AppState, command: &str) -> Result<()> {
+    if command.is_empty() {
+        return Ok(());
+    }
+
+    let args = shell_words::split(command).context("Failed to parse command")?;
+    let (program, program_args) = args.split_first().context("Empty command")?;
+
+    let dir_path = state.filer.current_dir.absolute_path().to_string();
+
+    let mut child = std::process::Command::new(program)
+        .args(program_args)
+        .current_dir(&dir_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .with_context(|| format!("Failed to execute: {program}"))?;
+
+    let stdout = child.stdout.take().context("Failed to take stdout")?;
+    let stderr = child.stderr.take().context("Failed to take stderr")?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let stdout_tx = tx.clone();
+    std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stdout);
+        for line in reader.lines() {
+            let Ok(line) = line else { break };
+            if stdout_tx.send(line).is_err() {
+                break;
+            }
+        }
+    });
+
+    std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stderr);
+        let mut canceled = false;
+        for line in reader.lines() {
+            let Ok(line) = line else { break };
+            if tx.send(line).is_err() {
+                canceled = true;
+                break;
+            }
+        }
+        if canceled {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+    });
+
+    state.side_panel = Some(SidePanel::Shell(TextOutputState::new(Some(rx))));
+    Ok(())
+}
+
+const MAX_SHELL_CANDIDATES: usize = 1000;
+
+fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
+    if prefix.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // PATH未設定時は候補なしとして扱う
+    let path_var = std::env::var("PATH").unwrap_or_default();
+    let mut candidates = std::collections::BTreeSet::new();
+
+    'outer: for dir in path_var.split(':') {
+        let dir_path = Path::new(dir);
+        // 存在しないディレクトリや権限不足はスキップ
+        let Ok(entries) = std::fs::read_dir(dir_path) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let os_name = entry.file_name();
+            let name = os_name.to_string_lossy();
+            if name.starts_with(prefix) && is_executable(&entry) {
+                candidates.insert(name.into_owned());
+                if candidates.len() >= MAX_SHELL_CANDIDATES {
+                    break 'outer;
+                }
+            }
+        }
+    }
+
+    Ok(candidates.into_iter().collect())
+}
+
+fn is_executable(entry: &std::fs::DirEntry) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    entry
+        .metadata()
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
 }
 
 fn compute_path_candidates(input: &str) -> Result<Vec<String>> {

@@ -2,6 +2,7 @@ use crate::state::{AppState, SidePanel};
 use crate::store::RootStore;
 use crate::ui::features::{
     build_attribute_table, build_filer, build_header, build_path_table, build_prompt_view,
+    build_text_output,
 };
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
@@ -45,6 +46,14 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                         panel_area,
                         &mut grep.table_state,
                     );
+                }
+                SidePanel::Shell(shell) => {
+                    // ボーダー分（上下左右各1）を差し引いた表示領域を設定
+                    shell.set_visible_area(
+                        panel_area.height.saturating_sub(2),
+                        panel_area.width.saturating_sub(2),
+                    );
+                    frame.render_widget(build_text_output(shell, "Shell"), panel_area);
                 }
             }
         }

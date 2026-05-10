@@ -1,4 +1,4 @@
-use crate::cmd::{app, attribute, bookmark, filer, grep, prompt};
+use crate::cmd::{app, attribute, bookmark, filer, grep, prompt, shell};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -9,6 +9,7 @@ pub enum Command {
     Prompt(PromptCommand),
     Bookmark(BookmarkCommand),
     Grep(GrepCommand),
+    Shell(ShellCommand),
     Attribute(AttributeCommand),
 }
 
@@ -20,6 +21,7 @@ impl Command {
             Command::Prompt(cmd) => cmd.exec(state),
             Command::Bookmark(cmd) => cmd.exec(state, store),
             Command::Grep(cmd) => cmd.exec(state),
+            Command::Shell(cmd) => cmd.exec(state),
             Command::Attribute(cmd) => cmd.exec(state),
         }
     }
@@ -54,6 +56,7 @@ pub enum FilerCommand {
     PromptSort,
     PromptSearch,
     PromptGrep,
+    PromptShell,
     AddBookmark,
     RemoveBookmark,
     ShowBookmark,
@@ -80,6 +83,7 @@ impl FilerCommand {
             FilerCommand::PromptSort => filer::prompt_sort(state),
             FilerCommand::PromptSearch => filer::prompt_search(state),
             FilerCommand::PromptGrep => filer::prompt_grep(state),
+            FilerCommand::PromptShell => filer::prompt_shell(state),
             FilerCommand::AddBookmark => filer::add_bookmark(state, store),
             FilerCommand::RemoveBookmark => filer::remove_bookmark(state, store),
             FilerCommand::ShowBookmark => filer::show_bookmark(state, store),
@@ -95,6 +99,7 @@ pub enum PromptCommand {
     Char(char),
     Backspace,
     Tab,
+    BackTab,
     SelectLeft,
     SelectRight,
     Ok,
@@ -109,6 +114,7 @@ impl PromptCommand {
             PromptCommand::Char(c) => prompt::input_char(state, c),
             PromptCommand::Backspace => prompt::input_backspace(state),
             PromptCommand::Tab => prompt::input_tab(state),
+            PromptCommand::BackTab => prompt::input_back_tab(state),
             PromptCommand::SelectLeft => prompt::input_select_left(state),
             PromptCommand::SelectRight => prompt::input_select_right(state),
             PromptCommand::Ok => prompt::input_ok(state),
@@ -161,6 +167,26 @@ impl GrepCommand {
             GrepCommand::MoveCursorRight => grep::last_cursor(state),
             GrepCommand::EnterFile => grep::select(state),
             GrepCommand::HideGrep => grep::hide_grep(state),
+        }
+    }
+}
+
+pub enum ShellCommand {
+    ScrollUp,
+    ScrollDown,
+    ScrollToTop,
+    ScrollToBottom,
+    HideShell,
+}
+
+impl ShellCommand {
+    fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
+            ShellCommand::ScrollUp => shell::scroll_up(state),
+            ShellCommand::ScrollDown => shell::scroll_down(state),
+            ShellCommand::ScrollToTop => shell::scroll_to_top(state),
+            ShellCommand::ScrollToBottom => shell::scroll_to_bottom(state),
+            ShellCommand::HideShell => shell::hide_shell(state),
         }
     }
 }

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::cmd::command::{
     AppCommand, AttributeCommand, BookmarkCommand, Command, FilerCommand, GrepCommand,
-    PromptCommand,
+    PromptCommand, ShellCommand,
 };
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
@@ -50,19 +50,14 @@ impl EventHandler {
 
     pub fn next(&self, state: &AppState) -> Result<Command> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(AppEvent::Key(key)) => {
-                if state.is_active(Area::Prompt) {
-                    Ok(Self::prompt_key_to_command(key, &state.prompt))
-                } else if state.is_active(Area::Attribute) {
-                    Ok(Self::attribute_key_to_command(key))
-                } else if state.is_active(Area::Bookmark) {
-                    Ok(Self::bookmark_key_to_command(key))
-                } else if state.is_active(Area::Grep) {
-                    Ok(Self::grep_key_to_command(key))
-                } else {
-                    Ok(Self::key_to_command(key))
-                }
-            }
+            Ok(AppEvent::Key(key)) => Ok(match state.active_area() {
+                Area::Prompt => Self::prompt_key_to_command(key, &state.prompt),
+                Area::Attribute => Self::attribute_key_to_command(key),
+                Area::Bookmark => Self::bookmark_key_to_command(key),
+                Area::Grep => Self::grep_key_to_command(key),
+                Area::Shell => Self::shell_key_to_command(key),
+                Area::Filer => Self::key_to_command(key),
+            }),
             Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
             Err(_) => Ok(Command::App(AppCommand::None)),
         }
@@ -102,6 +97,7 @@ impl EventHandler {
             (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
             (_, KeyCode::Char('a')) => Command::Filer(FilerCommand::ShowAttribute),
             (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ShowBookmark),
+            (_, KeyCode::Char('h')) => Command::Filer(FilerCommand::PromptShell),
             (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
             (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
@@ -121,10 +117,11 @@ impl EventHandler {
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            PromptMode::File { .. } => match key.code {
+            PromptMode::File { .. } | PromptMode::Shell { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
+                KeyCode::BackTab => Command::Prompt(PromptCommand::BackTab),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
@@ -181,6 +178,18 @@ impl EventHandler {
             (_, KeyCode::Left) => Command::Grep(GrepCommand::MoveCursorLeft),
             (_, KeyCode::Right) => Command::Grep(GrepCommand::MoveCursorRight),
             (_, KeyCode::Enter) => Command::Grep(GrepCommand::EnterFile),
+            _ => Command::App(AppCommand::None),
+        }
+    }
+
+    fn shell_key_to_command(key: KeyEvent) -> Command {
+        match (key.modifiers, key.code) {
+            (_, KeyCode::Char('h')) => Command::Shell(ShellCommand::HideShell),
+            (_, KeyCode::Esc) => Command::Shell(ShellCommand::HideShell),
+            (_, KeyCode::Up) => Command::Shell(ShellCommand::ScrollUp),
+            (_, KeyCode::Down) => Command::Shell(ShellCommand::ScrollDown),
+            (_, KeyCode::Left) => Command::Shell(ShellCommand::ScrollToTop),
+            (_, KeyCode::Right) => Command::Shell(ShellCommand::ScrollToBottom),
             _ => Command::App(AppCommand::None),
         }
     }

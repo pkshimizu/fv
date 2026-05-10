@@ -8,6 +8,7 @@ pub enum Area {
     Prompt,
     Bookmark,
     Grep,
+    Shell,
     Attribute,
 }
 
@@ -48,6 +49,7 @@ impl AppState {
             Some(SidePanel::Attribute(_)) => Area::Attribute,
             Some(SidePanel::Bookmark(_)) => Area::Bookmark,
             Some(SidePanel::Grep(_)) => Area::Grep,
+            Some(SidePanel::Shell(_)) => Area::Shell,
             None => Area::Filer,
         }
     }
@@ -56,9 +58,11 @@ impl AppState {
         self.active_area() == area
     }
 
-    pub fn receive_grep_results(&mut self) {
-        if let Some(SidePanel::Grep(grep)) = &mut self.side_panel {
-            grep.receive_results();
+    pub fn receive_async_results(&mut self) {
+        match &mut self.side_panel {
+            Some(SidePanel::Grep(panel)) => panel.receive_results(),
+            Some(SidePanel::Shell(panel)) => panel.receive_results(),
+            _ => {}
         }
     }
 }
