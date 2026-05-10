@@ -3,7 +3,7 @@ use crate::ui::widgets::{BorderStyle, build_bordered_block};
 use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Wrap};
 
-pub fn build_text_output(state: &TextOutputState, title: &str) -> Paragraph<'static> {
+pub fn build_text_output<'a>(state: &'a TextOutputState, title: &str) -> Paragraph<'a> {
     let title = if state.is_running() {
         format!("{title} ({}) Running", state.lines.len())
     } else {
@@ -11,9 +11,9 @@ pub fn build_text_output(state: &TextOutputState, title: &str) -> Paragraph<'sta
     };
 
     let (start, end, offset) = state.visible_range();
-    let lines: Vec<Line<'static>> = state.lines[start..end]
+    let lines: Vec<Line<'a>> = state.lines[start..end]
         .iter()
-        .map(|s| Line::from(s.clone()))
+        .map(|s| Line::from(s.as_str()))
         .collect();
 
     Paragraph::new(lines)
