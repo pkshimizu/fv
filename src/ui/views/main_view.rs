@@ -55,6 +55,13 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                     );
                     frame.render_widget(build_text_output(shell, "Shell"), panel_area);
                 }
+                SidePanel::FileInfo(info) => {
+                    info.set_visible_area(
+                        panel_area.height.saturating_sub(2),
+                        panel_area.width.saturating_sub(2),
+                    );
+                    frame.render_widget(build_text_output(info, "File Info"), panel_area);
+                }
             }
         }
         None => {

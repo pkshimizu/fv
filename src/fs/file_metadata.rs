@@ -1,5 +1,6 @@
 use crate::fs::VFileTime;
 use crate::fs::permissions::VPermissions;
+use num_format::{Locale, ToFormattedString};
 use std::fs::Metadata;
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
@@ -16,6 +17,24 @@ impl VFileMetadata {
 
     pub fn file_size(&self) -> u64 {
         self.metadata.len()
+    }
+
+    pub fn formatted_size(&self) -> String {
+        const KB: u64 = 1024;
+        const MB: u64 = 1024 * KB;
+        const GB: u64 = 1024 * MB;
+
+        let bytes = self.file_size();
+        let formatted = bytes.to_formatted_string(&Locale::en);
+        if bytes >= GB {
+            format!("{formatted} bytes ({:.1} GB)", bytes as f64 / GB as f64)
+        } else if bytes >= MB {
+            format!("{formatted} bytes ({:.1} MB)", bytes as f64 / MB as f64)
+        } else if bytes >= KB {
+            format!("{formatted} bytes ({:.1} KB)", bytes as f64 / KB as f64)
+        } else {
+            format!("{formatted} bytes")
+        }
     }
 
     pub fn file_type(&self) -> &str {

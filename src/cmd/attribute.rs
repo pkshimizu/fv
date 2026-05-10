@@ -2,11 +2,13 @@ use crate::state::{AppState, AttributeState, SidePanel};
 use anyhow::Result;
 
 pub fn show_attribute(state: &mut AppState) -> Result<()> {
-    if let Some(file) = state.filer.selected_file() {
-        if state.side_panel.is_none() {
-            state.side_panel = Some(SidePanel::Attribute(AttributeState::new(file)?));
-        }
+    if state.side_panel.is_some() {
+        return Ok(());
     }
+    let Some(file) = state.filer.selected_file() else {
+        return Ok(());
+    };
+    state.side_panel = Some(SidePanel::Attribute(AttributeState::new(file)?));
     Ok(())
 }
 

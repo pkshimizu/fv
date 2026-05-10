@@ -5,8 +5,8 @@ use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::{
-    AppCommand, AttributeCommand, BookmarkCommand, Command, FilerCommand, GrepCommand,
-    PromptCommand, ShellCommand,
+    AppCommand, AttributeCommand, BookmarkCommand, Command, FileInfoCommand, FilerCommand,
+    GrepCommand, PromptCommand, ShellCommand,
 };
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
@@ -56,6 +56,7 @@ impl EventHandler {
                 Area::Bookmark => Self::bookmark_key_to_command(key),
                 Area::Grep => Self::grep_key_to_command(key),
                 Area::Shell => Self::shell_key_to_command(key),
+                Area::FileInfo => Self::file_info_key_to_command(key),
                 Area::Filer => Self::key_to_command(key),
             }),
             Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
@@ -98,6 +99,7 @@ impl EventHandler {
             (_, KeyCode::Char('a')) => Command::Filer(FilerCommand::ShowAttribute),
             (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ShowBookmark),
             (_, KeyCode::Char('h')) => Command::Filer(FilerCommand::PromptShell),
+            (_, KeyCode::Char('i')) => Command::Filer(FilerCommand::ShowFileInfo),
             (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
             (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
@@ -190,6 +192,18 @@ impl EventHandler {
             (_, KeyCode::Down) => Command::Shell(ShellCommand::ScrollDown),
             (_, KeyCode::Left) => Command::Shell(ShellCommand::ScrollToTop),
             (_, KeyCode::Right) => Command::Shell(ShellCommand::ScrollToBottom),
+            _ => Command::App(AppCommand::None),
+        }
+    }
+
+    fn file_info_key_to_command(key: KeyEvent) -> Command {
+        match (key.modifiers, key.code) {
+            (_, KeyCode::Char('i')) => Command::FileInfo(FileInfoCommand::HideFileInfo),
+            (_, KeyCode::Esc) => Command::FileInfo(FileInfoCommand::HideFileInfo),
+            (_, KeyCode::Up) => Command::FileInfo(FileInfoCommand::ScrollUp),
+            (_, KeyCode::Down) => Command::FileInfo(FileInfoCommand::ScrollDown),
+            (_, KeyCode::Left) => Command::FileInfo(FileInfoCommand::ScrollToTop),
+            (_, KeyCode::Right) => Command::FileInfo(FileInfoCommand::ScrollToBottom),
             _ => Command::App(AppCommand::None),
         }
     }

@@ -9,6 +9,7 @@ pub enum Area {
     Bookmark,
     Grep,
     Shell,
+    FileInfo,
     Attribute,
 }
 
@@ -50,6 +51,7 @@ impl AppState {
             Some(SidePanel::Bookmark(_)) => Area::Bookmark,
             Some(SidePanel::Grep(_)) => Area::Grep,
             Some(SidePanel::Shell(_)) => Area::Shell,
+            Some(SidePanel::FileInfo(_)) => Area::FileInfo,
             None => Area::Filer,
         }
     }

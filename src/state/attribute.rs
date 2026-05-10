@@ -2,7 +2,6 @@ use crate::fs::VFile;
 use crate::fs::VFileMetadata;
 use crate::state::table_cursor::TableCursor;
 use anyhow::Result;
-use num_format::{Locale, ToFormattedString};
 use ratatui::widgets::TableState;
 
 #[derive(Debug)]
@@ -32,13 +31,7 @@ impl AttributeState {
         let mut entries = Vec::new();
         entries.extend([
             ("File Type", metadata.file_type().to_string()),
-            (
-                "Size",
-                format!(
-                    "{} bytes",
-                    metadata.file_size().to_formatted_string(&Locale::en)
-                ),
-            ),
+            ("Size", metadata.formatted_size()),
             ("Permissions", metadata.permissions().to_rwx_string()),
         ]);
 
