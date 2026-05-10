@@ -5,3 +5,4 @@ pub mod command;
 mod filer;
 mod grep;
 mod prompt;
+mod shell;

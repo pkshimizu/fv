@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::cmd::command::{
     AppCommand, AttributeCommand, BookmarkCommand, Command, FilerCommand, GrepCommand,
-    PromptCommand,
+    PromptCommand, ShellCommand,
 };
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
@@ -59,6 +59,8 @@ impl EventHandler {
                     Ok(Self::bookmark_key_to_command(key))
                 } else if state.is_active(Area::Grep) {
                     Ok(Self::grep_key_to_command(key))
+                } else if state.is_active(Area::Shell) {
+                    Ok(Self::shell_key_to_command(key))
                 } else {
                     Ok(Self::key_to_command(key))
                 }
@@ -183,6 +185,18 @@ impl EventHandler {
             (_, KeyCode::Left) => Command::Grep(GrepCommand::MoveCursorLeft),
             (_, KeyCode::Right) => Command::Grep(GrepCommand::MoveCursorRight),
             (_, KeyCode::Enter) => Command::Grep(GrepCommand::EnterFile),
+            _ => Command::App(AppCommand::None),
+        }
+    }
+
+    fn shell_key_to_command(key: KeyEvent) -> Command {
+        match (key.modifiers, key.code) {
+            (_, KeyCode::Char('h')) => Command::Shell(ShellCommand::HideShell),
+            (_, KeyCode::Esc) => Command::Shell(ShellCommand::HideShell),
+            (_, KeyCode::Up) => Command::Shell(ShellCommand::ScrollUp),
+            (_, KeyCode::Down) => Command::Shell(ShellCommand::ScrollDown),
+            (_, KeyCode::Left) => Command::Shell(ShellCommand::ScrollToTop),
+            (_, KeyCode::Right) => Command::Shell(ShellCommand::ScrollToBottom),
             _ => Command::App(AppCommand::None),
         }
     }

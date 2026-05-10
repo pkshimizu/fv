@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
     AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, ShellAction,
-    SidePanel, SortKey, TextAction,
+    SidePanel, SortKey, TextAction, TextOutputState,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -356,14 +356,59 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn execute_shell_action(_state: &mut AppState, action: ShellAction, _command: &str) -> Result<()> {
+fn execute_shell_action(state: &mut AppState, action: ShellAction, command: &str) -> Result<()> {
     match action {
-        ShellAction::Execute => {
-            // TODO: シェルコマンドの実行は次のタスクで対応
-            // 注意: sh -c 経由ではなく Command::new(program).args(args) で直接実行すること
-            Ok(())
-        }
+        ShellAction::Execute => execute_shell(state, command),
     }
+}
+
+fn execute_shell(state: &mut AppState, command: &str) -> Result<()> {
+    if command.is_empty() {
+        return Ok(());
+    }
+
+    let args: Vec<&str> = command.split_whitespace().collect();
+    let (program, program_args) = args.split_first().context("Empty command")?;
+
+    let dir_path = state.filer.current_dir.absolute_path().to_string();
+
+    let mut child = std::process::Command::new(program)
+        .args(program_args)
+        .current_dir(&dir_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .with_context(|| format!("Failed to execute: {program}"))?;
+
+    let stdout = child.stdout.take().context("Failed to take stdout")?;
+    let stderr = child.stderr.take().context("Failed to take stderr")?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let stdout_tx = tx.clone();
+    std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stdout);
+        for line in reader.lines() {
+            let Ok(line) = line else { break };
+            if stdout_tx.send(line).is_err() {
+                break;
+            }
+        }
+    });
+
+    std::thread::spawn(move || {
+        let reader = std::io::BufReader::new(stderr);
+        for line in reader.lines() {
+            let Ok(line) = line else { break };
+            if tx.send(line).is_err() {
+                break;
+            }
+        }
+        let _ = child.wait();
+    });
+
+    state.side_panel = Some(SidePanel::Shell(TextOutputState::new(Some(rx))));
+    Ok(())
 }
 
 const MAX_SHELL_CANDIDATES: usize = 1000;
