@@ -1,4 +1,4 @@
-use crate::cmd::{app, attribute, bookmark, filer, grep, prompt, shell};
+use crate::cmd::{app, attribute, bookmark, file_info, filer, grep, prompt, shell};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -10,6 +10,7 @@ pub enum Command {
     Bookmark(BookmarkCommand),
     Grep(GrepCommand),
     Shell(ShellCommand),
+    FileInfo(FileInfoCommand),
     Attribute(AttributeCommand),
 }
 
@@ -22,6 +23,7 @@ impl Command {
             Command::Bookmark(cmd) => cmd.exec(state, store),
             Command::Grep(cmd) => cmd.exec(state),
             Command::Shell(cmd) => cmd.exec(state),
+            Command::FileInfo(cmd) => cmd.exec(state),
             Command::Attribute(cmd) => cmd.exec(state),
         }
     }
@@ -63,6 +65,7 @@ pub enum FilerCommand {
     RefreshFiles,
     ToggleCheckedFile,
     ShowAttribute,
+    ShowFileInfo,
     ToggleDotFiles,
 }
 
@@ -90,6 +93,7 @@ impl FilerCommand {
             FilerCommand::RefreshFiles => filer::refresh_files(state),
             FilerCommand::ToggleCheckedFile => filer::toggle_checked_file(state),
             FilerCommand::ShowAttribute => attribute::show_attribute(state),
+            FilerCommand::ShowFileInfo => file_info::show_file_info(state),
             FilerCommand::ToggleDotFiles => filer::toggle_dot_files(state),
         }
     }
@@ -187,6 +191,26 @@ impl ShellCommand {
             ShellCommand::ScrollToTop => shell::scroll_to_top(state),
             ShellCommand::ScrollToBottom => shell::scroll_to_bottom(state),
             ShellCommand::HideShell => shell::hide_shell(state),
+        }
+    }
+}
+
+pub enum FileInfoCommand {
+    ScrollUp,
+    ScrollDown,
+    ScrollToTop,
+    ScrollToBottom,
+    HideFileInfo,
+}
+
+impl FileInfoCommand {
+    fn exec(self, state: &mut AppState) -> Result<()> {
+        match self {
+            FileInfoCommand::ScrollUp => file_info::scroll_up(state),
+            FileInfoCommand::ScrollDown => file_info::scroll_down(state),
+            FileInfoCommand::ScrollToTop => file_info::scroll_to_top(state),
+            FileInfoCommand::ScrollToBottom => file_info::scroll_to_bottom(state),
+            FileInfoCommand::HideFileInfo => file_info::hide_file_info(state),
         }
     }
 }
