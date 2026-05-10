@@ -18,6 +18,13 @@ impl FileInfo {
         // 共通項目
         entries.push(("Path", path.to_string()));
         entries.push(("Size", metadata.formatted_size()));
+        entries.push(("Permissions", metadata.permissions().to_rwx_string()));
+        if let Ok(created) = metadata.created() {
+            entries.push(("Created", created.to_string()));
+        }
+        if let Ok(modified) = metadata.modified() {
+            entries.push(("Modified", modified.to_string()));
+        }
 
         // VFile::metadataはシンボリックリンクを辿るため、symlink_metadataで別途判定
         let is_symlink = std::fs::symlink_metadata(path)
@@ -38,15 +45,6 @@ impl FileInfo {
             let detected = detect_file_kind(path);
             entries.push(("Type", detected.kind.label().to_string()));
             append_kind_specific_entries(&mut entries, path, &detected);
-        }
-
-        // 共通: 日時・パーミッション
-        entries.push(("Permissions", metadata.permissions().to_rwx_string()));
-        if let Ok(created) = metadata.created() {
-            entries.push(("Created", created.to_string()));
-        }
-        if let Ok(modified) = metadata.modified() {
-            entries.push(("Modified", modified.to_string()));
         }
 
         Ok(Self { entries })
