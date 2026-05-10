@@ -67,6 +67,42 @@ impl TextOutputState {
             self.lines.iter().map(|l| visual_lines(width, l)).sum();
     }
 
+    /// 表示に必要な行範囲と、その範囲内でのスクロールオフセットを返す
+    pub fn visible_range(&self) -> (usize, usize, u16) {
+        let offset = self.scroll_offset as u32;
+        let height = self.visible_height as u32;
+        let width = self.visible_width;
+
+        let mut visual_row = 0u32;
+        let mut start_line = 0;
+        let mut start_offset = 0u16;
+
+        // scroll_offset に対応する開始行を探す
+        for (i, line) in self.lines.iter().enumerate() {
+            let vl = visual_lines(width, line);
+            if visual_row + vl > offset {
+                start_line = i;
+                start_offset = (offset - visual_row) as u16;
+                break;
+            }
+            visual_row += vl;
+            start_line = i + 1;
+        }
+
+        // visible_height 分の終了行を探す
+        let target_end = offset + height;
+        let mut end_line = start_line;
+        for line in self.lines.iter().skip(start_line) {
+            if visual_row >= target_end {
+                break;
+            }
+            visual_row += visual_lines(width, line);
+            end_line += 1;
+        }
+
+        (start_line, end_line, start_offset)
+    }
+
     fn clamp_scroll(&mut self) {
         let max = self.max_scroll();
         if self.scroll_offset > max {

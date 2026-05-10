@@ -10,10 +10,14 @@ pub fn build_text_output(state: &TextOutputState, title: &str) -> Paragraph<'sta
         format!("{title} ({})", state.lines.len())
     };
 
-    let lines: Vec<Line<'static>> = state.lines.iter().map(|s| Line::from(s.clone())).collect();
+    let (start, end, offset) = state.visible_range();
+    let lines: Vec<Line<'static>> = state.lines[start..end]
+        .iter()
+        .map(|s| Line::from(s.clone()))
+        .collect();
 
     Paragraph::new(lines)
         .block(build_bordered_block(&title, BorderStyle::Active))
         .wrap(Wrap { trim: false })
-        .scroll((state.scroll_offset, 0))
+        .scroll((offset, 0))
 }
