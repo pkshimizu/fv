@@ -6,7 +6,7 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 pub struct FileInfo {
-    pub entries: Vec<(String, String)>,
+    pub entries: Vec<(&'static str, String)>,
 }
 
 impl FileInfo {
@@ -16,38 +16,37 @@ impl FileInfo {
         let mut entries = Vec::new();
 
         // 共通項目
-        entries.push(("Path".to_string(), path.to_string()));
-        entries.push((
-            "Size".to_string(),
-            format_size(metadata.file_size()),
-        ));
+        entries.push(("Path", path.to_string()));
+        entries.push(("Size", format_size(metadata.file_size())));
 
-        if metadata.is_symlink() {
-            entries.push(("Type".to_string(), "Symlink".to_string()));
+        // VFile::metadataはシンボリックリンクを辿るため、symlink_metadataで別途判定
+        let is_symlink = std::fs::symlink_metadata(path)
+            .map(|m| m.is_symlink())
+            .unwrap_or(false);
+
+        if is_symlink {
+            entries.push(("Type", "Symlink".to_string()));
             if let Ok(target) = std::fs::read_link(path) {
-                entries.push(("Link Target".to_string(), target.to_string_lossy().to_string()));
+                entries.push(("Link Target", target.to_string_lossy().to_string()));
             }
         } else if metadata.is_dir() {
-            entries.push(("Type".to_string(), "Directory".to_string()));
+            entries.push(("Type", "Directory".to_string()));
             if let Ok(count) = count_dir_entries(path) {
-                entries.push(("Items".to_string(), count.to_formatted_string(&Locale::en)));
+                entries.push(("Items", count.to_formatted_string(&Locale::en)));
             }
         } else {
             let detected = detect_file_kind(path);
-            entries.push(("Type".to_string(), detected.kind.label().to_string()));
+            entries.push(("Type", detected.kind.label().to_string()));
             append_kind_specific_entries(&mut entries, path, &detected);
         }
 
         // 共通: 日時・パーミッション
-        entries.push((
-            "Permissions".to_string(),
-            metadata.permissions().to_rwx_string(),
-        ));
+        entries.push(("Permissions", metadata.permissions().to_rwx_string()));
         if let Ok(created) = metadata.created() {
-            entries.push(("Created".to_string(), created.to_string()));
+            entries.push(("Created", created.to_string()));
         }
         if let Ok(modified) = metadata.modified() {
-            entries.push(("Modified".to_string(), modified.to_string()));
+            entries.push(("Modified", modified.to_string()));
         }
 
         Ok(Self { entries })
@@ -118,11 +117,13 @@ fn detect_file_kind(path: &str) -> DetectedFile {
     }
 }
 
+const TEXT_DETECT_BUF_SIZE: usize = 8192;
+
 fn is_text_file(path: &str) -> bool {
     let Ok(mut file) = File::open(path) else {
         return false;
     };
-    let mut buf = [0u8; 8192];
+    let mut buf = [0u8; TEXT_DETECT_BUF_SIZE];
     let Ok(n) = file.read(&mut buf) else {
         return false;
     };
@@ -134,7 +135,7 @@ fn is_text_file(path: &str) -> bool {
 }
 
 fn append_kind_specific_entries(
-    entries: &mut Vec<(String, String)>,
+    entries: &mut Vec<(&'static str, String)>,
     path: &str,
     detected: &DetectedFile,
 ) {
@@ -148,41 +149,44 @@ fn append_kind_specific_entries(
     }
 }
 
-fn append_text_entries(entries: &mut Vec<(String, String)>, path: &str) {
+fn append_text_entries(entries: &mut Vec<(&'static str, String)>, path: &str) {
     if let Ok((line_count, char_count)) = count_text_stats(path) {
-        entries.push(("Lines".to_string(), line_count.to_formatted_string(&Locale::en)));
-        entries.push(("Characters".to_string(), char_count.to_formatted_string(&Locale::en)));
+        entries.push(("Lines", line_count.to_formatted_string(&Locale::en)));
+        entries.push(("Characters", char_count.to_formatted_string(&Locale::en)));
     }
     if let Ok(encoding) = detect_encoding(path) {
-        entries.push(("Encoding".to_string(), encoding));
+        entries.push(("Encoding", encoding));
     }
 }
 
-fn append_image_entries(entries: &mut Vec<(String, String)>, path: &str) {
+fn append_image_entries(entries: &mut Vec<(&'static str, String)>, path: &str) {
     if let Ok(size) = imagesize::size(path) {
         let ext = Path::new(path)
             .extension()
             .map(|e| e.to_string_lossy().to_uppercase())
             .unwrap_or_default();
-        entries.push(("Format".to_string(), ext));
-        entries.push(("Dimensions".to_string(), format!("{} x {} px", size.width, size.height)));
+        entries.push(("Format", ext));
+        entries.push(("Dimensions", format!("{} x {} px", size.width, size.height)));
     }
 }
 
 fn append_media_entries(
-    entries: &mut Vec<(String, String)>,
+    entries: &mut Vec<(&'static str, String)>,
     path: &str,
     infer_type: &Option<infer::Type>,
 ) {
-    entries.push(("Format".to_string(), format_name_from(path, infer_type)));
+    entries.push(("Format", format_name_from(path, infer_type)));
     if let Some(duration) = get_media_duration(path) {
-        entries.push(("Duration".to_string(), format_duration(duration)));
+        entries.push(("Duration", format_duration(duration)));
     }
 }
 
-fn append_binary_entries(entries: &mut Vec<(String, String)>, infer_type: &Option<infer::Type>) {
+fn append_binary_entries(
+    entries: &mut Vec<(&'static str, String)>,
+    infer_type: &Option<infer::Type>,
+) {
     if let Some(kind) = infer_type {
-        entries.push(("MIME Type".to_string(), kind.mime_type().to_string()));
+        entries.push(("MIME Type", kind.mime_type().to_string()));
     }
 }
 
@@ -199,9 +203,11 @@ fn count_text_stats(path: &str) -> Result<(usize, usize)> {
     Ok((lines, chars))
 }
 
+const ENCODING_DETECT_BUF_SIZE: usize = 64 * 1024;
+
 fn detect_encoding(path: &str) -> Result<String> {
     let mut file = File::open(path).context("Failed to open file")?;
-    let mut buf = vec![0u8; 64 * 1024];
+    let mut buf = vec![0u8; ENCODING_DETECT_BUF_SIZE];
     let n = file.read(&mut buf).context("Failed to read file")?;
     buf.truncate(n);
 
