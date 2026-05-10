@@ -33,9 +33,9 @@ impl FileInfo {
                 entries.push(("Items".to_string(), count.to_formatted_string(&Locale::en)));
             }
         } else {
-            let file_kind = detect_file_kind(path);
-            entries.push(("Type".to_string(), file_kind.label().to_string()));
-            append_kind_specific_entries(&mut entries, path, &file_kind);
+            let detected = detect_file_kind(path);
+            entries.push(("Type".to_string(), detected.kind.label().to_string()));
+            append_kind_specific_entries(&mut entries, path, &detected);
         }
 
         // 共通: 日時・パーミッション
@@ -62,7 +62,12 @@ impl FileInfo {
     }
 }
 
-enum FileKind {
+struct DetectedFile {
+    kind: FileKindLabel,
+    infer_type: Option<infer::Type>,
+}
+
+enum FileKindLabel {
     Text,
     Image,
     Video,
@@ -70,38 +75,46 @@ enum FileKind {
     Binary,
 }
 
-impl FileKind {
+impl FileKindLabel {
     fn label(&self) -> &'static str {
         match self {
-            FileKind::Text => "Text",
-            FileKind::Image => "Image",
-            FileKind::Video => "Video",
-            FileKind::Audio => "Audio",
-            FileKind::Binary => "Binary",
+            FileKindLabel::Text => "Text",
+            FileKindLabel::Image => "Image",
+            FileKindLabel::Video => "Video",
+            FileKindLabel::Audio => "Audio",
+            FileKindLabel::Binary => "Binary",
         }
     }
 }
 
-fn detect_file_kind(path: &str) -> FileKind {
-    let Some(kind) = infer::get_from_path(path).ok().flatten() else {
-        return if is_text_file(path) {
-            FileKind::Text
-        } else {
-            FileKind::Binary
+fn detect_file_kind(path: &str) -> DetectedFile {
+    let Some(infer_type) = infer::get_from_path(path).ok().flatten() else {
+        return DetectedFile {
+            kind: if is_text_file(path) {
+                FileKindLabel::Text
+            } else {
+                FileKindLabel::Binary
+            },
+            infer_type: None,
         };
     };
 
-    let mime = kind.mime_type();
-    if mime.starts_with("image/") {
-        FileKind::Image
+    let mime = infer_type.mime_type();
+    let kind = if mime.starts_with("image/") {
+        FileKindLabel::Image
     } else if mime.starts_with("video/") {
-        FileKind::Video
+        FileKindLabel::Video
     } else if mime.starts_with("audio/") {
-        FileKind::Audio
+        FileKindLabel::Audio
     } else if is_text_file(path) {
-        FileKind::Text
+        FileKindLabel::Text
     } else {
-        FileKind::Binary
+        FileKindLabel::Binary
+    };
+
+    DetectedFile {
+        kind,
+        infer_type: Some(infer_type),
     }
 }
 
@@ -120,12 +133,18 @@ fn is_text_file(path: &str) -> bool {
     !buf[..n].contains(&0)
 }
 
-fn append_kind_specific_entries(entries: &mut Vec<(String, String)>, path: &str, kind: &FileKind) {
-    match kind {
-        FileKind::Text => append_text_entries(entries, path),
-        FileKind::Image => append_image_entries(entries, path),
-        FileKind::Video | FileKind::Audio => append_media_entries(entries, path),
-        FileKind::Binary => append_binary_entries(entries, path),
+fn append_kind_specific_entries(
+    entries: &mut Vec<(String, String)>,
+    path: &str,
+    detected: &DetectedFile,
+) {
+    match detected.kind {
+        FileKindLabel::Text => append_text_entries(entries, path),
+        FileKindLabel::Image => append_image_entries(entries, path),
+        FileKindLabel::Video | FileKindLabel::Audio => {
+            append_media_entries(entries, path, &detected.infer_type)
+        }
+        FileKindLabel::Binary => append_binary_entries(entries, &detected.infer_type),
     }
 }
 
@@ -141,20 +160,28 @@ fn append_text_entries(entries: &mut Vec<(String, String)>, path: &str) {
 
 fn append_image_entries(entries: &mut Vec<(String, String)>, path: &str) {
     if let Ok(size) = imagesize::size(path) {
-        entries.push(("Format".to_string(), detect_format_name(path)));
+        let ext = Path::new(path)
+            .extension()
+            .map(|e| e.to_string_lossy().to_uppercase())
+            .unwrap_or_default();
+        entries.push(("Format".to_string(), ext));
         entries.push(("Dimensions".to_string(), format!("{} x {} px", size.width, size.height)));
     }
 }
 
-fn append_media_entries(entries: &mut Vec<(String, String)>, path: &str) {
-    entries.push(("Format".to_string(), detect_format_name(path)));
+fn append_media_entries(
+    entries: &mut Vec<(String, String)>,
+    path: &str,
+    infer_type: &Option<infer::Type>,
+) {
+    entries.push(("Format".to_string(), format_name_from(path, infer_type)));
     if let Some(duration) = get_media_duration(path) {
         entries.push(("Duration".to_string(), format_duration(duration)));
     }
 }
 
-fn append_binary_entries(entries: &mut Vec<(String, String)>, path: &str) {
-    if let Some(kind) = infer::get_from_path(path).ok().flatten() {
+fn append_binary_entries(entries: &mut Vec<(String, String)>, infer_type: &Option<infer::Type>) {
+    if let Some(kind) = infer_type {
         entries.push(("MIME Type".to_string(), kind.mime_type().to_string()));
     }
 }
@@ -166,7 +193,7 @@ fn count_text_stats(path: &str) -> Result<(usize, usize)> {
     let mut chars = 0;
     for line in reader.lines() {
         let line = line.context("Failed to read line")?;
-        chars += line.len();
+        chars += line.chars().count();
         lines += 1;
     }
     Ok((lines, chars))
@@ -185,11 +212,10 @@ fn detect_encoding(path: &str) -> Result<String> {
     Ok(encoding.name().to_string())
 }
 
-fn detect_format_name(path: &str) -> String {
-    infer::get_from_path(path)
-        .ok()
-        .flatten()
-        .map(|kind| kind.extension().to_uppercase())
+fn format_name_from(path: &str, infer_type: &Option<infer::Type>) -> String {
+    infer_type
+        .as_ref()
+        .map(|t| t.extension().to_uppercase())
         .unwrap_or_else(|| {
             Path::new(path)
                 .extension()
