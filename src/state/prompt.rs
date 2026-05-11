@@ -24,7 +24,7 @@ pub enum FileAction {
     Jump,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileActionCandidateType {
     All,
     Directory,
