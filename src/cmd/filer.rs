@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, ShellAction,
-    SidePanel, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
+    SelectAction, ShellAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use anyhow::Result;
@@ -45,7 +45,9 @@ pub fn enter_file(state: &mut AppState) -> Result<()> {
 }
 
 pub fn prompt_copy(state: &mut AppState) -> Result<()> {
-    start_file_input(state, "Copy to", |files| FileAction::Copy { files })
+    start_file_input(state, "Copy to", FileActionCandidateType::All, |files| {
+        FileAction::Copy { files }
+    })
 }
 
 pub fn prompt_delete(state: &mut AppState) -> Result<()> {
@@ -74,7 +76,9 @@ pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
 }
 
 pub fn prompt_move(state: &mut AppState) -> Result<()> {
-    start_file_input(state, "Move to", |files| FileAction::Move { files })
+    start_file_input(state, "Move to", FileActionCandidateType::All, |files| {
+        FileAction::Move { files }
+    })
 }
 
 pub fn prompt_rename(state: &mut AppState) -> Result<()> {
@@ -136,6 +140,19 @@ pub fn prompt_shell(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn prompt_jump(state: &mut AppState) -> Result<()> {
+    let init_value = state.filer.current_dir.absolute_path();
+    state.prompt = PromptMode::File {
+        title: "Jump".to_string(),
+        value: init_value.to_string(),
+        candidate_type: FileActionCandidateType::Directory,
+        candidates: Vec::new(),
+        candidate_index: None,
+        action: FileAction::Jump,
+    };
+    Ok(())
+}
+
 pub fn add_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
     if let Some(selected_file) = state.filer.selected_file() {
         store.bookmark.add(selected_file.absolute_path())?;
@@ -177,6 +194,7 @@ pub fn toggle_dot_files(state: &mut AppState) -> Result<()> {
 fn start_file_input(
     state: &mut AppState,
     label: &str,
+    candidate_type: FileActionCandidateType,
     make_action: impl FnOnce(Vec<VFile>) -> FileAction,
 ) -> Result<()> {
     let files = collect_action_targets(state);
@@ -190,6 +208,7 @@ fn start_file_input(
         state.prompt = PromptMode::File {
             title,
             value: init_value.to_string(),
+            candidate_type,
             candidates: Vec::new(),
             candidate_index: None,
             action: make_action(files),

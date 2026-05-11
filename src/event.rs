@@ -91,6 +91,7 @@ impl EventHandler {
             (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),
             (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::PromptRename),
             (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::PromptSort),
+            (_, KeyCode::Char('j')) => Command::Filer(FilerCommand::PromptJump),
             (_, KeyCode::Char('q')) => Command::App(AppCommand::Quit),
             (_, KeyCode::Char(' ')) => Command::Filer(FilerCommand::ToggleCheckedFile),
             (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),

@@ -11,6 +11,9 @@ pub use app::{AppState, Area};
 pub use attribute::AttributeState;
 pub use filer::{FilerState, SortKey};
 pub use path_list::PathListState;
-pub use prompt::{ConfirmAction, FileAction, PromptMode, SelectAction, ShellAction, TextAction};
+pub use prompt::{
+    ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction, ShellAction,
+    TextAction,
+};
 pub use side_panel::SidePanel;
 pub use text_output::TextOutputState;

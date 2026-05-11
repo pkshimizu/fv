@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, ShellAction,
-    SidePanel, SortKey, TextAction, TextOutputState,
+    AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
+    SelectAction, ShellAction, SidePanel, SortKey, TextAction, TextOutputState,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -78,15 +78,18 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::File {
             value,
+            candidate_type,
             candidates,
             candidate_index,
             ..
         } => {
+            let dir_only = matches!(candidate_type, FileActionCandidateType::Directory);
             cycle_candidates(
                 value,
                 candidates,
                 candidate_index,
                 CycleDirection::Forward,
+                dir_only,
                 Some(compute_path_candidates),
             )?;
         }
@@ -101,6 +104,7 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
                 candidates,
                 candidate_index,
                 CycleDirection::Forward,
+                false,
                 Some(compute_shell_candidates),
             )?;
         }
@@ -113,11 +117,22 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::File {
             value,
+            candidate_type,
             candidates,
             candidate_index,
             ..
+        } => {
+            let dir_only = matches!(candidate_type, FileActionCandidateType::Directory);
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Backward,
+                dir_only,
+                None,
+            )?;
         }
-        | PromptMode::Shell {
+        PromptMode::Shell {
             value,
             candidates,
             candidate_index,
@@ -128,6 +143,7 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
                 candidates,
                 candidate_index,
                 CycleDirection::Backward,
+                false,
                 None,
             )?;
         }
@@ -136,7 +152,7 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-type ComputeCandidates = fn(&str) -> Result<Vec<String>>;
+type ComputeCandidates = fn(&str, bool) -> Result<Vec<String>>;
 
 #[derive(Debug)]
 enum CycleDirection {
@@ -149,11 +165,12 @@ fn cycle_candidates(
     candidates: &mut Vec<String>,
     candidate_index: &mut Option<usize>,
     direction: CycleDirection,
+    dir_only: bool,
     compute: Option<ComputeCandidates>,
 ) -> Result<()> {
     if candidates.is_empty() {
         if let Some(compute) = compute {
-            *candidates = compute(value)?;
+            *candidates = compute(value, dir_only)?;
             if !candidates.is_empty() {
                 let start = match direction {
                     CycleDirection::Forward => 0,
@@ -254,10 +271,11 @@ fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) ->
     }
 }
 
-fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Result<()> {
+fn execute_file_action(state: &mut AppState, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => execute_copy(files, value),
         FileAction::Move { files } => execute_move(files, value),
+        FileAction::Jump => execute_jump(state, value),
     }
 }
 
@@ -288,6 +306,11 @@ fn execute_move(files: Vec<VFile>, value: &str) -> Result<()> {
     for file in &files {
         file.move_to(value)?
     }
+    Ok(())
+}
+
+fn execute_jump(state: &mut AppState, value: &str) -> Result<()> {
+    state.filer.change_to(value)?;
     Ok(())
 }
 
@@ -418,7 +441,7 @@ fn execute_shell(state: &mut AppState, command: &str) -> Result<()> {
 
 const MAX_SHELL_CANDIDATES: usize = 1000;
 
-fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
+fn compute_shell_candidates(prefix: &str, _: bool) -> Result<Vec<String>> {
     if prefix.is_empty() {
         return Ok(Vec::new());
     }
@@ -456,7 +479,7 @@ fn is_executable(entry: &std::fs::DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
+fn compute_path_candidates(input: &str, dir_only: bool) -> Result<Vec<String>> {
     let path = Path::new(input);
     let (dir_path, prefix) = if input.ends_with('/') {
         (path.to_path_buf(), String::new())
@@ -479,6 +502,9 @@ fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
     let mut candidates: Vec<String> = files
         .into_iter()
         .filter_map(|f| {
+            if dir_only && !f.is_dir() {
+                return None;
+            }
             let name = f.file_name()?;
             if !name.starts_with(&prefix) {
                 return None;
