@@ -21,6 +21,13 @@ pub enum ConfirmAction {
 pub enum FileAction {
     Copy { files: Vec<VFile> },
     Move { files: Vec<VFile> },
+    Jump,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileActionCandidateType {
+    All,
+    Directory,
 }
 
 #[derive(Debug)]
@@ -40,6 +47,7 @@ pub enum PromptMode {
     File {
         title: String,
         value: String,
+        candidate_type: FileActionCandidateType,
         candidates: Vec<String>,
         candidate_index: Option<usize>,
         action: FileAction,

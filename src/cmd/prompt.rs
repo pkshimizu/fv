@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, PathListState, PromptMode, SelectAction, ShellAction,
-    SidePanel, SortKey, TextAction, TextOutputState,
+    AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
+    SelectAction, ShellAction, SidePanel, SortKey, TextAction, TextOutputState,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -78,16 +78,21 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::File {
             value,
+            candidate_type,
             candidates,
             candidate_index,
             ..
         } => {
+            let compute = match candidate_type {
+                FileActionCandidateType::All => compute_all_path_candidates,
+                FileActionCandidateType::Directory => compute_dir_path_candidates,
+            };
             cycle_candidates(
                 value,
                 candidates,
                 candidate_index,
                 CycleDirection::Forward,
-                Some(compute_path_candidates),
+                Some(compute),
             )?;
         }
         PromptMode::Shell {
@@ -113,11 +118,24 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::File {
             value,
+            candidate_type,
             candidates,
             candidate_index,
             ..
+        } => {
+            let compute = match candidate_type {
+                FileActionCandidateType::All => compute_all_path_candidates,
+                FileActionCandidateType::Directory => compute_dir_path_candidates,
+            };
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Backward,
+                Some(compute),
+            )?;
         }
-        | PromptMode::Shell {
+        PromptMode::Shell {
             value,
             candidates,
             candidate_index,
@@ -128,7 +146,7 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
                 candidates,
                 candidate_index,
                 CycleDirection::Backward,
-                None,
+                Some(compute_shell_candidates),
             )?;
         }
         _ => {}
@@ -254,10 +272,11 @@ fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) ->
     }
 }
 
-fn execute_file_action(_: &mut AppState, action: FileAction, value: &str) -> Result<()> {
+fn execute_file_action(state: &mut AppState, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => execute_copy(files, value),
         FileAction::Move { files } => execute_move(files, value),
+        FileAction::Jump => execute_jump(state, value),
     }
 }
 
@@ -288,6 +307,13 @@ fn execute_move(files: Vec<VFile>, value: &str) -> Result<()> {
     for file in &files {
         file.move_to(value)?
     }
+    Ok(())
+}
+
+fn execute_jump(state: &mut AppState, value: &str) -> Result<()> {
+    let path = Path::new(value);
+    anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
+    state.filer.change_to(value)?;
     Ok(())
 }
 
@@ -456,7 +482,15 @@ fn is_executable(entry: &std::fs::DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
+fn compute_all_path_candidates(input: &str) -> Result<Vec<String>> {
+    compute_path_candidates(input, false)
+}
+
+fn compute_dir_path_candidates(input: &str) -> Result<Vec<String>> {
+    compute_path_candidates(input, true)
+}
+
+fn compute_path_candidates(input: &str, dir_only: bool) -> Result<Vec<String>> {
     let path = Path::new(input);
     let (dir_path, prefix) = if input.ends_with('/') {
         (path.to_path_buf(), String::new())
@@ -479,6 +513,9 @@ fn compute_path_candidates(input: &str) -> Result<Vec<String>> {
     let mut candidates: Vec<String> = files
         .into_iter()
         .filter_map(|f| {
+            if dir_only && !f.is_dir() {
+                return None;
+            }
             let name = f.file_name()?;
             if !name.starts_with(&prefix) {
                 return None;
