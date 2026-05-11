@@ -118,11 +118,24 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::File {
             value,
+            candidate_type,
             candidates,
             candidate_index,
             ..
+        } => {
+            let compute = match candidate_type {
+                FileActionCandidateType::All => compute_all_path_candidates,
+                FileActionCandidateType::Directory => compute_dir_path_candidates,
+            };
+            cycle_candidates(
+                value,
+                candidates,
+                candidate_index,
+                CycleDirection::Backward,
+                Some(compute),
+            )?;
         }
-        | PromptMode::Shell {
+        PromptMode::Shell {
             value,
             candidates,
             candidate_index,
@@ -133,7 +146,7 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
                 candidates,
                 candidate_index,
                 CycleDirection::Backward,
-                None,
+                Some(compute_shell_candidates),
             )?;
         }
         _ => {}
