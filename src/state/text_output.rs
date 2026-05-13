@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::Receiver;
 use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug)]
@@ -109,38 +109,6 @@ impl TextOutputState {
         }
     }
 
-    pub fn receive_results(&mut self) {
-        let Some(rx) = &mut self.rx else {
-            return;
-        };
-
-        const MAX_RECV_PER_FRAME: usize = 100;
-        const MAX_LINES: usize = 10000;
-        let width = self.visible_width;
-
-        let mut count = 0;
-        loop {
-            if count >= MAX_RECV_PER_FRAME {
-                break;
-            }
-            if self.lines.len() >= MAX_LINES {
-                self.rx = None;
-                break;
-            }
-            match rx.try_recv() {
-                Ok(line) => {
-                    self.cached_total_visual_lines += visual_lines(width, &line);
-                    self.lines.push(line);
-                    count += 1;
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    self.rx = None;
-                    break;
-                }
-            }
-        }
-    }
 }
 
 fn visual_lines(visible_width: u16, line: &str) -> u32 {

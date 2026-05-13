@@ -6,4 +6,3 @@ mod file_info;
 mod filer;
 mod grep;
 mod prompt;
-mod shell;

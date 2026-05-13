@@ -8,7 +8,6 @@ pub enum Area {
     Prompt,
     Bookmark,
     Grep,
-    Shell,
     FileInfo,
     Attribute,
 }
@@ -17,6 +16,7 @@ pub enum Area {
 pub struct AppState {
     pub config: Config,
     pub running: bool,
+    pub launch_shell: bool,
     pub filer: FilerState,
     pub prompt: PromptMode,
     pub side_panel: Option<SidePanel>,
@@ -27,6 +27,7 @@ impl AppState {
         Self {
             config,
             running: true,
+            launch_shell: false,
             filer: FilerState::new(),
             prompt: PromptMode::None,
             side_panel: None,
@@ -50,7 +51,6 @@ impl AppState {
             Some(SidePanel::Attribute(_)) => Area::Attribute,
             Some(SidePanel::Bookmark(_)) => Area::Bookmark,
             Some(SidePanel::Grep(_)) => Area::Grep,
-            Some(SidePanel::Shell(_)) => Area::Shell,
             Some(SidePanel::FileInfo(_)) => Area::FileInfo,
             None => Area::Filer,
         }
@@ -61,10 +61,8 @@ impl AppState {
     }
 
     pub fn receive_async_results(&mut self) {
-        match &mut self.side_panel {
-            Some(SidePanel::Grep(panel)) => panel.receive_results(),
-            Some(SidePanel::Shell(panel)) => panel.receive_results(),
-            _ => {}
+        if let Some(SidePanel::Grep(panel)) = &mut self.side_panel {
+            panel.receive_results();
         }
     }
 }

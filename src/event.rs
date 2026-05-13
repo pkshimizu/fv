@@ -1,12 +1,14 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::{
     AppCommand, AttributeCommand, BookmarkCommand, Command, FileInfoCommand, FilerCommand,
-    GrepCommand, PromptCommand, ShellCommand,
+    GrepCommand, PromptCommand,
 };
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
@@ -22,15 +24,22 @@ pub struct EventHandler {
     rx: Receiver<AppEvent>,
     tx: Sender<AppEvent>,
     watcher: Option<RecommendedWatcher>,
+    paused: Arc<AtomicBool>,
 }
 
 impl EventHandler {
     pub fn new(tick_rate: Duration) -> Self {
         let (tx, rx) = mpsc::channel();
         let key_tx = tx.clone();
+        let paused = Arc::new(AtomicBool::new(false));
+        let thread_paused = paused.clone();
 
         thread::spawn(move || {
             loop {
+                if thread_paused.load(Ordering::Relaxed) {
+                    thread::sleep(tick_rate);
+                    continue;
+                }
                 if event::poll(tick_rate).unwrap_or(false) {
                     if let Ok(Event::Key(event)) = event::read() {
                         if key_tx.send(AppEvent::Key(event)).is_err() {
@@ -45,7 +54,16 @@ impl EventHandler {
             rx,
             tx,
             watcher: None,
+            paused,
         }
+    }
+
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::Relaxed);
+    }
+
+    pub fn resume(&self) {
+        self.paused.store(false, Ordering::Relaxed);
     }
 
     pub fn next(&self, state: &AppState) -> Result<Command> {
@@ -55,7 +73,6 @@ impl EventHandler {
                 Area::Attribute => Self::attribute_key_to_command(key),
                 Area::Bookmark => Self::bookmark_key_to_command(key),
                 Area::Grep => Self::grep_key_to_command(key),
-                Area::Shell => Self::shell_key_to_command(key),
                 Area::FileInfo => Self::file_info_key_to_command(key),
                 Area::Filer => Self::key_to_command(key),
             }),
@@ -99,7 +116,7 @@ impl EventHandler {
             (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
             (_, KeyCode::Char('a')) => Command::Filer(FilerCommand::ShowAttribute),
             (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ShowBookmark),
-            (_, KeyCode::Char('h')) => Command::Filer(FilerCommand::PromptShell),
+            (_, KeyCode::Char('h')) => Command::Filer(FilerCommand::LaunchShell),
             (_, KeyCode::Char('i')) => Command::Filer(FilerCommand::ShowFileInfo),
             (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
             (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
@@ -120,7 +137,7 @@ impl EventHandler {
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
             },
-            PromptMode::File { .. } | PromptMode::Shell { .. } => match key.code {
+            PromptMode::File { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
                 KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
@@ -181,18 +198,6 @@ impl EventHandler {
             (_, KeyCode::Left) => Command::Grep(GrepCommand::MoveCursorLeft),
             (_, KeyCode::Right) => Command::Grep(GrepCommand::MoveCursorRight),
             (_, KeyCode::Enter) => Command::Grep(GrepCommand::EnterFile),
-            _ => Command::App(AppCommand::None),
-        }
-    }
-
-    fn shell_key_to_command(key: KeyEvent) -> Command {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Char('h')) => Command::Shell(ShellCommand::HideShell),
-            (_, KeyCode::Esc) => Command::Shell(ShellCommand::HideShell),
-            (_, KeyCode::Up) => Command::Shell(ShellCommand::ScrollUp),
-            (_, KeyCode::Down) => Command::Shell(ShellCommand::ScrollDown),
-            (_, KeyCode::Left) => Command::Shell(ShellCommand::ScrollToTop),
-            (_, KeyCode::Right) => Command::Shell(ShellCommand::ScrollToBottom),
             _ => Command::App(AppCommand::None),
         }
     }

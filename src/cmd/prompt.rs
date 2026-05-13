@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
     AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
-    SelectAction, ShellAction, SidePanel, SortKey, TextAction, TextOutputState,
+    SelectAction, SidePanel, SortKey, TextAction,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -11,8 +11,7 @@ pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.prompt {
         PromptMode::Text { value, .. }
         | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. }
-        | PromptMode::Shell { value, .. } => {
+        | PromptMode::Search { value, .. } => {
             value.push(c);
         }
         _ => {}
@@ -25,8 +24,7 @@ pub fn input_backspace(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
         PromptMode::Text { value, .. }
         | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. }
-        | PromptMode::Shell { value, .. } => {
+        | PromptMode::Search { value, .. } => {
             value.pop();
         }
         _ => {}
@@ -75,81 +73,49 @@ pub fn input_select_right(state: &mut AppState) -> Result<()> {
 }
 
 pub fn input_tab(state: &mut AppState) -> Result<()> {
-    match &mut state.prompt {
-        PromptMode::File {
-            value,
-            candidate_type,
-            candidates,
-            candidate_index,
-            ..
-        } => {
-            let compute = match candidate_type {
-                FileActionCandidateType::All => compute_all_path_candidates,
-                FileActionCandidateType::Directory => compute_dir_path_candidates,
-            };
-            cycle_candidates(
-                value,
-                candidates,
-                candidate_index,
-                CycleDirection::Forward,
-                Some(compute),
-            )?;
-        }
-        PromptMode::Shell {
+    if let PromptMode::File {
+        value,
+        candidate_type,
+        candidates,
+        candidate_index,
+        ..
+    } = &mut state.prompt
+    {
+        let compute = match candidate_type {
+            FileActionCandidateType::All => compute_all_path_candidates,
+            FileActionCandidateType::Directory => compute_dir_path_candidates,
+        };
+        cycle_candidates(
             value,
             candidates,
             candidate_index,
-            ..
-        } => {
-            cycle_candidates(
-                value,
-                candidates,
-                candidate_index,
-                CycleDirection::Forward,
-                Some(compute_shell_candidates),
-            )?;
-        }
-        _ => {}
+            CycleDirection::Forward,
+            Some(compute),
+        )?;
     }
     Ok(())
 }
 
 pub fn input_back_tab(state: &mut AppState) -> Result<()> {
-    match &mut state.prompt {
-        PromptMode::File {
-            value,
-            candidate_type,
-            candidates,
-            candidate_index,
-            ..
-        } => {
-            let compute = match candidate_type {
-                FileActionCandidateType::All => compute_all_path_candidates,
-                FileActionCandidateType::Directory => compute_dir_path_candidates,
-            };
-            cycle_candidates(
-                value,
-                candidates,
-                candidate_index,
-                CycleDirection::Backward,
-                Some(compute),
-            )?;
-        }
-        PromptMode::Shell {
+    if let PromptMode::File {
+        value,
+        candidate_type,
+        candidates,
+        candidate_index,
+        ..
+    } = &mut state.prompt
+    {
+        let compute = match candidate_type {
+            FileActionCandidateType::All => compute_all_path_candidates,
+            FileActionCandidateType::Directory => compute_dir_path_candidates,
+        };
+        cycle_candidates(
             value,
             candidates,
             candidate_index,
-            ..
-        } => {
-            cycle_candidates(
-                value,
-                candidates,
-                candidate_index,
-                CycleDirection::Backward,
-                Some(compute_shell_candidates),
-            )?;
-        }
-        _ => {}
+            CycleDirection::Backward,
+            Some(compute),
+        )?;
     }
     Ok(())
 }
@@ -219,9 +185,6 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
         }
         PromptMode::File { action, value, .. } => {
             execute_file_action(state, action, value.as_str())
-        }
-        PromptMode::Shell { action, value, .. } => {
-            execute_shell_action(state, action, value.as_str())
         }
         PromptMode::Select {
             action,
@@ -380,106 +343,6 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     // grep実行時は既存のサイドパネルを置き換える（ユーザーが明示的に検索を実行した操作のため）
     state.side_panel = Some(SidePanel::Grep(PathListState::new(Vec::new(), Some(rx))));
     Ok(())
-}
-
-fn execute_shell_action(state: &mut AppState, action: ShellAction, command: &str) -> Result<()> {
-    match action {
-        ShellAction::Execute => execute_shell(state, command),
-    }
-}
-
-fn execute_shell(state: &mut AppState, command: &str) -> Result<()> {
-    if command.is_empty() {
-        return Ok(());
-    }
-
-    let args = shell_words::split(command).context("Failed to parse command")?;
-    let (program, program_args) = args.split_first().context("Empty command")?;
-
-    let dir_path = state.filer.current_dir.absolute_path().to_string();
-
-    let mut child = std::process::Command::new(program)
-        .args(program_args)
-        .current_dir(&dir_path)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .with_context(|| format!("Failed to execute: {program}"))?;
-
-    let stdout = child.stdout.take().context("Failed to take stdout")?;
-    let stderr = child.stderr.take().context("Failed to take stderr")?;
-
-    let (tx, rx) = std::sync::mpsc::channel();
-
-    let stdout_tx = tx.clone();
-    std::thread::spawn(move || {
-        let reader = std::io::BufReader::new(stdout);
-        for line in reader.lines() {
-            let Ok(line) = line else { break };
-            if stdout_tx.send(line).is_err() {
-                break;
-            }
-        }
-    });
-
-    std::thread::spawn(move || {
-        let reader = std::io::BufReader::new(stderr);
-        let mut canceled = false;
-        for line in reader.lines() {
-            let Ok(line) = line else { break };
-            if tx.send(line).is_err() {
-                canceled = true;
-                break;
-            }
-        }
-        if canceled {
-            let _ = child.kill();
-        }
-        let _ = child.wait();
-    });
-
-    state.side_panel = Some(SidePanel::Shell(TextOutputState::new(Some(rx))));
-    Ok(())
-}
-
-const MAX_SHELL_CANDIDATES: usize = 1000;
-
-fn compute_shell_candidates(prefix: &str) -> Result<Vec<String>> {
-    if prefix.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    // PATH未設定時は候補なしとして扱う
-    let path_var = std::env::var("PATH").unwrap_or_default();
-    let mut candidates = std::collections::BTreeSet::new();
-
-    'outer: for dir in path_var.split(':') {
-        let dir_path = Path::new(dir);
-        // 存在しないディレクトリや権限不足はスキップ
-        let Ok(entries) = std::fs::read_dir(dir_path) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let os_name = entry.file_name();
-            let name = os_name.to_string_lossy();
-            if name.starts_with(prefix) && is_executable(&entry) {
-                candidates.insert(name.into_owned());
-                if candidates.len() >= MAX_SHELL_CANDIDATES {
-                    break 'outer;
-                }
-            }
-        }
-    }
-
-    Ok(candidates.into_iter().collect())
-}
-
-fn is_executable(entry: &std::fs::DirEntry) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    entry
-        .metadata()
-        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-        .unwrap_or(false)
 }
 
 fn compute_all_path_candidates(input: &str) -> Result<Vec<String>> {
