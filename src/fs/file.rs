@@ -74,6 +74,11 @@ impl VFile {
         );
         let path = Path::new(self.absolute_path());
         let file_path = path.join(file_name);
+        anyhow::ensure!(
+            !file_path.exists(),
+            "{}: File already exists",
+            file_path.display()
+        );
         std::fs::File::create(&file_path)
             .with_context(|| format!("{}: Failed to create file", file_path.display()))?;
         Ok(())

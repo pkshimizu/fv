@@ -78,8 +78,9 @@ pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
 pub fn prompt_touch(state: &mut AppState) -> Result<()> {
     let dir = state.filer.current_dir.clone();
     if let Some(file_name) = dir.file_name() {
+        let title = format!("Create file in {file_name}");
         state.prompt = PromptMode::Text {
-            title: "Create File".to_string(),
+            title,
             action: TextAction::Touch { dir },
             value: String::new(),
         };
