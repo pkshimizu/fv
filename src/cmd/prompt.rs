@@ -230,6 +230,7 @@ fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()>
 fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) -> Result<()> {
     match action {
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
+        TextAction::Touch { dir } => execute_touch(dir, value),
         TextAction::Rename { file } => execute_rename(state, file, value),
         TextAction::Grep => execute_grep(state, value),
     }
@@ -289,6 +290,11 @@ fn execute_delete(files: Vec<VFile>) -> Result<()> {
 
 fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
     dir.create_dir(value)?;
+    Ok(())
+}
+
+fn execute_touch(dir: VFile, value: &str) -> Result<()> {
+    dir.create_file(value)?;
     Ok(())
 }
 

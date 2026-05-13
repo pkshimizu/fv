@@ -75,6 +75,18 @@ pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
+pub fn prompt_touch(state: &mut AppState) -> Result<()> {
+    let dir = state.filer.current_dir.clone();
+    if let Some(file_name) = dir.file_name() {
+        state.prompt = PromptMode::Text {
+            title: "Create File".to_string(),
+            action: TextAction::Touch { dir },
+            value: String::new(),
+        };
+    }
+    Ok(())
+}
+
 pub fn prompt_move(state: &mut AppState) -> Result<()> {
     start_file_input(state, "Move to", FileActionCandidateType::All, |files| {
         FileAction::Move { files }

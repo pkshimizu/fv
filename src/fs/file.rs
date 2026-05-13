@@ -62,6 +62,23 @@ impl VFile {
         self.metadata.as_ref().is_some_and(|m| m.is_dir())
     }
 
+    pub fn create_file(&self, file_name: &str) -> Result<()> {
+        if file_name.is_empty() {
+            return Ok(());
+        }
+        anyhow::ensure!(
+            Path::new(file_name)
+                .components()
+                .all(|c| matches!(c, Component::Normal(_))),
+            "{file_name}: Invalid file name"
+        );
+        let path = Path::new(self.absolute_path());
+        let file_path = path.join(file_name);
+        std::fs::File::create(&file_path)
+            .with_context(|| format!("{}: Failed to create file", file_path.display()))?;
+        Ok(())
+    }
+
     pub fn create_dir(&self, dir_name: &str) -> Result<()> {
         if dir_name.is_empty() {
             return Ok(());

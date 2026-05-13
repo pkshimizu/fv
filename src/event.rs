@@ -105,6 +105,7 @@ impl EventHandler {
             (_, KeyCode::Char('g')) => Command::Filer(FilerCommand::PromptGrep),
             (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::PromptDelete),
             (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::PromptMkdir),
+            (_, KeyCode::Char('n')) => Command::Filer(FilerCommand::PromptTouch),
             (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),
             (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::PromptRename),
             (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::PromptSort),
