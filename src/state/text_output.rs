@@ -1,4 +1,3 @@
-use std::sync::mpsc::Receiver;
 use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug)]
@@ -7,24 +6,18 @@ pub struct TextOutputState {
     pub scroll_offset: u16,
     pub visible_height: u16,
     pub visible_width: u16,
-    pub rx: Option<Receiver<String>>,
     cached_total_visual_lines: u32,
 }
 
 impl TextOutputState {
-    pub fn new(rx: Option<Receiver<String>>) -> Self {
+    pub fn new() -> Self {
         Self {
             lines: Vec::new(),
             scroll_offset: 0,
             visible_height: 0,
             visible_width: 0,
-            rx,
             cached_total_visual_lines: 0,
         }
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.rx.is_some()
     }
 
     pub fn set_visible_area(&mut self, height: u16, width: u16) {
@@ -108,7 +101,6 @@ impl TextOutputState {
             self.scroll_offset = max;
         }
     }
-
 }
 
 fn visual_lines(visible_width: u16, line: &str) -> u32 {

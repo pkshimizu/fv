@@ -58,10 +58,11 @@ impl App {
         let r1 = execute!(stdout(), EnterAlternateScreen);
         let r2 = crossterm::terminal::enable_raw_mode();
         let r3 = terminal.clear();
-        r1.and(r2).and(r3)?;
 
-        // イベントハンドラを再開
+        // エラーの有無に関わらずイベントハンドラを再開
         event_handler.resume();
+
+        r1.and(r2).and(r3)?;
 
         result?;
         Ok(())

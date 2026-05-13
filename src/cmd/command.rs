@@ -56,7 +56,6 @@ pub enum FilerCommand {
     PromptSort,
     PromptSearch,
     PromptGrep,
-    LaunchShell,
     PromptJump,
     AddBookmark,
     RemoveBookmark,
@@ -66,6 +65,7 @@ pub enum FilerCommand {
     ShowAttribute,
     ShowFileInfo,
     ToggleDotFiles,
+    LaunchShell,
 }
 
 impl FilerCommand {
