@@ -11,7 +11,7 @@ pub fn show_file_info(state: &mut AppState) -> Result<()> {
     };
     let info = FileInfo::from_file(file)?;
     let lines = info.to_lines();
-    let mut output = TextOutputState::new(None);
+    let mut output = TextOutputState::new();
     output.lines = lines;
     state.side_panel = Some(SidePanel::FileInfo(output));
     Ok(())

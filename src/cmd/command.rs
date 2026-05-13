@@ -1,4 +1,4 @@
-use crate::cmd::{app, attribute, bookmark, file_info, filer, grep, prompt, shell};
+use crate::cmd::{app, attribute, bookmark, file_info, filer, grep, prompt};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -9,7 +9,6 @@ pub enum Command {
     Prompt(PromptCommand),
     Bookmark(BookmarkCommand),
     Grep(GrepCommand),
-    Shell(ShellCommand),
     FileInfo(FileInfoCommand),
     Attribute(AttributeCommand),
 }
@@ -22,7 +21,6 @@ impl Command {
             Command::Prompt(cmd) => cmd.exec(state),
             Command::Bookmark(cmd) => cmd.exec(state, store),
             Command::Grep(cmd) => cmd.exec(state),
-            Command::Shell(cmd) => cmd.exec(state),
             Command::FileInfo(cmd) => cmd.exec(state),
             Command::Attribute(cmd) => cmd.exec(state),
         }
@@ -58,7 +56,6 @@ pub enum FilerCommand {
     PromptSort,
     PromptSearch,
     PromptGrep,
-    PromptShell,
     PromptJump,
     AddBookmark,
     RemoveBookmark,
@@ -68,6 +65,7 @@ pub enum FilerCommand {
     ShowAttribute,
     ShowFileInfo,
     ToggleDotFiles,
+    LaunchShell,
 }
 
 impl FilerCommand {
@@ -87,7 +85,7 @@ impl FilerCommand {
             FilerCommand::PromptSort => filer::prompt_sort(state),
             FilerCommand::PromptSearch => filer::prompt_search(state),
             FilerCommand::PromptGrep => filer::prompt_grep(state),
-            FilerCommand::PromptShell => filer::prompt_shell(state),
+            FilerCommand::LaunchShell => filer::launch_shell(state),
             FilerCommand::PromptJump => filer::prompt_jump(state),
             FilerCommand::AddBookmark => filer::add_bookmark(state, store),
             FilerCommand::RemoveBookmark => filer::remove_bookmark(state, store),
@@ -173,26 +171,6 @@ impl GrepCommand {
             GrepCommand::MoveCursorRight => grep::last_cursor(state),
             GrepCommand::EnterFile => grep::select(state),
             GrepCommand::HideGrep => grep::hide_grep(state),
-        }
-    }
-}
-
-pub enum ShellCommand {
-    ScrollUp,
-    ScrollDown,
-    ScrollToTop,
-    ScrollToBottom,
-    HideShell,
-}
-
-impl ShellCommand {
-    fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
-            ShellCommand::ScrollUp => shell::scroll_up(state),
-            ShellCommand::ScrollDown => shell::scroll_down(state),
-            ShellCommand::ScrollToTop => shell::scroll_to_top(state),
-            ShellCommand::ScrollToBottom => shell::scroll_to_bottom(state),
-            ShellCommand::HideShell => shell::hide_shell(state),
         }
     }
 }

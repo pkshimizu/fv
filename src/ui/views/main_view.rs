@@ -47,14 +47,6 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                         &mut grep.table_state,
                     );
                 }
-                SidePanel::Shell(shell) => {
-                    // ボーダー分（上下左右各1）を差し引いた表示領域を設定
-                    shell.set_visible_area(
-                        panel_area.height.saturating_sub(2),
-                        panel_area.width.saturating_sub(2),
-                    );
-                    frame.render_widget(build_text_output(shell, "Shell"), panel_area);
-                }
                 SidePanel::FileInfo(info) => {
                     info.set_visible_area(
                         panel_area.height.saturating_sub(2),

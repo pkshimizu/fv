@@ -6,7 +6,6 @@ use crate::state::TextOutputState;
 pub enum SidePanel {
     Bookmark(PathListState),
     Grep(PathListState),
-    Shell(TextOutputState),
     FileInfo(TextOutputState),
     Attribute(AttributeState),
 }

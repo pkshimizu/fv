@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::state::{
     AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
-    SelectAction, ShellAction, SidePanel, SortKey, TextAction,
+    SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use anyhow::Result;
@@ -129,14 +129,8 @@ pub fn prompt_grep(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn prompt_shell(state: &mut AppState) -> Result<()> {
-    state.prompt = PromptMode::Shell {
-        title: "Shell".to_string(),
-        value: String::new(),
-        candidates: Vec::new(),
-        candidate_index: None,
-        action: ShellAction::Execute,
-    };
+pub fn launch_shell(state: &mut AppState) -> Result<()> {
+    state.launch_shell = true;
     Ok(())
 }
 

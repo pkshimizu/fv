@@ -5,7 +5,10 @@ use crate::event::EventHandler;
 use crate::state::{AppState, PromptMode};
 use crate::store::RootStore;
 use crate::ui;
-use anyhow::Result;
+use anyhow::{Context, Result};
+use crossterm::execute;
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
+use std::io::stdout;
 
 pub struct App {
     state: AppState,
@@ -30,6 +33,41 @@ impl App {
         Ok(())
     }
 
+    fn launch_external_shell(
+        state: &AppState,
+        terminal: &mut DefaultTerminal,
+        event_handler: &EventHandler,
+    ) -> Result<()> {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        let dir = state.filer.current_dir.absolute_path();
+
+        // イベントハンドラを一時停止（キー入力の横取りを防止）
+        event_handler.pause();
+
+        // TUI を一時停止
+        crossterm::terminal::disable_raw_mode()?;
+        execute!(stdout(), LeaveAlternateScreen)?;
+
+        // 外部シェルを起動
+        let result = std::process::Command::new(&shell)
+            .current_dir(dir)
+            .status()
+            .with_context(|| format!("シェルの起動に失敗しました: {shell}"));
+
+        // TUI を復帰（全ステップを試行し、最初のエラーを返す）
+        let r1 = execute!(stdout(), EnterAlternateScreen);
+        let r2 = crossterm::terminal::enable_raw_mode();
+        let r3 = terminal.clear();
+
+        // エラーの有無に関わらずイベントハンドラを再開
+        event_handler.resume();
+
+        r1.and(r2).and(r3)?;
+
+        result?;
+        Ok(())
+    }
+
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut watching_dir_path = self.state.filer.current_dir.absolute_path().to_string();
 
@@ -43,6 +81,18 @@ impl App {
                 self.state.prompt = PromptMode::Error {
                     message: format!("{e}"),
                 };
+            }
+
+            // 外部シェル起動
+            if self.state.launch_shell {
+                self.state.launch_shell = false;
+                if let Err(e) =
+                    Self::launch_external_shell(&self.state, terminal, &self.event_handler)
+                {
+                    self.state.prompt = PromptMode::Error {
+                        message: format!("{e}"),
+                    };
+                }
             }
 
             // 非同期結果の受信

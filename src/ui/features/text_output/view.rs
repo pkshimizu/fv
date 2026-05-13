@@ -4,11 +4,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Wrap};
 
 pub fn build_text_output<'a>(state: &'a TextOutputState, title: &str) -> Paragraph<'a> {
-    let title = if state.is_running() {
-        format!("{title} ({}) Running", state.lines.len())
-    } else {
-        format!("{title} ({})", state.lines.len())
-    };
+    let title = format!("{title} ({})", state.lines.len());
 
     let (start, end, offset) = state.visible_range();
     let lines: Vec<Line<'a>> = state.lines[start..end]

@@ -1,4 +1,3 @@
-use std::sync::mpsc::{Receiver, TryRecvError};
 use unicode_width::UnicodeWidthStr;
 
 #[derive(Debug)]
@@ -7,24 +6,18 @@ pub struct TextOutputState {
     pub scroll_offset: u16,
     pub visible_height: u16,
     pub visible_width: u16,
-    pub rx: Option<Receiver<String>>,
     cached_total_visual_lines: u32,
 }
 
 impl TextOutputState {
-    pub fn new(rx: Option<Receiver<String>>) -> Self {
+    pub fn new() -> Self {
         Self {
             lines: Vec::new(),
             scroll_offset: 0,
             visible_height: 0,
             visible_width: 0,
-            rx,
             cached_total_visual_lines: 0,
         }
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.rx.is_some()
     }
 
     pub fn set_visible_area(&mut self, height: u16, width: u16) {
@@ -106,39 +99,6 @@ impl TextOutputState {
         let max = self.max_scroll();
         if self.scroll_offset > max {
             self.scroll_offset = max;
-        }
-    }
-
-    pub fn receive_results(&mut self) {
-        let Some(rx) = &mut self.rx else {
-            return;
-        };
-
-        const MAX_RECV_PER_FRAME: usize = 100;
-        const MAX_LINES: usize = 10000;
-        let width = self.visible_width;
-
-        let mut count = 0;
-        loop {
-            if count >= MAX_RECV_PER_FRAME {
-                break;
-            }
-            if self.lines.len() >= MAX_LINES {
-                self.rx = None;
-                break;
-            }
-            match rx.try_recv() {
-                Ok(line) => {
-                    self.cached_total_visual_lines += visual_lines(width, &line);
-                    self.lines.push(line);
-                    count += 1;
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    self.rx = None;
-                    break;
-                }
-            }
         }
     }
 }
