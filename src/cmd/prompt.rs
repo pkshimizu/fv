@@ -232,6 +232,7 @@ fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) ->
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
         TextAction::Touch { dir } => execute_touch(dir, value),
         TextAction::Rename { file } => execute_rename(state, file, value),
+        TextAction::Zip { dir, files } => execute_zip(dir, files, value),
         TextAction::Grep => execute_grep(state, value),
     }
 }
@@ -295,6 +296,74 @@ fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
 
 fn execute_touch(dir: VFile, value: &str) -> Result<()> {
     dir.create_file(value)?;
+    Ok(())
+}
+
+fn execute_zip(dir: VFile, files: Vec<VFile>, value: &str) -> Result<()> {
+    if value.is_empty() {
+        return Ok(());
+    }
+    let zip_path = Path::new(dir.absolute_path()).join(value);
+    anyhow::ensure!(
+        !zip_path.exists(),
+        "{}: File already exists",
+        zip_path.display()
+    );
+    let zip_file = std::fs::File::create(&zip_path)
+        .with_context(|| format!("{}: Failed to create zip file", zip_path.display()))?;
+    let mut zip_writer = zip::ZipWriter::new(zip_file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    for file in &files {
+        let file_path = Path::new(file.absolute_path());
+        if file.is_dir() {
+            add_dir_to_zip(&mut zip_writer, file_path, file_path, options)?;
+        } else {
+            let name = file.file_name().unwrap_or("unknown");
+            zip_writer
+                .start_file(name, options)
+                .with_context(|| format!("Failed to add {name} to zip"))?;
+            let mut f = std::fs::File::open(file_path)
+                .with_context(|| format!("{}: Failed to open file", file_path.display()))?;
+            std::io::copy(&mut f, &mut zip_writer)
+                .with_context(|| format!("{}: Failed to write to zip", file_path.display()))?;
+        }
+    }
+    zip_writer.finish()?;
+    Ok(())
+}
+
+fn add_dir_to_zip(
+    zip_writer: &mut zip::ZipWriter<std::fs::File>,
+    base: &Path,
+    dir: &Path,
+    options: zip::write::SimpleFileOptions,
+) -> Result<()> {
+    for entry in std::fs::read_dir(dir)
+        .with_context(|| format!("{}: Failed to read directory", dir.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        let relative = path
+            .strip_prefix(base.parent().unwrap_or(base))
+            .unwrap_or(&path);
+        let name = relative.to_string_lossy();
+        if path.is_dir() {
+            zip_writer
+                .add_directory(format!("{name}/"), options)
+                .with_context(|| format!("Failed to add directory {name} to zip"))?;
+            add_dir_to_zip(zip_writer, base, &path, options)?;
+        } else {
+            zip_writer
+                .start_file(name.to_string(), options)
+                .with_context(|| format!("Failed to add {name} to zip"))?;
+            let mut f = std::fs::File::open(&path)
+                .with_context(|| format!("{}: Failed to open file", path.display()))?;
+            std::io::copy(&mut f, zip_writer)
+                .with_context(|| format!("{}: Failed to write to zip", path.display()))?;
+        }
+    }
     Ok(())
 }
 
