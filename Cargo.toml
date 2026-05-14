@@ -23,3 +23,4 @@ imagesize = "0.14.0"
 chardetng = "1.0.0"
 encoding_rs = "0.8.35"
 symphonia = { version = "0.5.5", features = ["default"] }
+zip = "8.6.0"

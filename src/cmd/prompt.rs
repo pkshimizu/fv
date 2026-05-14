@@ -232,6 +232,7 @@ fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) ->
         TextAction::Mkdir { dir } => execute_mkdir(dir, value),
         TextAction::Touch { dir } => execute_touch(dir, value),
         TextAction::Rename { file } => execute_rename(state, file, value),
+        TextAction::Zip { dir, files } => execute_zip(dir, files, value),
         TextAction::Grep => execute_grep(state, value),
     }
 }
@@ -295,6 +296,11 @@ fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
 
 fn execute_touch(dir: VFile, value: &str) -> Result<()> {
     dir.create_file(value)?;
+    Ok(())
+}
+
+fn execute_zip(dir: VFile, files: Vec<VFile>, value: &str) -> Result<()> {
+    dir.create_zip(value, &files)?;
     Ok(())
 }
 

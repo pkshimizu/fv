@@ -5,6 +5,7 @@ use crate::state::{
 };
 use crate::store::RootStore;
 use anyhow::Result;
+use std::path::Path;
 
 pub fn change_to_parent(state: &mut AppState) -> Result<()> {
     state.filer.change_dir_in_parent_dir()
@@ -85,6 +86,40 @@ pub fn prompt_touch(state: &mut AppState) -> Result<()> {
             value: String::new(),
         };
     }
+    Ok(())
+}
+
+pub fn prompt_zip(state: &mut AppState) -> Result<()> {
+    let files = collect_action_targets(state);
+    if files.is_empty() {
+        return Ok(());
+    }
+    let dir = state.filer.current_dir.clone();
+    let default_name = if state.filer.checked_paths.is_empty() {
+        let stem = files[0]
+            .file_name()
+            .and_then(|n| {
+                Path::new(n)
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+            })
+            .unwrap_or_else(|| "archive".to_string());
+        format!("{stem}.zip")
+    } else {
+        "files.zip".to_string()
+    };
+    let default_path = Path::new(dir.absolute_path()).join(&default_name);
+    let unique = crate::fs::unique_path(&default_path).unwrap_or(default_path);
+    let value = unique
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or(default_name);
+    let title = action_title("Zip", &files);
+    state.prompt = PromptMode::Text {
+        title,
+        action: TextAction::Zip { dir, files },
+        value,
+    };
     Ok(())
 }
 

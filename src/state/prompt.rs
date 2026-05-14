@@ -5,6 +5,7 @@ pub enum TextAction {
     Mkdir { dir: VFile },
     Touch { dir: VFile },
     Rename { file: VFile },
+    Zip { dir: VFile, files: Vec<VFile> },
     Grep,
 }
 
