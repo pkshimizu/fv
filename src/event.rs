@@ -1,8 +1,8 @@
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 

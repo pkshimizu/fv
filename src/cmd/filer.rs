@@ -97,7 +97,11 @@ pub fn prompt_zip(state: &mut AppState) -> Result<()> {
     let default_name = if state.filer.checked_paths.is_empty() {
         let stem = files[0]
             .file_name()
-            .and_then(|n| std::path::Path::new(n).file_stem().map(|s| s.to_string_lossy().to_string()))
+            .and_then(|n| {
+                std::path::Path::new(n)
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+            })
             .unwrap_or_else(|| "archive".to_string());
         format!("{stem}.zip")
     } else {
