@@ -5,6 +5,7 @@ use crate::state::{
 };
 use crate::store::RootStore;
 use anyhow::Result;
+use std::path::Path;
 
 pub fn change_to_parent(state: &mut AppState) -> Result<()> {
     state.filer.change_dir_in_parent_dir()
@@ -98,7 +99,7 @@ pub fn prompt_zip(state: &mut AppState) -> Result<()> {
         let stem = files[0]
             .file_name()
             .and_then(|n| {
-                std::path::Path::new(n)
+                Path::new(n)
                     .file_stem()
                     .map(|s| s.to_string_lossy().to_string())
             })
@@ -107,7 +108,7 @@ pub fn prompt_zip(state: &mut AppState) -> Result<()> {
     } else {
         "files.zip".to_string()
     };
-    let default_path = std::path::Path::new(dir.absolute_path()).join(&default_name);
+    let default_path = Path::new(dir.absolute_path()).join(&default_name);
     let unique = crate::fs::unique_path(&default_path).unwrap_or(default_path);
     let value = unique
         .file_name()
