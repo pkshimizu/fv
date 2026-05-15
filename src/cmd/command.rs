@@ -9,8 +9,6 @@ pub enum Command {
     Prompt(PromptCommand),
     Bookmark(BookmarkCommand),
     Grep(GrepCommand),
-    FileInfo(FileInfoCommand),
-    Attribute(AttributeCommand),
 }
 
 impl Command {
@@ -21,8 +19,6 @@ impl Command {
             Command::Prompt(cmd) => cmd.exec(state),
             Command::Bookmark(cmd) => cmd.exec(state, store),
             Command::Grep(cmd) => cmd.exec(state),
-            Command::FileInfo(cmd) => cmd.exec(state),
-            Command::Attribute(cmd) => cmd.exec(state),
         }
     }
 }
@@ -179,42 +175,6 @@ impl GrepCommand {
             GrepCommand::MoveCursorRight => grep::last_cursor(state),
             GrepCommand::EnterFile => grep::select(state),
             GrepCommand::HideGrep => grep::hide_grep(state),
-        }
-    }
-}
-
-pub enum FileInfoCommand {
-    ScrollUp,
-    ScrollDown,
-    ScrollToTop,
-    ScrollToBottom,
-    HideFileInfo,
-}
-
-impl FileInfoCommand {
-    fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
-            FileInfoCommand::ScrollUp => file_info::scroll_up(state),
-            FileInfoCommand::ScrollDown => file_info::scroll_down(state),
-            FileInfoCommand::ScrollToTop => file_info::scroll_to_top(state),
-            FileInfoCommand::ScrollToBottom => file_info::scroll_to_bottom(state),
-            FileInfoCommand::HideFileInfo => file_info::hide_file_info(state),
-        }
-    }
-}
-
-pub enum AttributeCommand {
-    MoveCursorUp,
-    MoveCursorDown,
-    HideAttribute,
-}
-
-impl AttributeCommand {
-    fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
-            AttributeCommand::MoveCursorUp => attribute::up_cursor(state),
-            AttributeCommand::MoveCursorDown => attribute::down_cursor(state),
-            AttributeCommand::HideAttribute => attribute::hide_attribute(state),
         }
     }
 }

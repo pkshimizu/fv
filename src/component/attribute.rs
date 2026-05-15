@@ -1,17 +1,22 @@
+use crate::component::{Action, Component};
 use crate::fs::VFile;
 use crate::fs::VFileMetadata;
 use crate::state::table_cursor::TableCursor;
+use crate::ui::widgets::{BorderStyle, build_bordered_block};
 use anyhow::Result;
-use ratatui::widgets::TableState;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
+use ratatui::layout::{Constraint, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::widgets::{Cell, Row, Table, TableState};
 
-#[derive(Debug)]
-pub struct AttributeState {
-    pub table_state: TableState,
-    pub file_name: String,
-    pub entries: Vec<(&'static str, String)>,
+pub struct AttributeComponent {
+    table_state: TableState,
+    file_name: String,
+    entries: Vec<(&'static str, String)>,
 }
 
-impl AttributeState {
+impl AttributeComponent {
     pub fn new(file: &VFile) -> Result<Self> {
         let metadata = file.metadata()?;
         let file_name = file.file_name().unwrap_or("(unknown)").to_string();
@@ -76,12 +81,42 @@ impl AttributeState {
     fn cursor(&mut self) -> TableCursor {
         TableCursor::new(&mut self.table_state, self.entries.len())
     }
+}
 
-    pub fn next(&mut self) {
-        self.cursor().next();
+impl Component for AttributeComponent {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
+        match event.code {
+            KeyCode::Char('a') | KeyCode::Esc => Ok(Action::CloseSidePanel),
+            KeyCode::Up => {
+                self.cursor().prev();
+                Ok(Action::None)
+            }
+            KeyCode::Down => {
+                self.cursor().next();
+                Ok(Action::None)
+            }
+            _ => Ok(Action::None),
+        }
     }
 
-    pub fn prev(&mut self) {
-        self.cursor().prev();
+    fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let title = format!("Attribute - {}", self.file_name);
+        let block = build_bordered_block(&title, BorderStyle::Active);
+        let label_style = Style::default().fg(Color::Yellow);
+        let rows: Vec<Row> = self
+            .entries
+            .iter()
+            .map(|(label, value)| {
+                Row::new([
+                    Cell::from(*label).style(label_style),
+                    Cell::from(value.as_str()),
+                ])
+            })
+            .collect();
+        let table = Table::new(rows, [Constraint::Max(14), Constraint::Fill(1)])
+            .block(block)
+            .highlight_symbol("> ")
+            .row_highlight_style(Style::default().add_modifier(Modifier::UNDERLINED));
+        frame.render_stateful_widget(table, area, &mut self.table_state);
     }
 }

@@ -2,7 +2,7 @@ use ratatui::DefaultTerminal;
 
 use crate::component::Action;
 use crate::config::Config;
-use crate::event::EventHandler;
+use crate::event::{AppEventResult, EventHandler};
 use crate::state::{AppState, PromptMode};
 use crate::store::RootStore;
 use crate::ui;
@@ -70,11 +70,7 @@ impl App {
     }
 
     /// Action を処理する。コンポーネントの handle_event が返した Action をここで実行する。
-    fn handle_action(
-        &mut self,
-        action: Action,
-        terminal: &mut DefaultTerminal,
-    ) -> Result<()> {
+    fn handle_action(&mut self, action: Action, terminal: &mut DefaultTerminal) -> Result<()> {
         match action {
             Action::None => {}
             Action::Quit => self.state.quit(),
@@ -90,6 +86,9 @@ impl App {
                     };
                 }
             }
+            Action::CloseSidePanel => {
+                self.state.side_panel = None;
+            }
         }
         Ok(())
     }
@@ -101,12 +100,27 @@ impl App {
             // UI を描画
             terminal.draw(|frame| ui::render_main_view(frame, &mut self.state, &self.store))?;
 
-            // イベントを取得してコマンドに変換（既存の Command ベースの処理）
-            let command = self.event_handler.next(&self.state)?;
-            if let Err(e) = command.exec(&mut self.state, &mut self.store) {
-                self.state.prompt = PromptMode::Error {
-                    message: format!("{e}"),
-                };
+            // イベントを取得して処理
+            match self.event_handler.next(&self.state)? {
+                AppEventResult::Command(command) => {
+                    if let Err(e) = command.exec(&mut self.state, &mut self.store) {
+                        self.state.prompt = PromptMode::Error {
+                            message: format!("{e}"),
+                        };
+                    }
+                }
+                AppEventResult::KeyEvent(key) => {
+                    let action = self
+                        .state
+                        .side_panel
+                        .as_mut()
+                        .and_then(|p| p.as_component())
+                        .map(|c| c.handle_event(key))
+                        .transpose()?
+                        .unwrap_or(Action::None);
+                    self.handle_action(action, terminal)?;
+                }
+                AppEventResult::None => {}
             }
 
             // 外部シェル起動（既存フラグベース → 段階的に Action に移行予定）
