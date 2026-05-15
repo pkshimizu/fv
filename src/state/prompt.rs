@@ -39,11 +39,13 @@ pub enum PromptMode {
     Text {
         title: String,
         value: String,
+        cursor: usize,
         action: TextAction,
     },
     File {
         title: String,
         value: String,
+        cursor: usize,
         candidate_type: FileActionCandidateType,
         candidates: Vec<String>,
         candidate_index: Option<usize>,
@@ -65,6 +67,7 @@ pub enum PromptMode {
     Search {
         title: String,
         value: String,
+        cursor: usize,
         original_index: Option<usize>,
     },
 }
@@ -72,6 +75,15 @@ pub enum PromptMode {
 impl PromptMode {
     pub fn is_active(&self) -> bool {
         !matches!(self, PromptMode::None)
+    }
+
+    pub fn cursor_position(&self) -> Option<usize> {
+        match self {
+            PromptMode::Text { cursor, .. }
+            | PromptMode::File { cursor, .. }
+            | PromptMode::Search { cursor, .. } => Some(*cursor),
+            _ => None,
+        }
     }
 
     pub fn reset_candidates(&mut self) {

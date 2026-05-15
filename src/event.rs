@@ -135,6 +135,8 @@ impl EventHandler {
             PromptMode::Text { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
+                KeyCode::Left => Command::Prompt(PromptCommand::CursorLeft),
+                KeyCode::Right => Command::Prompt(PromptCommand::CursorRight),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
                 KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
                 _ => Command::App(AppCommand::None),
@@ -142,6 +144,8 @@ impl EventHandler {
             PromptMode::File { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
+                KeyCode::Left => Command::Prompt(PromptCommand::CursorLeft),
+                KeyCode::Right => Command::Prompt(PromptCommand::CursorRight),
                 KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
                 KeyCode::BackTab => Command::Prompt(PromptCommand::BackTab),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
@@ -163,6 +167,8 @@ impl EventHandler {
             PromptMode::Search { .. } => match key.code {
                 KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
                 KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
+                KeyCode::Left => Command::Prompt(PromptCommand::CursorLeft),
+                KeyCode::Right => Command::Prompt(PromptCommand::CursorRight),
                 KeyCode::Down => Command::Prompt(PromptCommand::SearchNext),
                 KeyCode::Up => Command::Prompt(PromptCommand::SearchPrev),
                 KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
