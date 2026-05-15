@@ -8,11 +8,10 @@ pub enum Area {
     Prompt,
     Bookmark,
     Grep,
-    FileInfo,
-    Attribute,
+    /// Component trait で処理するサイドパネル（Attribute, FileInfo 等）
+    SideComponent,
 }
 
-#[derive(Debug)]
 pub struct AppState {
     pub config: Config,
     pub running: bool,
@@ -48,10 +47,9 @@ impl AppState {
             return Area::Prompt;
         }
         match &self.side_panel {
-            Some(SidePanel::Attribute(_)) => Area::Attribute,
+            Some(SidePanel::Attribute(_)) | Some(SidePanel::FileInfo(_)) => Area::SideComponent,
             Some(SidePanel::Bookmark(_)) => Area::Bookmark,
             Some(SidePanel::Grep(_)) => Area::Grep,
-            Some(SidePanel::FileInfo(_)) => Area::FileInfo,
             None => Area::Filer,
         }
     }

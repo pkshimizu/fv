@@ -1,9 +1,7 @@
+use crate::component::Component;
 use crate::state::{AppState, PromptMode, SidePanel};
 use crate::store::RootStore;
-use crate::ui::features::{
-    build_attribute_table, build_filer, build_header, build_path_table, build_prompt_view,
-    build_text_output,
-};
+use crate::ui::features::{build_filer, build_header, build_path_table, build_prompt_view};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 use unicode_width::UnicodeWidthChar;
@@ -27,13 +25,8 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                     .areas(content_area);
             frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
             match panel {
-                SidePanel::Attribute(attribute) => {
-                    frame.render_stateful_widget(
-                        build_attribute_table(attribute),
-                        panel_area,
-                        &mut attribute.table_state,
-                    );
-                }
+                SidePanel::Attribute(component) => component.render(frame, panel_area),
+                SidePanel::FileInfo(component) => component.render(frame, panel_area),
                 SidePanel::Bookmark(bookmark) => {
                     frame.render_stateful_widget(
                         build_path_table(bookmark, "Bookmark"),
@@ -47,13 +40,6 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                         panel_area,
                         &mut grep.table_state,
                     );
-                }
-                SidePanel::FileInfo(info) => {
-                    info.set_visible_area(
-                        panel_area.height.saturating_sub(2),
-                        panel_area.width.saturating_sub(2),
-                    );
-                    frame.render_widget(build_text_output(info, "File Info"), panel_area);
                 }
             }
         }

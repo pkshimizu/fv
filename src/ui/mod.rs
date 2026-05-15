@@ -1,5 +1,5 @@
 mod features;
 mod views;
-mod widgets;
+pub(crate) mod widgets;
 
 pub use views::*;

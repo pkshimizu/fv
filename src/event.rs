@@ -7,8 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::cmd::command::{
-    AppCommand, AttributeCommand, BookmarkCommand, Command, FileInfoCommand, FilerCommand,
-    GrepCommand, PromptCommand,
+    AppCommand, BookmarkCommand, Command, FilerCommand, GrepCommand, PromptCommand,
 };
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
@@ -18,6 +17,16 @@ use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 pub enum AppEvent {
     Key(KeyEvent),
     FileChange,
+}
+
+/// EventHandler::next の戻り値
+pub enum AppEventResult {
+    /// 何もない（タイムアウト）
+    None,
+    /// 既存の Command ベースの処理
+    Command(Command),
+    /// コンポーネントに委譲するキーイベント
+    KeyEvent(KeyEvent),
 }
 
 pub struct EventHandler {
@@ -66,18 +75,21 @@ impl EventHandler {
         self.paused.store(false, Ordering::Relaxed);
     }
 
-    pub fn next(&self, state: &AppState) -> Result<Command> {
+    pub fn next(&self, state: &AppState) -> Result<AppEventResult> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => Ok(match state.active_area() {
-                Area::Prompt => Self::prompt_key_to_command(key, &state.prompt),
-                Area::Attribute => Self::attribute_key_to_command(key),
-                Area::Bookmark => Self::bookmark_key_to_command(key),
-                Area::Grep => Self::grep_key_to_command(key),
-                Area::FileInfo => Self::file_info_key_to_command(key),
-                Area::Filer => Self::key_to_command(key),
+                Area::SideComponent => AppEventResult::KeyEvent(key),
+                Area::Prompt => {
+                    AppEventResult::Command(Self::prompt_key_to_command(key, &state.prompt))
+                }
+                Area::Bookmark => AppEventResult::Command(Self::bookmark_key_to_command(key)),
+                Area::Grep => AppEventResult::Command(Self::grep_key_to_command(key)),
+                Area::Filer => AppEventResult::Command(Self::key_to_command(key)),
             }),
-            Ok(AppEvent::FileChange) => Ok(Command::Filer(FilerCommand::RefreshFiles)),
-            Err(_) => Ok(Command::App(AppCommand::None)),
+            Ok(AppEvent::FileChange) => Ok(AppEventResult::Command(Command::Filer(
+                FilerCommand::RefreshFiles,
+            ))),
+            Err(_) => Ok(AppEventResult::None),
         }
     }
 
@@ -206,28 +218,6 @@ impl EventHandler {
             (_, KeyCode::Left) => Command::Grep(GrepCommand::MoveCursorLeft),
             (_, KeyCode::Right) => Command::Grep(GrepCommand::MoveCursorRight),
             (_, KeyCode::Enter) => Command::Grep(GrepCommand::EnterFile),
-            _ => Command::App(AppCommand::None),
-        }
-    }
-
-    fn file_info_key_to_command(key: KeyEvent) -> Command {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Char('i')) => Command::FileInfo(FileInfoCommand::HideFileInfo),
-            (_, KeyCode::Esc) => Command::FileInfo(FileInfoCommand::HideFileInfo),
-            (_, KeyCode::Up) => Command::FileInfo(FileInfoCommand::ScrollUp),
-            (_, KeyCode::Down) => Command::FileInfo(FileInfoCommand::ScrollDown),
-            (_, KeyCode::Left) => Command::FileInfo(FileInfoCommand::ScrollToTop),
-            (_, KeyCode::Right) => Command::FileInfo(FileInfoCommand::ScrollToBottom),
-            _ => Command::App(AppCommand::None),
-        }
-    }
-
-    fn attribute_key_to_command(key: KeyEvent) -> Command {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Char('a')) => Command::Attribute(AttributeCommand::HideAttribute),
-            (_, KeyCode::Esc) => Command::Attribute(AttributeCommand::HideAttribute),
-            (_, KeyCode::Up) => Command::Attribute(AttributeCommand::MoveCursorUp),
-            (_, KeyCode::Down) => Command::Attribute(AttributeCommand::MoveCursorDown),
             _ => Command::App(AppCommand::None),
         }
     }

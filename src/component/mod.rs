@@ -1,3 +1,9 @@
+mod attribute;
+mod file_info;
+
+pub use attribute::AttributeComponent;
+pub use file_info::FileInfoComponent;
+
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
@@ -16,14 +22,14 @@ pub enum Action {
     Error(String),
     /// 外部シェルを起動する
     LaunchShell,
+    /// サイドパネルを閉じる
+    CloseSidePanel,
 }
 
 /// コンポーネントの共通インターフェース。
 /// 各エリア（Filer, Prompt, Bookmark 等）がこの trait を実装する。
-#[allow(dead_code)]
 pub trait Component {
     /// キーイベントを処理し、アプリ全体に影響するアクションを返す。
-    /// `None` を返した場合、アクションは発生しない。
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action>;
 
     /// コンポーネントを描画する。
