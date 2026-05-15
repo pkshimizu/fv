@@ -1,5 +1,6 @@
 use ratatui::DefaultTerminal;
 
+use crate::component::Action;
 use crate::config::Config;
 use crate::event::EventHandler;
 use crate::state::{AppState, PromptMode};
@@ -68,24 +69,19 @@ impl App {
         Ok(())
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut watching_dir_path = self.state.filer.current_dir.absolute_path().to_string();
-
-        while self.state.running {
-            // UI を描画
-            terminal.draw(|frame| ui::render_main_view(frame, &mut self.state, &self.store))?;
-
-            // イベントを取得してコマンドに変換
-            let command = self.event_handler.next(&self.state)?;
-            if let Err(e) = command.exec(&mut self.state, &mut self.store) {
-                self.state.prompt = PromptMode::Error {
-                    message: format!("{e}"),
-                };
+    /// Action を処理する。コンポーネントの handle_event が返した Action をここで実行する。
+    fn handle_action(
+        &mut self,
+        action: Action,
+        terminal: &mut DefaultTerminal,
+    ) -> Result<()> {
+        match action {
+            Action::None => {}
+            Action::Quit => self.state.quit(),
+            Action::Error(message) => {
+                self.state.prompt = PromptMode::Error { message };
             }
-
-            // 外部シェル起動
-            if self.state.launch_shell {
-                self.state.launch_shell = false;
+            Action::LaunchShell => {
                 if let Err(e) =
                     Self::launch_external_shell(&self.state, terminal, &self.event_handler)
                 {
@@ -93,6 +89,30 @@ impl App {
                         message: format!("{e}"),
                     };
                 }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        let mut watching_dir_path = self.state.filer.current_dir.absolute_path().to_string();
+
+        while self.state.running {
+            // UI を描画
+            terminal.draw(|frame| ui::render_main_view(frame, &mut self.state, &self.store))?;
+
+            // イベントを取得してコマンドに変換（既存の Command ベースの処理）
+            let command = self.event_handler.next(&self.state)?;
+            if let Err(e) = command.exec(&mut self.state, &mut self.store) {
+                self.state.prompt = PromptMode::Error {
+                    message: format!("{e}"),
+                };
+            }
+
+            // 外部シェル起動（既存フラグベース → 段階的に Action に移行予定）
+            if self.state.launch_shell {
+                self.state.launch_shell = false;
+                self.handle_action(Action::LaunchShell, terminal)?;
             }
 
             // 非同期結果の受信

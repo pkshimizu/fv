@@ -1,5 +1,6 @@
 mod app;
 mod cmd;
+mod component;
 mod config;
 mod event;
 mod fs;
