@@ -1,4 +1,3 @@
-use crate::component::Component;
 use crate::state::{AppState, PromptMode, SidePanel};
 use crate::store::RootStore;
 use crate::ui::features::{build_filer, build_header, build_path_table, build_prompt_view};
@@ -24,22 +23,25 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                 Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .areas(content_area);
             frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
-            match panel {
-                SidePanel::Attribute(component) => component.render(frame, panel_area),
-                SidePanel::FileInfo(component) => component.render(frame, panel_area),
-                SidePanel::Bookmark(bookmark) => {
-                    frame.render_stateful_widget(
-                        build_path_table(bookmark, "Bookmark"),
-                        panel_area,
-                        &mut bookmark.table_state,
-                    );
-                }
-                SidePanel::Grep(grep) => {
-                    frame.render_stateful_widget(
-                        build_path_table(grep, "Grep"),
-                        panel_area,
-                        &mut grep.table_state,
-                    );
+            if let Some(component) = panel.as_component() {
+                component.render(frame, panel_area);
+            } else {
+                match panel {
+                    SidePanel::Bookmark(bookmark) => {
+                        frame.render_stateful_widget(
+                            build_path_table(bookmark, "Bookmark"),
+                            panel_area,
+                            &mut bookmark.table_state,
+                        );
+                    }
+                    SidePanel::Grep(grep) => {
+                        frame.render_stateful_widget(
+                            build_path_table(grep, "Grep"),
+                            panel_area,
+                            &mut grep.table_state,
+                        );
+                    }
+                    _ => {}
                 }
             }
         }

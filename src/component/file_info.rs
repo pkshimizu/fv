@@ -11,15 +11,15 @@ use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Wrap};
 
 pub struct FileInfoComponent {
-    state: TextOutputState,
+    text_output: TextOutputState,
 }
 
 impl FileInfoComponent {
     pub fn new(file: &VFile) -> Result<Self> {
         let info = FileInfo::from_file(file)?;
-        let mut state = TextOutputState::new();
-        state.lines = info.to_lines();
-        Ok(Self { state })
+        let mut text_output = TextOutputState::new();
+        text_output.lines = info.to_lines();
+        Ok(Self { text_output })
     }
 }
 
@@ -28,19 +28,19 @@ impl Component for FileInfoComponent {
         match event.code {
             KeyCode::Char('i') | KeyCode::Esc => Ok(Action::CloseSidePanel),
             KeyCode::Up => {
-                self.state.scroll_up();
+                self.text_output.scroll_up();
                 Ok(Action::None)
             }
             KeyCode::Down => {
-                self.state.scroll_down();
+                self.text_output.scroll_down();
                 Ok(Action::None)
             }
             KeyCode::Left => {
-                self.state.scroll_to_top();
+                self.text_output.scroll_to_top();
                 Ok(Action::None)
             }
             KeyCode::Right => {
-                self.state.scroll_to_bottom();
+                self.text_output.scroll_to_bottom();
                 Ok(Action::None)
             }
             _ => Ok(Action::None),
@@ -48,12 +48,12 @@ impl Component for FileInfoComponent {
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        self.state
+        self.text_output
             .set_visible_area(area.height.saturating_sub(2), area.width.saturating_sub(2));
 
-        let title = format!("File Info ({})", self.state.lines.len());
-        let (start, end, offset) = self.state.visible_range();
-        let lines: Vec<Line> = self.state.lines[start..end]
+        let title = format!("File Info ({})", self.text_output.lines.len());
+        let (start, end, offset) = self.text_output.visible_range();
+        let lines: Vec<Line> = self.text_output.lines[start..end]
             .iter()
             .map(|s| Line::from(s.as_str()))
             .collect();

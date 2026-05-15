@@ -110,18 +110,15 @@ impl App {
                     }
                 }
                 AppEventResult::KeyEvent(key) => {
-                    if let Some(panel) = &mut self.state.side_panel {
-                        if let Some(component) = panel.as_component() {
-                            match component.handle_event(key) {
-                                Ok(action) => self.handle_action(action, terminal)?,
-                                Err(e) => {
-                                    self.state.prompt = PromptMode::Error {
-                                        message: format!("{e}"),
-                                    };
-                                }
-                            }
-                        }
-                    }
+                    let action = self
+                        .state
+                        .side_panel
+                        .as_mut()
+                        .and_then(|p| p.as_component())
+                        .map(|c| c.handle_event(key))
+                        .transpose()?
+                        .unwrap_or(Action::None);
+                    self.handle_action(action, terminal)?;
                 }
                 AppEventResult::None => {}
             }

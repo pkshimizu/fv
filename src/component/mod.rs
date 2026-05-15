@@ -12,13 +12,14 @@ use ratatui::layout::Rect;
 /// アプリ全体に影響するアクション。
 /// コンポーネントの `handle_event` が返し、App のメインループで処理する。
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum Action {
     /// 何もしない
     None,
-    /// アプリケーションを終了する
+    /// アプリケーションを終了する（Filer コンポーネント化時に使用予定）
+    #[allow(dead_code)]
     Quit,
-    /// エラーメッセージを表示する
+    /// エラーメッセージを表示する（Filer コンポーネント化時に使用予定）
+    #[allow(dead_code)]
     Error(String),
     /// 外部シェルを起動する
     LaunchShell,
