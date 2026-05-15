@@ -109,8 +109,7 @@ pub fn prompt_zip(state: &mut AppState) -> Result<()> {
         "files.zip".to_string()
     };
     let default_path = Path::new(dir.absolute_path()).join(&default_name);
-    let unique = crate::fs::unique_path(&default_path).unwrap_or(default_path);
-    let value = unique
+    let value = default_path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or(default_name);

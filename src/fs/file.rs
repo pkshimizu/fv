@@ -139,10 +139,11 @@ impl VFile {
             "{zip_name}: Invalid file name"
         );
         let zip_path = Path::new(self.absolute_path()).join(zip_name);
+        let unique_zip_path = unique_path(&zip_path)?;
         let zip_file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&zip_path)
+            .open(&unique_zip_path)
             .with_context(|| format!("{}: Failed to create zip file", zip_path.display()))?;
 
         let result = write_zip(zip_file, files);
@@ -220,7 +221,7 @@ fn resolve_dest_path(src: &Path, path: &str, src_display: &str) -> Result<PathBu
 
 const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
 
-pub(crate) fn unique_path(path: &Path) -> Result<PathBuf> {
+fn unique_path(path: &Path) -> Result<PathBuf> {
     if !path.exists() {
         return Ok(path.to_path_buf());
     }
@@ -278,9 +279,7 @@ fn write_zip(zip_file: std::fs::File, files: &[VFile]) -> Result<()> {
             add_file_to_zip(&mut zip_writer, file_path, name, options)?;
         }
     }
-    zip_writer
-        .finish()
-        .context("Failed to finalize zip file")?;
+    zip_writer.finish().context("Failed to finalize zip file")?;
     Ok(())
 }
 
@@ -290,14 +289,14 @@ fn add_dir_to_zip(
     dir: &Path,
     options: zip::write::SimpleFileOptions,
 ) -> Result<()> {
-    for entry in read_dir(dir)
-        .with_context(|| format!("{}: Failed to read directory", dir.display()))?
+    for entry in
+        read_dir(dir).with_context(|| format!("{}: Failed to read directory", dir.display()))?
     {
         let entry =
             entry.with_context(|| format!("{}: Failed to read directory entry", dir.display()))?;
-        let file_type = entry.file_type().with_context(|| {
-            format!("{}: Failed to get file type", entry.path().display())
-        })?;
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("{}: Failed to get file type", entry.path().display()))?;
         if file_type.is_symlink() {
             continue;
         }
