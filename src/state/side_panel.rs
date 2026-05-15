@@ -1,6 +1,10 @@
 use crate::component::{
-    AttributeComponent, BookmarkComponent, Component, FileInfoComponent, GrepComponent,
+    Action, AttributeComponent, BookmarkComponent, Component, FileInfoComponent, GrepComponent,
 };
+use anyhow::Result;
+use crossterm::event::KeyEvent;
+use ratatui::Frame;
+use ratatui::layout::Rect;
 
 pub enum SidePanel {
     Bookmark(BookmarkComponent),
@@ -9,21 +13,31 @@ pub enum SidePanel {
     Attribute(AttributeComponent),
 }
 
-impl SidePanel {
-    /// Component trait への参照を返す
-    pub fn as_component(&mut self) -> Option<&mut dyn Component> {
+impl Component for SidePanel {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match self {
-            SidePanel::Attribute(c) => Some(c),
-            SidePanel::FileInfo(c) => Some(c),
-            SidePanel::Bookmark(c) => Some(c),
-            SidePanel::Grep(c) => Some(c),
+            SidePanel::Attribute(c) => c.handle_event(event),
+            SidePanel::FileInfo(c) => c.handle_event(event),
+            SidePanel::Bookmark(c) => c.handle_event(event),
+            SidePanel::Grep(c) => c.handle_event(event),
         }
     }
 
-    /// Grep コンポーネントの非同期結果を受信する
-    pub fn receive_async_results(&mut self) {
-        if let SidePanel::Grep(grep) = self {
-            grep.receive_results();
+    fn render(&mut self, frame: &mut Frame, area: Rect) {
+        match self {
+            SidePanel::Attribute(c) => c.render(frame, area),
+            SidePanel::FileInfo(c) => c.render(frame, area),
+            SidePanel::Bookmark(c) => c.render(frame, area),
+            SidePanel::Grep(c) => c.render(frame, area),
+        }
+    }
+
+    fn tick(&mut self) {
+        match self {
+            SidePanel::Attribute(c) => c.tick(),
+            SidePanel::FileInfo(c) => c.tick(),
+            SidePanel::Bookmark(c) => c.tick(),
+            SidePanel::Grep(c) => c.tick(),
         }
     }
 }

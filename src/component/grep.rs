@@ -19,11 +19,6 @@ impl GrepComponent {
             state: PathListState::new(Vec::new(), Some(rx)),
         }
     }
-
-    /// 非同期の grep 結果を受信する
-    pub fn receive_results(&mut self) {
-        self.state.receive_results();
-    }
 }
 
 impl Component for GrepComponent {
@@ -55,6 +50,10 @@ impl Component for GrepComponent {
             }
             _ => Ok(Action::None),
         }
+    }
+
+    fn tick(&mut self) {
+        self.state.receive_results();
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {

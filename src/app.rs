@@ -1,6 +1,6 @@
 use ratatui::DefaultTerminal;
 
-use crate::component::Action;
+use crate::component::{Action, Component};
 use crate::config::Config;
 use crate::event::{AppEventResult, EventHandler};
 use crate::state::{AppState, PromptMode};
@@ -121,8 +121,7 @@ impl App {
                         .state
                         .side_panel
                         .as_mut()
-                        .and_then(|p| p.as_component())
-                        .map(|c| c.handle_event(key))
+                        .map(|p| p.handle_event(key))
                         .transpose()?
                         .unwrap_or(Action::None);
                     self.handle_action(action, terminal)?;
@@ -136,8 +135,8 @@ impl App {
                 self.handle_action(Action::LaunchShell, terminal)?;
             }
 
-            // 非同期結果の受信
-            self.state.receive_async_results();
+            // コンポーネントのtick処理（非同期結果の受信等）
+            self.state.tick();
 
             // カレントディレクトリの監視
             let current_dir_path = self.state.filer.current_dir.absolute_path();

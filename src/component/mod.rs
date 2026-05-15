@@ -43,4 +43,7 @@ pub trait Component {
 
     /// コンポーネントを描画する。
     fn render(&mut self, frame: &mut Frame, area: Rect);
+
+    /// 毎フレーム呼ばれるライフサイクルメソッド。非同期結果の受信等に使用する。
+    fn tick(&mut self) {}
 }

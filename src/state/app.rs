@@ -1,3 +1,4 @@
+use crate::component::Component;
 use crate::config::Config;
 use crate::state::{FilerState, PromptMode, SidePanel};
 use anyhow::Result;
@@ -54,9 +55,9 @@ impl AppState {
         self.active_area() == area
     }
 
-    pub fn receive_async_results(&mut self) {
+    pub fn tick(&mut self) {
         if let Some(panel) = &mut self.side_panel {
-            panel.receive_async_results();
+            panel.tick();
         }
     }
 }

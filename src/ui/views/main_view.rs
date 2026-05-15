@@ -1,3 +1,4 @@
+use crate::component::Component;
 use crate::state::{AppState, PromptMode};
 use crate::store::RootStore;
 use crate::ui::features::{build_filer, build_header, build_prompt_view};
@@ -23,9 +24,7 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                 Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .areas(content_area);
             frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
-            if let Some(component) = panel.as_component() {
-                component.render(frame, panel_area);
-            }
+            panel.render(frame, panel_area);
         }
         None => {
             frame.render_stateful_widget(filer, content_area, &mut state.filer.file_table_state);
