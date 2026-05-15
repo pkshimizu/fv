@@ -1,4 +1,4 @@
-use crate::cmd::{app, attribute, file_info, filer, prompt};
+use crate::cmd::{app, attribute, file_info, filer};
 use crate::state::AppState;
 use crate::store::RootStore;
 use anyhow::Result;
@@ -6,7 +6,6 @@ use anyhow::Result;
 pub enum Command {
     App(AppCommand),
     Filer(FilerCommand),
-    Prompt(PromptCommand),
 }
 
 impl Command {
@@ -14,7 +13,6 @@ impl Command {
         match self {
             Command::App(cmd) => cmd.exec(state),
             Command::Filer(cmd) => cmd.exec(state, store),
-            Command::Prompt(cmd) => cmd.exec(state),
         }
     }
 }
@@ -91,40 +89,6 @@ impl FilerCommand {
             FilerCommand::ShowAttribute => attribute::show_attribute(state),
             FilerCommand::ShowFileInfo => file_info::show_file_info(state),
             FilerCommand::ToggleDotFiles => filer::toggle_dot_files(state),
-        }
-    }
-}
-
-pub enum PromptCommand {
-    Char(char),
-    Backspace,
-    CursorLeft,
-    CursorRight,
-    Tab,
-    BackTab,
-    SelectLeft,
-    SelectRight,
-    Ok,
-    Cancel,
-    SearchNext,
-    SearchPrev,
-}
-
-impl PromptCommand {
-    fn exec(self, state: &mut AppState) -> Result<()> {
-        match self {
-            PromptCommand::Char(c) => prompt::input_char(state, c),
-            PromptCommand::Backspace => prompt::input_backspace(state),
-            PromptCommand::CursorLeft => prompt::input_cursor_left(state),
-            PromptCommand::CursorRight => prompt::input_cursor_right(state),
-            PromptCommand::Tab => prompt::input_tab(state),
-            PromptCommand::BackTab => prompt::input_back_tab(state),
-            PromptCommand::SelectLeft => prompt::input_select_left(state),
-            PromptCommand::SelectRight => prompt::input_select_right(state),
-            PromptCommand::Ok => prompt::input_ok(state),
-            PromptCommand::Cancel => prompt::input_cancel(state),
-            PromptCommand::SearchNext => prompt::input_search_next(state),
-            PromptCommand::SearchPrev => prompt::input_search_prev(state),
         }
     }
 }

@@ -56,7 +56,7 @@ pub fn prompt_delete(state: &mut AppState) -> Result<()> {
     let files = collect_action_targets(state);
     if !files.is_empty() {
         let title = action_title("Delete", &files);
-        state.prompt = PromptMode::Confirm {
+        state.prompt.mode = PromptMode::Confirm {
             title,
             action: ConfirmAction::Delete { files },
         };
@@ -68,7 +68,7 @@ pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
     let dir = state.filer.current_dir.clone();
     if let Some(file_name) = dir.file_name() {
         let title = format!("Create directory in {file_name}");
-        state.prompt = PromptMode::Text {
+        state.prompt.mode = PromptMode::Text {
             title,
             value: String::new(),
             cursor: 0,
@@ -82,7 +82,7 @@ pub fn prompt_touch(state: &mut AppState) -> Result<()> {
     let dir = state.filer.current_dir.clone();
     if let Some(file_name) = dir.file_name() {
         let title = format!("Create file in {file_name}");
-        state.prompt = PromptMode::Text {
+        state.prompt.mode = PromptMode::Text {
             title,
             value: String::new(),
             cursor: 0,
@@ -118,7 +118,7 @@ pub fn prompt_zip(state: &mut AppState) -> Result<()> {
         .unwrap_or(default_name);
     let title = action_title("Zip", &files);
     let cursor = value.chars().count();
-    state.prompt = PromptMode::Text {
+    state.prompt.mode = PromptMode::Text {
         title,
         value,
         cursor,
@@ -140,7 +140,7 @@ pub fn prompt_rename(state: &mut AppState) -> Result<()> {
             let title = format!("Rename {file_name}");
             let value = file_name.to_string();
             let cursor = value.chars().count();
-            state.prompt = PromptMode::Text {
+            state.prompt.mode = PromptMode::Text {
                 title,
                 value,
                 cursor,
@@ -156,7 +156,7 @@ pub fn prompt_rename(state: &mut AppState) -> Result<()> {
 pub fn prompt_sort(state: &mut AppState) -> Result<()> {
     let options: Vec<String> = SortKey::ALL.iter().map(|k| k.label().to_string()).collect();
     let selected_index = state.filer.sort_key.index();
-    state.prompt = PromptMode::Select {
+    state.prompt.mode = PromptMode::Select {
         title: "Sort by".to_string(),
         options,
         selected_index,
@@ -167,7 +167,7 @@ pub fn prompt_sort(state: &mut AppState) -> Result<()> {
 
 pub fn prompt_search(state: &mut AppState) -> Result<()> {
     let original_index = state.filer.file_table_state.selected();
-    state.prompt = PromptMode::Search {
+    state.prompt.mode = PromptMode::Search {
         title: "Search".to_string(),
         value: String::new(),
         cursor: 0,
@@ -177,7 +177,7 @@ pub fn prompt_search(state: &mut AppState) -> Result<()> {
 }
 
 pub fn prompt_grep(state: &mut AppState) -> Result<()> {
-    state.prompt = PromptMode::Text {
+    state.prompt.mode = PromptMode::Text {
         title: "Grep".to_string(),
         value: String::new(),
         cursor: 0,
@@ -195,7 +195,7 @@ pub fn prompt_jump(state: &mut AppState) -> Result<()> {
     let init_value = state.filer.current_dir.absolute_path();
     let value = init_value.to_string();
     let cursor = value.chars().count();
-    state.prompt = PromptMode::File {
+    state.prompt.mode = PromptMode::File {
         title: "Jump".to_string(),
         value,
         cursor,
@@ -259,7 +259,7 @@ fn start_file_input(
         };
         let value = init_value.to_string();
         let cursor = value.chars().count();
-        state.prompt = PromptMode::File {
+        state.prompt.mode = PromptMode::File {
             title,
             value,
             cursor,

@@ -2,12 +2,15 @@ mod attribute;
 mod bookmark;
 mod file_info;
 mod grep;
+mod prompt;
 
 pub use attribute::AttributeComponent;
 pub use bookmark::BookmarkComponent;
 pub use file_info::FileInfoComponent;
 pub use grep::GrepComponent;
+pub use prompt::PromptComponent;
 
+use crate::state::PromptMode;
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
@@ -33,6 +36,16 @@ pub enum Action {
     NavigateTo(String),
     /// ブックマークを削除する
     RemoveBookmark(String),
+    /// プロンプトの確定アクションを実行する
+    ExecutePrompt(Box<PromptMode>),
+    /// プロンプトをキャンセルする（Searchモードのカーソル復元含む）
+    CancelPrompt,
+    /// 検索の次の結果に移動する
+    SearchNext(String),
+    /// 検索の前の結果に移動する
+    SearchPrev(String),
+    /// インクリメンタル検索（入力値変更時）
+    SearchUpdate(String),
 }
 
 /// コンポーネントの共通インターフェース。

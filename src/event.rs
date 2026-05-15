@@ -6,8 +6,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::{AppCommand, Command, FilerCommand, PromptCommand};
-use crate::state::{AppState, Area, PromptMode};
+use crate::cmd::command::{AppCommand, Command, FilerCommand};
+use crate::state::{AppState, Area};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
@@ -76,10 +76,7 @@ impl EventHandler {
     pub fn next(&self, state: &AppState) -> Result<AppEventResult> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
             Ok(AppEvent::Key(key)) => Ok(match state.active_area() {
-                Area::SideComponent => AppEventResult::KeyEvent(key),
-                Area::Prompt => {
-                    AppEventResult::Command(Self::prompt_key_to_command(key, &state.prompt))
-                }
+                Area::SideComponent | Area::Prompt => AppEventResult::KeyEvent(key),
                 Area::Filer => AppEventResult::Command(Self::key_to_command(key)),
             }),
             Ok(AppEvent::FileChange) => Ok(AppEventResult::Command(Command::Filer(
@@ -135,59 +132,6 @@ impl EventHandler {
             (_, KeyCode::Enter) => Command::Filer(FilerCommand::EnterFile),
             (_, KeyCode::Backspace) => Command::Filer(FilerCommand::ChangeParentDir),
             _ => Command::App(AppCommand::None),
-        }
-    }
-
-    fn prompt_key_to_command(key: KeyEvent, input: &PromptMode) -> Command {
-        match input {
-            PromptMode::Text { .. } => match key.code {
-                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
-                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
-                KeyCode::Left => Command::Prompt(PromptCommand::CursorLeft),
-                KeyCode::Right => Command::Prompt(PromptCommand::CursorRight),
-                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
-                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::File { .. } => match key.code {
-                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
-                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
-                KeyCode::Left => Command::Prompt(PromptCommand::CursorLeft),
-                KeyCode::Right => Command::Prompt(PromptCommand::CursorRight),
-                KeyCode::Tab => Command::Prompt(PromptCommand::Tab),
-                KeyCode::BackTab => Command::Prompt(PromptCommand::BackTab),
-                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
-                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::Select { .. } => match key.code {
-                KeyCode::Left => Command::Prompt(PromptCommand::SelectLeft),
-                KeyCode::Right => Command::Prompt(PromptCommand::SelectRight),
-                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
-                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::Confirm { .. } => match key.code {
-                KeyCode::Char('y') | KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
-                KeyCode::Char('n') | KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::Search { .. } => match key.code {
-                KeyCode::Char(c) => Command::Prompt(PromptCommand::Char(c)),
-                KeyCode::Backspace => Command::Prompt(PromptCommand::Backspace),
-                KeyCode::Left => Command::Prompt(PromptCommand::CursorLeft),
-                KeyCode::Right => Command::Prompt(PromptCommand::CursorRight),
-                KeyCode::Down => Command::Prompt(PromptCommand::SearchNext),
-                KeyCode::Up => Command::Prompt(PromptCommand::SearchPrev),
-                KeyCode::Enter => Command::Prompt(PromptCommand::Ok),
-                KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::Error { .. } => match key.code {
-                KeyCode::Enter | KeyCode::Esc => Command::Prompt(PromptCommand::Cancel),
-                _ => Command::App(AppCommand::None),
-            },
-            PromptMode::None => Command::App(AppCommand::None),
         }
     }
 }
