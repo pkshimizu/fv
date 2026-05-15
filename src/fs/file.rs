@@ -144,11 +144,11 @@ impl VFile {
             .write(true)
             .create_new(true)
             .open(&unique_zip_path)
-            .with_context(|| format!("{}: Failed to create zip file", zip_path.display()))?;
+            .with_context(|| format!("{}: Failed to create zip file", unique_zip_path.display()))?;
 
         let result = write_zip(zip_file, files);
         if result.is_err() {
-            let _ = std::fs::remove_file(&zip_path);
+            let _ = std::fs::remove_file(&unique_zip_path);
         }
         result
     }
