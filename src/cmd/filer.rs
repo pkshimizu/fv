@@ -1,7 +1,8 @@
+use crate::component::BookmarkComponent;
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
-    SelectAction, SidePanel, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction,
+    SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use anyhow::Result;
@@ -222,10 +223,8 @@ pub fn remove_bookmark(state: &AppState, store: &mut RootStore) -> Result<()> {
 
 pub fn show_bookmark(state: &mut AppState, store: &mut RootStore) -> Result<()> {
     if state.side_panel.is_none() {
-        state.side_panel = Some(SidePanel::Bookmark(PathListState::new(
-            store.bookmark.get_paths().cloned().collect(),
-            None,
-        )));
+        let paths = store.bookmark.get_paths().cloned().collect();
+        state.side_panel = Some(SidePanel::Bookmark(BookmarkComponent::new(paths)));
     }
     Ok(())
 }

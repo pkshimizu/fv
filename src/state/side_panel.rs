@@ -1,26 +1,43 @@
-use crate::component::{AttributeComponent, Component, FileInfoComponent};
-use crate::state::PathListState;
+use crate::component::{
+    Action, AttributeComponent, BookmarkComponent, Component, FileInfoComponent, GrepComponent,
+};
+use anyhow::Result;
+use crossterm::event::KeyEvent;
+use ratatui::Frame;
+use ratatui::layout::Rect;
 
-// Component を含むため Debug は手動実装しない
 pub enum SidePanel {
-    Bookmark(PathListState),
-    Grep(PathListState),
+    Bookmark(BookmarkComponent),
+    Grep(GrepComponent),
     FileInfo(FileInfoComponent),
     Attribute(AttributeComponent),
 }
 
-impl SidePanel {
-    /// Component trait で処理するサイドパネルかどうかを返す
-    pub fn is_component(&self) -> bool {
-        matches!(self, SidePanel::Attribute(_) | SidePanel::FileInfo(_))
+impl Component for SidePanel {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
+        match self {
+            SidePanel::Attribute(c) => c.handle_event(event),
+            SidePanel::FileInfo(c) => c.handle_event(event),
+            SidePanel::Bookmark(c) => c.handle_event(event),
+            SidePanel::Grep(c) => c.handle_event(event),
+        }
     }
 
-    /// コンポーネントベースのサイドパネルの場合、Component trait への参照を返す
-    pub fn as_component(&mut self) -> Option<&mut dyn Component> {
+    fn render(&mut self, frame: &mut Frame, area: Rect) {
         match self {
-            SidePanel::Attribute(c) => Some(c),
-            SidePanel::FileInfo(c) => Some(c),
-            _ => None,
+            SidePanel::Attribute(c) => c.render(frame, area),
+            SidePanel::FileInfo(c) => c.render(frame, area),
+            SidePanel::Bookmark(c) => c.render(frame, area),
+            SidePanel::Grep(c) => c.render(frame, area),
+        }
+    }
+
+    fn tick(&mut self) {
+        match self {
+            SidePanel::Attribute(c) => c.tick(),
+            SidePanel::FileInfo(c) => c.tick(),
+            SidePanel::Bookmark(c) => c.tick(),
+            SidePanel::Grep(c) => c.tick(),
         }
     }
 }

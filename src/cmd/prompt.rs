@@ -1,7 +1,8 @@
+use crate::component::GrepComponent;
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, FileActionCandidateType, PathListState, PromptMode,
-    SelectAction, SidePanel, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction,
+    SidePanel, SortKey, TextAction,
 };
 use anyhow::{Context, Result};
 use std::io::BufRead;
@@ -399,7 +400,7 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
     });
 
     // grep実行時は既存のサイドパネルを置き換える（ユーザーが明示的に検索を実行した操作のため）
-    state.side_panel = Some(SidePanel::Grep(PathListState::new(Vec::new(), Some(rx))));
+    state.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
     Ok(())
 }
 

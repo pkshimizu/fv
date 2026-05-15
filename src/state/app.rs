@@ -1,3 +1,4 @@
+use crate::component::Component;
 use crate::config::Config;
 use crate::state::{FilerState, PromptMode, SidePanel};
 use anyhow::Result;
@@ -6,9 +7,7 @@ use anyhow::Result;
 pub enum Area {
     Filer,
     Prompt,
-    Bookmark,
-    Grep,
-    /// Component trait で処理するサイドパネル（Attribute, FileInfo 等）
+    /// Component trait で処理するサイドパネル
     SideComponent,
 }
 
@@ -47,10 +46,8 @@ impl AppState {
             return Area::Prompt;
         }
         match &self.side_panel {
-            Some(p) if p.is_component() => Area::SideComponent,
-            Some(SidePanel::Bookmark(_)) => Area::Bookmark,
-            Some(SidePanel::Grep(_)) => Area::Grep,
-            _ => Area::Filer,
+            Some(_) => Area::SideComponent,
+            None => Area::Filer,
         }
     }
 
@@ -58,9 +55,9 @@ impl AppState {
         self.active_area() == area
     }
 
-    pub fn receive_async_results(&mut self) {
-        if let Some(SidePanel::Grep(panel)) = &mut self.side_panel {
-            panel.receive_results();
+    pub fn tick(&mut self) {
+        if let Some(panel) = &mut self.side_panel {
+            panel.tick();
         }
     }
 }

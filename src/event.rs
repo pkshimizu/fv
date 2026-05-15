@@ -6,9 +6,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::{
-    AppCommand, BookmarkCommand, Command, FilerCommand, GrepCommand, PromptCommand,
-};
+use crate::cmd::command::{AppCommand, Command, FilerCommand, PromptCommand};
 use crate::state::{AppState, Area, PromptMode};
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
@@ -82,8 +80,6 @@ impl EventHandler {
                 Area::Prompt => {
                     AppEventResult::Command(Self::prompt_key_to_command(key, &state.prompt))
                 }
-                Area::Bookmark => AppEventResult::Command(Self::bookmark_key_to_command(key)),
-                Area::Grep => AppEventResult::Command(Self::grep_key_to_command(key)),
                 Area::Filer => AppEventResult::Command(Self::key_to_command(key)),
             }),
             Ok(AppEvent::FileChange) => Ok(AppEventResult::Command(Command::Filer(
@@ -192,33 +188,6 @@ impl EventHandler {
                 _ => Command::App(AppCommand::None),
             },
             PromptMode::None => Command::App(AppCommand::None),
-        }
-    }
-
-    fn bookmark_key_to_command(key: KeyEvent) -> Command {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Char('-')) => Command::Bookmark(BookmarkCommand::RemoveBookmark),
-            (_, KeyCode::Char('b')) => Command::Bookmark(BookmarkCommand::HideBookmark),
-            (_, KeyCode::Esc) => Command::Bookmark(BookmarkCommand::HideBookmark),
-            (_, KeyCode::Up) => Command::Bookmark(BookmarkCommand::MoveCursorUp),
-            (_, KeyCode::Down) => Command::Bookmark(BookmarkCommand::MoveCursorDown),
-            (_, KeyCode::Left) => Command::Bookmark(BookmarkCommand::MoveCursorLeft),
-            (_, KeyCode::Right) => Command::Bookmark(BookmarkCommand::MoveCursorRight),
-            (_, KeyCode::Enter) => Command::Bookmark(BookmarkCommand::EnterFile),
-            _ => Command::App(AppCommand::None),
-        }
-    }
-
-    fn grep_key_to_command(key: KeyEvent) -> Command {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Char('g')) => Command::Grep(GrepCommand::HideGrep),
-            (_, KeyCode::Esc) => Command::Grep(GrepCommand::HideGrep),
-            (_, KeyCode::Up) => Command::Grep(GrepCommand::MoveCursorUp),
-            (_, KeyCode::Down) => Command::Grep(GrepCommand::MoveCursorDown),
-            (_, KeyCode::Left) => Command::Grep(GrepCommand::MoveCursorLeft),
-            (_, KeyCode::Right) => Command::Grep(GrepCommand::MoveCursorRight),
-            (_, KeyCode::Enter) => Command::Grep(GrepCommand::EnterFile),
-            _ => Command::App(AppCommand::None),
         }
     }
 }
