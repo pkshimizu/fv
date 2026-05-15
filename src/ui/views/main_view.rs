@@ -76,8 +76,8 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                 .take(cursor_char_pos)
                 .map(|c| UnicodeWidthChar::width(c).unwrap_or(0))
                 .sum();
-            // ボーダー分(左1) + 表示幅
-            let cursor_x = prompt_area.x + 1 + display_width as u16;
+            // ボーダー(1) + パディング(1) + 表示幅
+            let cursor_x = prompt_area.x + 2 + display_width as u16;
             let cursor_y = prompt_area.y + 1;
             frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
         }
