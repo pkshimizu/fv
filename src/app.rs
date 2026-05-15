@@ -89,6 +89,13 @@ impl App {
             Action::CloseSidePanel => {
                 self.state.side_panel = None;
             }
+            Action::NavigateTo(path) => {
+                self.state.side_panel = None;
+                self.state.filer.jump_to(&path)?;
+            }
+            Action::RemoveBookmark(path) => {
+                self.store.bookmark.remove(&path)?;
+            }
         }
         Ok(())
     }

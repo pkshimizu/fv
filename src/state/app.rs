@@ -6,9 +6,7 @@ use anyhow::Result;
 pub enum Area {
     Filer,
     Prompt,
-    Bookmark,
-    Grep,
-    /// Component trait で処理するサイドパネル（Attribute, FileInfo 等）
+    /// Component trait で処理するサイドパネル
     SideComponent,
 }
 
@@ -47,10 +45,8 @@ impl AppState {
             return Area::Prompt;
         }
         match &self.side_panel {
-            Some(p) if p.is_component() => Area::SideComponent,
-            Some(SidePanel::Bookmark(_)) => Area::Bookmark,
-            Some(SidePanel::Grep(_)) => Area::Grep,
-            _ => Area::Filer,
+            Some(_) => Area::SideComponent,
+            None => Area::Filer,
         }
     }
 
@@ -59,8 +55,8 @@ impl AppState {
     }
 
     pub fn receive_async_results(&mut self) {
-        if let Some(SidePanel::Grep(panel)) = &mut self.side_panel {
-            panel.receive_results();
+        if let Some(panel) = &mut self.side_panel {
+            panel.receive_async_results();
         }
     }
 }

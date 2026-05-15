@@ -1,6 +1,6 @@
-use crate::state::{AppState, PromptMode, SidePanel};
+use crate::state::{AppState, PromptMode};
 use crate::store::RootStore;
-use crate::ui::features::{build_filer, build_header, build_path_table, build_prompt_view};
+use crate::ui::features::{build_filer, build_header, build_prompt_view};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 use unicode_width::UnicodeWidthChar;
@@ -25,25 +25,6 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
             frame.render_stateful_widget(filer, filer_area, &mut state.filer.file_table_state);
             if let Some(component) = panel.as_component() {
                 component.render(frame, panel_area);
-            } else {
-                match panel {
-                    SidePanel::Bookmark(bookmark) => {
-                        frame.render_stateful_widget(
-                            build_path_table(bookmark, "Bookmark"),
-                            panel_area,
-                            &mut bookmark.table_state,
-                        );
-                    }
-                    SidePanel::Grep(grep) => {
-                        frame.render_stateful_widget(
-                            build_path_table(grep, "Grep"),
-                            panel_area,
-                            &mut grep.table_state,
-                        );
-                    }
-                    // Attribute/FileInfo は as_component() で処理済み
-                    SidePanel::Attribute(_) | SidePanel::FileInfo(_) => {}
-                }
             }
         }
         None => {

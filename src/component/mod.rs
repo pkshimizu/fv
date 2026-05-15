@@ -1,8 +1,12 @@
 mod attribute;
+mod bookmark;
 mod file_info;
+mod grep;
 
 pub use attribute::AttributeComponent;
+pub use bookmark::BookmarkComponent;
 pub use file_info::FileInfoComponent;
+pub use grep::GrepComponent;
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
@@ -25,6 +29,10 @@ pub enum Action {
     LaunchShell,
     /// サイドパネルを閉じる
     CloseSidePanel,
+    /// パスに遷移する（ファイルならディレクトリ移動+選択、ディレクトリなら移動）
+    NavigateTo(String),
+    /// ブックマークを削除する
+    RemoveBookmark(String),
 }
 
 /// コンポーネントの共通インターフェース。
