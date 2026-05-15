@@ -69,8 +69,9 @@ pub fn prompt_mkdir(state: &mut AppState) -> Result<()> {
         let title = format!("Create directory in {file_name}");
         state.prompt = PromptMode::Text {
             title,
-            action: TextAction::Mkdir { dir },
             value: String::new(),
+            cursor: 0,
+            action: TextAction::Mkdir { dir },
         };
     }
     Ok(())
@@ -82,8 +83,9 @@ pub fn prompt_touch(state: &mut AppState) -> Result<()> {
         let title = format!("Create file in {file_name}");
         state.prompt = PromptMode::Text {
             title,
-            action: TextAction::Touch { dir },
             value: String::new(),
+            cursor: 0,
+            action: TextAction::Touch { dir },
         };
     }
     Ok(())
@@ -114,10 +116,12 @@ pub fn prompt_zip(state: &mut AppState) -> Result<()> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or(default_name);
     let title = action_title("Zip", &files);
+    let cursor = value.chars().count();
     state.prompt = PromptMode::Text {
         title,
-        action: TextAction::Zip { dir, files },
         value,
+        cursor,
+        action: TextAction::Zip { dir, files },
     };
     Ok(())
 }
@@ -133,12 +137,15 @@ pub fn prompt_rename(state: &mut AppState) -> Result<()> {
     if let Some(selected_file) = selected_file {
         if let Some(file_name) = selected_file.file_name() {
             let title = format!("Rename {file_name}");
+            let value = file_name.to_string();
+            let cursor = value.chars().count();
             state.prompt = PromptMode::Text {
                 title,
+                value,
+                cursor,
                 action: TextAction::Rename {
                     file: selected_file.clone(),
                 },
-                value: file_name.to_string(),
             };
         }
     }
@@ -162,6 +169,7 @@ pub fn prompt_search(state: &mut AppState) -> Result<()> {
     state.prompt = PromptMode::Search {
         title: "Search".to_string(),
         value: String::new(),
+        cursor: 0,
         original_index,
     };
     Ok(())
@@ -171,6 +179,7 @@ pub fn prompt_grep(state: &mut AppState) -> Result<()> {
     state.prompt = PromptMode::Text {
         title: "Grep".to_string(),
         value: String::new(),
+        cursor: 0,
         action: TextAction::Grep,
     };
     Ok(())
@@ -183,9 +192,12 @@ pub fn launch_shell(state: &mut AppState) -> Result<()> {
 
 pub fn prompt_jump(state: &mut AppState) -> Result<()> {
     let init_value = state.filer.current_dir.absolute_path();
+    let value = init_value.to_string();
+    let cursor = value.chars().count();
     state.prompt = PromptMode::File {
         title: "Jump".to_string(),
-        value: init_value.to_string(),
+        value,
+        cursor,
         candidate_type: FileActionCandidateType::Directory,
         candidates: Vec::new(),
         candidate_index: None,
@@ -246,9 +258,12 @@ fn start_file_input(
         } else {
             state.filer.current_dir.absolute_path()
         };
+        let value = init_value.to_string();
+        let cursor = value.chars().count();
         state.prompt = PromptMode::File {
             title,
-            value: init_value.to_string(),
+            value,
+            cursor,
             candidate_type,
             candidates: Vec::new(),
             candidate_index: None,

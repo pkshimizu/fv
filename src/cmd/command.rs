@@ -106,6 +106,8 @@ impl FilerCommand {
 pub enum PromptCommand {
     Char(char),
     Backspace,
+    CursorLeft,
+    CursorRight,
     Tab,
     BackTab,
     SelectLeft,
@@ -121,6 +123,8 @@ impl PromptCommand {
         match self {
             PromptCommand::Char(c) => prompt::input_char(state, c),
             PromptCommand::Backspace => prompt::input_backspace(state),
+            PromptCommand::CursorLeft => prompt::input_cursor_left(state),
+            PromptCommand::CursorRight => prompt::input_cursor_right(state),
             PromptCommand::Tab => prompt::input_tab(state),
             PromptCommand::BackTab => prompt::input_back_tab(state),
             PromptCommand::SelectLeft => prompt::input_select_left(state),

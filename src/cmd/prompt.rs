@@ -9,10 +9,12 @@ use std::path::Path;
 
 pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
     match &mut state.prompt {
-        PromptMode::Text { value, .. }
-        | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. } => {
-            value.push(c);
+        PromptMode::Text { value, cursor, .. }
+        | PromptMode::File { value, cursor, .. }
+        | PromptMode::Search { value, cursor, .. } => {
+            let byte_pos = char_to_byte_pos(value, *cursor);
+            value.insert(byte_pos, c);
+            *cursor += 1;
         }
         _ => {}
     }
@@ -22,15 +24,55 @@ pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
 
 pub fn input_backspace(state: &mut AppState) -> Result<()> {
     match &mut state.prompt {
-        PromptMode::Text { value, .. }
-        | PromptMode::File { value, .. }
-        | PromptMode::Search { value, .. } => {
-            value.pop();
+        PromptMode::Text { value, cursor, .. }
+        | PromptMode::File { value, cursor, .. }
+        | PromptMode::Search { value, cursor, .. } => {
+            if *cursor > 0 {
+                *cursor -= 1;
+                let byte_pos = char_to_byte_pos(value, *cursor);
+                let next_byte_pos =
+                    byte_pos + value[byte_pos..].chars().next().map_or(0, |c| c.len_utf8());
+                value.replace_range(byte_pos..next_byte_pos, "");
+            }
         }
         _ => {}
     }
     after_input_value_changed(state);
     Ok(())
+}
+
+pub fn input_cursor_left(state: &mut AppState) -> Result<()> {
+    match &mut state.prompt {
+        PromptMode::Text { cursor, .. }
+        | PromptMode::File { cursor, .. }
+        | PromptMode::Search { cursor, .. } => {
+            *cursor = cursor.saturating_sub(1);
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub fn input_cursor_right(state: &mut AppState) -> Result<()> {
+    match &mut state.prompt {
+        PromptMode::Text { value, cursor, .. }
+        | PromptMode::File { value, cursor, .. }
+        | PromptMode::Search { value, cursor, .. } => {
+            let char_count = value.chars().count();
+            if *cursor < char_count {
+                *cursor += 1;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn char_to_byte_pos(s: &str, char_index: usize) -> usize {
+    s.char_indices()
+        .nth(char_index)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
 }
 
 fn after_input_value_changed(state: &mut AppState) {
@@ -75,6 +117,7 @@ pub fn input_select_right(state: &mut AppState) -> Result<()> {
 pub fn input_tab(state: &mut AppState) -> Result<()> {
     if let PromptMode::File {
         value,
+        cursor,
         candidate_type,
         candidates,
         candidate_index,
@@ -92,6 +135,7 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
             CycleDirection::Forward,
             Some(compute),
         )?;
+        *cursor = value.chars().count();
     }
     Ok(())
 }
@@ -99,6 +143,7 @@ pub fn input_tab(state: &mut AppState) -> Result<()> {
 pub fn input_back_tab(state: &mut AppState) -> Result<()> {
     if let PromptMode::File {
         value,
+        cursor,
         candidate_type,
         candidates,
         candidate_index,
@@ -116,6 +161,7 @@ pub fn input_back_tab(state: &mut AppState) -> Result<()> {
             CycleDirection::Backward,
             Some(compute),
         )?;
+        *cursor = value.chars().count();
     }
     Ok(())
 }

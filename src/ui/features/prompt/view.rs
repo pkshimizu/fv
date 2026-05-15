@@ -11,7 +11,7 @@ pub fn build_prompt_view(mode: &PromptMode) -> Paragraph {
         }
         PromptMode::Text { title, value, .. }
         | PromptMode::File { title, value, .. }
-        | PromptMode::Search { title, value, .. } => Paragraph::new(format!("{value}_"))
+        | PromptMode::Search { title, value, .. } => Paragraph::new(value.as_str())
             .block(build_bordered_block(title.as_ref(), BorderStyle::Active)),
         PromptMode::Select {
             title,
