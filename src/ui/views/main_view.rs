@@ -41,7 +41,8 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootSto
                             &mut grep.table_state,
                         );
                     }
-                    _ => {}
+                    // Attribute/FileInfo は as_component() で処理済み
+                    SidePanel::Attribute(_) | SidePanel::FileInfo(_) => {}
                 }
             }
         }

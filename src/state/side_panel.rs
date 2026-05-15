@@ -10,6 +10,11 @@ pub enum SidePanel {
 }
 
 impl SidePanel {
+    /// Component trait で処理するサイドパネルかどうかを返す
+    pub fn is_component(&self) -> bool {
+        matches!(self, SidePanel::Attribute(_) | SidePanel::FileInfo(_))
+    }
+
     /// コンポーネントベースのサイドパネルの場合、Component trait への参照を返す
     pub fn as_component(&mut self) -> Option<&mut dyn Component> {
         match self {

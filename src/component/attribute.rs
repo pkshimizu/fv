@@ -109,7 +109,7 @@ impl Component for AttributeComponent {
             .map(|(label, value)| {
                 Row::new([
                     Cell::from(*label).style(label_style),
-                    Cell::from(value.clone()),
+                    Cell::from(value.as_str()),
                 ])
             })
             .collect();

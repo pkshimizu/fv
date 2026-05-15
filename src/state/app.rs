@@ -47,10 +47,10 @@ impl AppState {
             return Area::Prompt;
         }
         match &self.side_panel {
-            Some(SidePanel::Attribute(_)) | Some(SidePanel::FileInfo(_)) => Area::SideComponent,
+            Some(p) if p.is_component() => Area::SideComponent,
             Some(SidePanel::Bookmark(_)) => Area::Bookmark,
             Some(SidePanel::Grep(_)) => Area::Grep,
-            None => Area::Filer,
+            _ => Area::Filer,
         }
     }
 
