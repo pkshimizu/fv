@@ -40,8 +40,8 @@ pub enum Action {
     AddBookmark(String),
     /// ファイルを外部アプリケーションで開く
     OpenFile(String),
-    /// ファイル一覧を更新する
-    RefreshFiles,
+    /// ブックマーク一覧を表示する
+    ShowBookmark,
     /// パスに遷移する（ファイルならディレクトリ移動+選択、ディレクトリなら移動）
     NavigateTo(String),
     /// ブックマークを削除する
@@ -56,8 +56,6 @@ pub enum Action {
     SearchPrev(String),
     /// インクリメンタル検索（入力値変更時）
     SearchUpdate(String),
-    /// コンポーネントに委譲するキーイベント（EventHandler から App への受け渡し用）
-    KeyEvent(KeyEvent),
 }
 
 /// コンポーネントの共通インターフェース。

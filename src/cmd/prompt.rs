@@ -39,7 +39,7 @@ pub fn execute_prompt_action(
         PromptMode::None | PromptMode::Error { .. } | PromptMode::Search { .. } => Ok(()),
     }?;
     if !skip_clear {
-        state.filer.state.checked_paths.clear();
+        state.filer.clear_checked_paths();
     }
     Ok(())
 }
@@ -61,7 +61,7 @@ fn execute_text_action(
         TextAction::Touch { dir } => dir.create_file(value),
         TextAction::Rename { file } => {
             file.rename(value)?;
-            state.filer.state.set_pending_select_name(value.to_string());
+            state.filer.set_pending_select_name(value.to_string());
             Ok(())
         }
         TextAction::Zip { dir, files } => dir.create_zip(value, &files),
@@ -86,7 +86,7 @@ fn execute_file_action(state: &mut AppState, action: FileAction, value: &str) ->
         FileAction::Jump => {
             let path = Path::new(value);
             anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
-            state.filer.state.change_to(value)
+            state.filer.change_to(value)
         }
     }
 }
@@ -99,8 +99,8 @@ fn execute_select_action(
     match action {
         SelectAction::Sort => {
             if let Some(&sort_key) = SortKey::ALL.get(selected_index) {
-                state.filer.state.sort_key = sort_key;
-                state.filer.state.refresh_files()?;
+                state.filer.set_sort_key(sort_key);
+                state.filer.refresh_files()?;
             }
             Ok(())
         }
@@ -119,7 +119,7 @@ fn execute_grep(state: &mut AppState, _store: &mut RootStore, value: &str) -> Re
         return Ok(());
     }
 
-    let dir_path = state.filer.state.current_dir.absolute_path().to_string();
+    let dir_path = state.filer.current_dir_path().to_string();
     let pattern = value.to_string();
 
     let mut child = std::process::Command::new("grep")

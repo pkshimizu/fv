@@ -265,9 +265,9 @@ impl PromptComponent {
 impl Component for PromptComponent {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match &self.mode {
-            PromptMode::Text { .. }
-            | PromptMode::File { .. }
-            | PromptMode::Search { .. } => self.handle_input_event(event),
+            PromptMode::Text { .. } | PromptMode::File { .. } | PromptMode::Search { .. } => {
+                self.handle_input_event(event)
+            }
             PromptMode::Select { .. } => self.handle_select_event(event),
             PromptMode::Confirm { .. } => self.handle_confirm_event(event),
             PromptMode::Error { .. } => self.handle_error_event(event),

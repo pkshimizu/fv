@@ -1,9 +1,7 @@
-use crate::component::{
-    Action, AttributeComponent, Component, FileInfoComponent,
-};
+use crate::component::{Action, AttributeComponent, Component, FileInfoComponent};
 use crate::fs::VFile;
 use crate::state::{
-    ConfirmAction, FilerState, FileAction, FileActionCandidateType, PromptMode, SelectAction,
+    ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
     SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
@@ -14,7 +12,7 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Text;
-use ratatui::widgets::{Cell, Row, Table, Block};
+use ratatui::widgets::{Block, Cell, Row, Table};
 
 use crate::fs::VFileTime;
 use num_format::{Locale, ToFormattedString};
@@ -44,6 +42,50 @@ impl FilerComponent {
 
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
+    }
+
+    pub fn current_dir_path(&self) -> &str {
+        self.state.current_dir.absolute_path()
+    }
+
+    pub fn jump_to(&mut self, path: &str) -> Result<()> {
+        self.state.jump_to(path)
+    }
+
+    pub fn change_to(&mut self, path: &str) -> Result<()> {
+        self.state.change_to(path)
+    }
+
+    pub fn refresh_files(&mut self) -> Result<()> {
+        self.state.refresh_files()
+    }
+
+    pub fn select_matching_file(&mut self, value: &str) {
+        self.state.select_matching_file(value);
+    }
+
+    pub fn select_next_matching_file(&mut self, value: &str) {
+        self.state.select_next_matching_file(value);
+    }
+
+    pub fn select_prev_matching_file(&mut self, value: &str) {
+        self.state.select_prev_matching_file(value);
+    }
+
+    pub fn clear_checked_paths(&mut self) {
+        self.state.checked_paths.clear();
+    }
+
+    pub fn set_pending_select_name(&mut self, name: String) {
+        self.state.set_pending_select_name(name);
+    }
+
+    pub fn set_sort_key(&mut self, key: SortKey) {
+        self.state.sort_key = key;
+    }
+
+    pub fn select_file_table(&mut self, index: Option<usize>) {
+        self.state.file_table_state.select(index);
     }
 
     fn collect_action_targets(&self) -> Vec<VFile> {
@@ -405,7 +447,7 @@ impl Component for FilerComponent {
                 }
             }
             KeyCode::Char('a') => self.show_attribute(),
-            KeyCode::Char('b') => Ok(Action::None), // Bookmark は store が必要なため App 側で処理
+            KeyCode::Char('b') => Ok(Action::ShowBookmark),
             KeyCode::Char('i') => self.show_file_info(),
             _ => Ok(Action::None),
         }

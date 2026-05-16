@@ -6,14 +6,23 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::component::Action;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
-pub enum AppEvent {
+enum AppEvent {
     Key(KeyEvent),
     FileChange,
+}
+
+/// EventHandler::next_event の戻り値
+pub enum InputEvent {
+    /// キーイベント
+    Key(KeyEvent),
+    /// ファイル変更検知
+    FileChange,
+    /// 何もなし（タイムアウト）
+    None,
 }
 
 pub struct EventHandler {
@@ -62,12 +71,12 @@ impl EventHandler {
         self.paused.store(false, Ordering::Relaxed);
     }
 
-    /// 次のイベントを Action として返す
-    pub fn next_event(&mut self) -> Result<Action> {
+    /// 次のイベントを返す
+    pub fn next_event(&mut self) -> Result<InputEvent> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(AppEvent::Key(key)) => Ok(Action::KeyEvent(key)),
-            Ok(AppEvent::FileChange) => Ok(Action::RefreshFiles),
-            Err(_) => Ok(Action::None),
+            Ok(AppEvent::Key(key)) => Ok(InputEvent::Key(key)),
+            Ok(AppEvent::FileChange) => Ok(InputEvent::FileChange),
+            Err(_) => Ok(InputEvent::None),
         }
     }
 
