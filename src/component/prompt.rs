@@ -24,54 +24,27 @@ impl PromptComponent {
         }
     }
 
-    fn handle_text_event(&mut self, key: KeyEvent) -> Result<Action> {
+    fn handle_input_event(&mut self, key: KeyEvent) -> Result<Action> {
+        // 共通キー
         match key.code {
-            KeyCode::Char(c) => self.input_char(c),
-            KeyCode::Backspace => self.input_backspace(),
-            KeyCode::Left => self.input_cursor_left(),
-            KeyCode::Right => self.input_cursor_right(),
-            KeyCode::Enter => self.input_ok(),
-            KeyCode::Esc => Ok(Action::CancelPrompt),
-            _ => Ok(Action::None),
+            KeyCode::Char(c) => return self.input_char(c),
+            KeyCode::Backspace => return self.input_backspace(),
+            KeyCode::Left => return self.input_cursor_left(),
+            KeyCode::Right => return self.input_cursor_right(),
+            KeyCode::Enter => return self.input_ok(),
+            KeyCode::Esc => return Ok(Action::CancelPrompt),
+            _ => {}
         }
-    }
-
-    fn handle_file_event(&mut self, key: KeyEvent) -> Result<Action> {
-        match key.code {
-            KeyCode::Char(c) => self.input_char(c),
-            KeyCode::Backspace => self.input_backspace(),
-            KeyCode::Left => self.input_cursor_left(),
-            KeyCode::Right => self.input_cursor_right(),
-            KeyCode::Tab => self.input_tab(),
-            KeyCode::BackTab => self.input_back_tab(),
-            KeyCode::Enter => self.input_ok(),
-            KeyCode::Esc => Ok(Action::CancelPrompt),
-            _ => Ok(Action::None),
-        }
-    }
-
-    fn handle_search_event(&mut self, key: KeyEvent) -> Result<Action> {
-        match key.code {
-            KeyCode::Char(c) => self.input_char(c),
-            KeyCode::Backspace => self.input_backspace(),
-            KeyCode::Left => self.input_cursor_left(),
-            KeyCode::Right => self.input_cursor_right(),
-            KeyCode::Down => {
-                if let PromptMode::Search { value, .. } = &self.mode {
-                    Ok(Action::SearchNext(value.clone()))
-                } else {
-                    Ok(Action::None)
-                }
+        // モード固有キー
+        match (&self.mode, key.code) {
+            (PromptMode::File { .. }, KeyCode::Tab) => self.input_tab(),
+            (PromptMode::File { .. }, KeyCode::BackTab) => self.input_back_tab(),
+            (PromptMode::Search { value, .. }, KeyCode::Down) => {
+                Ok(Action::SearchNext(value.clone()))
             }
-            KeyCode::Up => {
-                if let PromptMode::Search { value, .. } = &self.mode {
-                    Ok(Action::SearchPrev(value.clone()))
-                } else {
-                    Ok(Action::None)
-                }
+            (PromptMode::Search { value, .. }, KeyCode::Up) => {
+                Ok(Action::SearchPrev(value.clone()))
             }
-            KeyCode::Enter => self.input_ok(),
-            KeyCode::Esc => Ok(Action::CancelPrompt),
             _ => Ok(Action::None),
         }
     }
@@ -136,32 +109,14 @@ impl PromptComponent {
     }
 
     fn input_tab(&mut self) -> Result<Action> {
-        if let PromptMode::File {
-            value,
-            cursor,
-            candidate_type,
-            candidates,
-            candidate_index,
-            ..
-        } = &mut self.mode
-        {
-            let compute = match candidate_type {
-                FileActionCandidateType::All => compute_all_path_candidates,
-                FileActionCandidateType::Directory => compute_dir_path_candidates,
-            };
-            cycle_candidates(
-                value,
-                candidates,
-                candidate_index,
-                CycleDirection::Forward,
-                Some(compute),
-            )?;
-            *cursor = value.chars().count();
-        }
-        Ok(Action::None)
+        self.cycle_tab(CycleDirection::Forward)
     }
 
     fn input_back_tab(&mut self) -> Result<Action> {
+        self.cycle_tab(CycleDirection::Backward)
+    }
+
+    fn cycle_tab(&mut self, direction: CycleDirection) -> Result<Action> {
         if let PromptMode::File {
             value,
             cursor,
@@ -175,13 +130,7 @@ impl PromptComponent {
                 FileActionCandidateType::All => compute_all_path_candidates,
                 FileActionCandidateType::Directory => compute_dir_path_candidates,
             };
-            cycle_candidates(
-                value,
-                candidates,
-                candidate_index,
-                CycleDirection::Backward,
-                Some(compute),
-            )?;
+            cycle_candidates(value, candidates, candidate_index, direction, Some(compute))?;
             *cursor = value.chars().count();
         }
         Ok(Action::None)
@@ -195,6 +144,59 @@ impl PromptComponent {
         }
         let input = std::mem::replace(&mut self.mode, PromptMode::None);
         Ok(Action::ExecutePrompt(Box::new(input)))
+    }
+
+    fn handle_select_event(&mut self, key: KeyEvent) -> Result<Action> {
+        match key.code {
+            KeyCode::Left => {
+                if let PromptMode::Select {
+                    selected_index,
+                    options,
+                    ..
+                } = &mut self.mode
+                {
+                    if *selected_index > 0 {
+                        *selected_index -= 1;
+                    } else {
+                        *selected_index = options.len().saturating_sub(1);
+                    }
+                }
+                Ok(Action::None)
+            }
+            KeyCode::Right => {
+                if let PromptMode::Select {
+                    selected_index,
+                    options,
+                    ..
+                } = &mut self.mode
+                {
+                    if *selected_index + 1 < options.len() {
+                        *selected_index += 1;
+                    } else {
+                        *selected_index = 0;
+                    }
+                }
+                Ok(Action::None)
+            }
+            KeyCode::Enter => self.input_ok(),
+            KeyCode::Esc => Ok(Action::CancelPrompt),
+            _ => Ok(Action::None),
+        }
+    }
+
+    fn handle_confirm_event(&mut self, key: KeyEvent) -> Result<Action> {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter => self.input_ok(),
+            KeyCode::Char('n') | KeyCode::Esc => Ok(Action::CancelPrompt),
+            _ => Ok(Action::None),
+        }
+    }
+
+    fn handle_error_event(&mut self, key: KeyEvent) -> Result<Action> {
+        match key.code {
+            KeyCode::Enter | KeyCode::Esc => Ok(Action::CancelPrompt),
+            _ => Ok(Action::None),
+        }
     }
 
     fn after_input_value_changed(&mut self) -> Action {
@@ -246,23 +248,16 @@ impl PromptComponent {
         frame.render_widget(widget, area);
 
         // テキスト入力時にカーソルを表示
-        if let Some(cursor_char_pos) = self.mode.cursor_position() {
-            if let Some(value) = match &self.mode {
-                PromptMode::Text { value, .. }
-                | PromptMode::File { value, .. }
-                | PromptMode::Search { value, .. } => Some(value.as_str()),
-                _ => None,
-            } {
-                let display_width: usize = value
-                    .chars()
-                    .take(cursor_char_pos)
-                    .map(|c| UnicodeWidthChar::width(c).unwrap_or(0))
-                    .sum();
-                // ボーダー(1) + パディング(1) + 表示幅
-                let cursor_x = area.x + 2 + display_width as u16;
-                let cursor_y = area.y + 1;
-                frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
-            }
+        if let Some((cursor_pos, value)) = self.mode.cursor_and_value() {
+            let display_width: usize = value
+                .chars()
+                .take(cursor_pos)
+                .map(|c| UnicodeWidthChar::width(c).unwrap_or(0))
+                .sum();
+            // ボーダー(1) + パディング(1) + 表示幅
+            let cursor_x = area.x + 2 + display_width as u16;
+            let cursor_y = area.y + 1;
+            frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
         }
     }
 }
@@ -270,53 +265,12 @@ impl PromptComponent {
 impl Component for PromptComponent {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match &self.mode {
-            PromptMode::Text { .. } => self.handle_text_event(event),
-            PromptMode::File { .. } => self.handle_file_event(event),
-            PromptMode::Search { .. } => self.handle_search_event(event),
-            PromptMode::Select { .. } => match event.code {
-                KeyCode::Left => {
-                    if let PromptMode::Select {
-                        selected_index,
-                        options,
-                        ..
-                    } = &mut self.mode
-                    {
-                        if *selected_index > 0 {
-                            *selected_index -= 1;
-                        } else {
-                            *selected_index = options.len().saturating_sub(1);
-                        }
-                    }
-                    Ok(Action::None)
-                }
-                KeyCode::Right => {
-                    if let PromptMode::Select {
-                        selected_index,
-                        options,
-                        ..
-                    } = &mut self.mode
-                    {
-                        if *selected_index + 1 < options.len() {
-                            *selected_index += 1;
-                        } else {
-                            *selected_index = 0;
-                        }
-                    }
-                    Ok(Action::None)
-                }
-                KeyCode::Enter => self.input_ok(),
-                KeyCode::Esc => Ok(Action::CancelPrompt),
-                _ => Ok(Action::None),
-            },
-            PromptMode::Confirm { .. } => match event.code {
-                KeyCode::Char('y') | KeyCode::Enter => self.input_ok(),
-                KeyCode::Char('n') | KeyCode::Esc => Ok(Action::CancelPrompt),
-                _ => Ok(Action::None),
-            },
-            PromptMode::Error { .. } => match event.code {
-                KeyCode::Enter | KeyCode::Esc => Ok(Action::CancelPrompt),
-                _ => Ok(Action::None),
-            },
+            PromptMode::Text { .. }
+            | PromptMode::File { .. }
+            | PromptMode::Search { .. } => self.handle_input_event(event),
+            PromptMode::Select { .. } => self.handle_select_event(event),
+            PromptMode::Confirm { .. } => self.handle_confirm_event(event),
+            PromptMode::Error { .. } => self.handle_error_event(event),
             PromptMode::None => Ok(Action::None),
         }
     }
