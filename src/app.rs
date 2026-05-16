@@ -1,5 +1,6 @@
 use ratatui::DefaultTerminal;
 
+use crate::cmd::prompt;
 use crate::component::{Action, Component};
 use crate::config::Config;
 use crate::event::{AppEventResult, EventHandler};
@@ -42,25 +43,20 @@ impl App {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
         let dir = state.filer.current_dir.absolute_path();
 
-        // イベントハンドラを一時停止（キー入力の横取りを防止）
         event_handler.pause();
 
-        // TUI を一時停止
         crossterm::terminal::disable_raw_mode()?;
         execute!(stdout(), LeaveAlternateScreen)?;
 
-        // 外部シェルを起動
         let result = std::process::Command::new(&shell)
             .current_dir(dir)
             .status()
             .with_context(|| format!("シェルの起動に失敗しました: {shell}"));
 
-        // TUI を復帰（全ステップを試行し、最初のエラーを返す）
         let r1 = execute!(stdout(), EnterAlternateScreen);
         let r2 = crossterm::terminal::enable_raw_mode();
         let r3 = terminal.clear();
 
-        // エラーの有無に関わらずイベントハンドラを再開
         event_handler.resume();
 
         r1.and(r2).and(r3)?;
@@ -69,21 +65,23 @@ impl App {
         Ok(())
     }
 
+    fn set_error(&mut self, message: String) {
+        self.state.prompt.mode = PromptMode::Error { message };
+    }
+
     /// Action を処理する。コンポーネントの handle_event が返した Action をここで実行する。
     fn handle_action(&mut self, action: Action, terminal: &mut DefaultTerminal) -> Result<()> {
         match action {
             Action::None => {}
             Action::Quit => self.state.quit(),
             Action::Error(message) => {
-                self.state.prompt = PromptMode::Error { message };
+                self.set_error(message);
             }
             Action::LaunchShell => {
                 if let Err(e) =
                     Self::launch_external_shell(&self.state, terminal, &self.event_handler)
                 {
-                    self.state.prompt = PromptMode::Error {
-                        message: format!("{e}"),
-                    };
+                    self.set_error(format!("{e}"));
                 }
             }
             Action::CloseSidePanel => {
@@ -95,6 +93,24 @@ impl App {
             }
             Action::RemoveBookmark(path) => {
                 self.store.bookmark.remove(&path)?;
+            }
+            Action::ExecutePrompt(input) => {
+                prompt::execute_prompt_action(&mut self.state, &mut self.store, *input)?;
+            }
+            Action::CancelPrompt => {
+                if let PromptMode::Search { original_index, .. } = &self.state.prompt.mode {
+                    self.state.filer.file_table_state.select(*original_index);
+                }
+                self.state.prompt.mode = PromptMode::None;
+            }
+            Action::SearchUpdate(value) => {
+                self.state.filer.select_matching_file(&value);
+            }
+            Action::SearchNext(value) => {
+                self.state.filer.select_next_matching_file(&value);
+            }
+            Action::SearchPrev(value) => {
+                self.state.filer.select_prev_matching_file(&value);
             }
         }
         Ok(())
@@ -111,20 +127,21 @@ impl App {
             match self.event_handler.next(&self.state)? {
                 AppEventResult::Command(command) => {
                     if let Err(e) = command.exec(&mut self.state, &mut self.store) {
-                        self.state.prompt = PromptMode::Error {
-                            message: format!("{e}"),
-                        };
+                        self.set_error(format!("{e}"));
                     }
                 }
                 AppEventResult::KeyEvent(key) => {
-                    let action = self
-                        .state
-                        .side_panel
-                        .as_mut()
-                        .map(|p| p.handle_event(key))
-                        .transpose()?
-                        .unwrap_or(Action::None);
-                    self.handle_action(action, terminal)?;
+                    // Prompt がアクティブなら Prompt コンポーネントに委譲
+                    let action = if self.state.prompt.mode.is_active() {
+                        self.state.prompt.handle_event(key)?
+                    } else if let Some(panel) = self.state.side_panel.as_mut() {
+                        panel.handle_event(key)?
+                    } else {
+                        Action::None
+                    };
+                    if let Err(e) = self.handle_action(action, terminal) {
+                        self.set_error(format!("{e}"));
+                    }
                 }
                 AppEventResult::None => {}
             }

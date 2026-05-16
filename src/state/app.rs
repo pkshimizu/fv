@@ -1,6 +1,6 @@
-use crate::component::Component;
+use crate::component::{Component, PromptComponent};
 use crate::config::Config;
-use crate::state::{FilerState, PromptMode, SidePanel};
+use crate::state::{FilerState, SidePanel};
 use anyhow::Result;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -16,7 +16,7 @@ pub struct AppState {
     pub running: bool,
     pub launch_shell: bool,
     pub filer: FilerState,
-    pub prompt: PromptMode,
+    pub prompt: PromptComponent,
     pub side_panel: Option<SidePanel>,
 }
 
@@ -27,7 +27,7 @@ impl AppState {
             running: true,
             launch_shell: false,
             filer: FilerState::new(),
-            prompt: PromptMode::None,
+            prompt: PromptComponent::new(),
             side_panel: None,
         }
     }
@@ -42,7 +42,7 @@ impl AppState {
     }
 
     pub fn active_area(&self) -> Area {
-        if self.prompt.is_active() {
+        if self.prompt.mode.is_active() {
             return Area::Prompt;
         }
         match &self.side_panel {

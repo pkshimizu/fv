@@ -1,223 +1,21 @@
 use crate::component::GrepComponent;
 use crate::fs::VFile;
 use crate::state::{
-    AppState, ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    AppState, ConfirmAction, FileAction, PromptMode, SelectAction, SidePanel, SortKey, TextAction,
 };
+use crate::store::RootStore;
 use anyhow::{Context, Result};
 use std::io::BufRead;
 use std::path::Path;
 
-pub fn input_char(state: &mut AppState, c: char) -> Result<()> {
-    match &mut state.prompt {
-        PromptMode::Text { value, cursor, .. }
-        | PromptMode::File { value, cursor, .. }
-        | PromptMode::Search { value, cursor, .. } => {
-            let byte_pos = char_to_byte_pos(value, *cursor);
-            value.insert(byte_pos, c);
-            *cursor += 1;
-        }
-        _ => {}
-    }
-    after_input_value_changed(state);
-    Ok(())
-}
-
-pub fn input_backspace(state: &mut AppState) -> Result<()> {
-    match &mut state.prompt {
-        PromptMode::Text { value, cursor, .. }
-        | PromptMode::File { value, cursor, .. }
-        | PromptMode::Search { value, cursor, .. } => {
-            if *cursor > 0 {
-                *cursor -= 1;
-                let byte_pos = char_to_byte_pos(value, *cursor);
-                let next_byte_pos =
-                    byte_pos + value[byte_pos..].chars().next().map_or(0, |c| c.len_utf8());
-                value.replace_range(byte_pos..next_byte_pos, "");
-            }
-        }
-        _ => {}
-    }
-    after_input_value_changed(state);
-    Ok(())
-}
-
-pub fn input_cursor_left(state: &mut AppState) -> Result<()> {
-    match &mut state.prompt {
-        PromptMode::Text { cursor, .. }
-        | PromptMode::File { cursor, .. }
-        | PromptMode::Search { cursor, .. } => {
-            *cursor = cursor.saturating_sub(1);
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-pub fn input_cursor_right(state: &mut AppState) -> Result<()> {
-    match &mut state.prompt {
-        PromptMode::Text { value, cursor, .. }
-        | PromptMode::File { value, cursor, .. }
-        | PromptMode::Search { value, cursor, .. } => {
-            let char_count = value.chars().count();
-            if *cursor < char_count {
-                *cursor += 1;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn char_to_byte_pos(s: &str, char_index: usize) -> usize {
-    s.char_indices()
-        .nth(char_index)
-        .map(|(i, _)| i)
-        .unwrap_or(s.len())
-}
-
-fn after_input_value_changed(state: &mut AppState) {
-    state.prompt.reset_candidates();
-    if let PromptMode::Search { value, .. } = &state.prompt {
-        state.filer.select_matching_file(value);
-    }
-}
-
-pub fn input_select_left(state: &mut AppState) -> Result<()> {
-    if let PromptMode::Select {
-        selected_index,
-        options,
-        ..
-    } = &mut state.prompt
-    {
-        if *selected_index > 0 {
-            *selected_index -= 1;
-        } else {
-            *selected_index = options.len().saturating_sub(1);
-        }
-    }
-    Ok(())
-}
-
-pub fn input_select_right(state: &mut AppState) -> Result<()> {
-    if let PromptMode::Select {
-        selected_index,
-        options,
-        ..
-    } = &mut state.prompt
-    {
-        if *selected_index + 1 < options.len() {
-            *selected_index += 1;
-        } else {
-            *selected_index = 0;
-        }
-    }
-    Ok(())
-}
-
-pub fn input_tab(state: &mut AppState) -> Result<()> {
-    if let PromptMode::File {
-        value,
-        cursor,
-        candidate_type,
-        candidates,
-        candidate_index,
-        ..
-    } = &mut state.prompt
-    {
-        let compute = match candidate_type {
-            FileActionCandidateType::All => compute_all_path_candidates,
-            FileActionCandidateType::Directory => compute_dir_path_candidates,
-        };
-        cycle_candidates(
-            value,
-            candidates,
-            candidate_index,
-            CycleDirection::Forward,
-            Some(compute),
-        )?;
-        *cursor = value.chars().count();
-    }
-    Ok(())
-}
-
-pub fn input_back_tab(state: &mut AppState) -> Result<()> {
-    if let PromptMode::File {
-        value,
-        cursor,
-        candidate_type,
-        candidates,
-        candidate_index,
-        ..
-    } = &mut state.prompt
-    {
-        let compute = match candidate_type {
-            FileActionCandidateType::All => compute_all_path_candidates,
-            FileActionCandidateType::Directory => compute_dir_path_candidates,
-        };
-        cycle_candidates(
-            value,
-            candidates,
-            candidate_index,
-            CycleDirection::Backward,
-            Some(compute),
-        )?;
-        *cursor = value.chars().count();
-    }
-    Ok(())
-}
-
-type ComputeCandidates = fn(&str) -> Result<Vec<String>>;
-
-#[derive(Debug)]
-enum CycleDirection {
-    Forward,
-    Backward,
-}
-
-fn cycle_candidates(
-    value: &mut String,
-    candidates: &mut Vec<String>,
-    candidate_index: &mut Option<usize>,
-    direction: CycleDirection,
-    compute: Option<ComputeCandidates>,
+/// プロンプトの確定アクションを実行する。
+/// PromptComponent の input_ok が Action::ExecutePrompt(PromptMode) を返し、
+/// App::handle_action がこの関数を呼び出す。
+pub fn execute_prompt_action(
+    state: &mut AppState,
+    store: &mut RootStore,
+    input: PromptMode,
 ) -> Result<()> {
-    if candidates.is_empty() {
-        if let Some(compute) = compute {
-            *candidates = compute(value)?;
-            if !candidates.is_empty() {
-                let start = match direction {
-                    CycleDirection::Forward => 0,
-                    CycleDirection::Backward => candidates.len() - 1,
-                };
-                *candidate_index = Some(start);
-                *value = candidates[start].clone();
-            }
-        }
-    } else if let Some(index) = candidate_index {
-        let next = match direction {
-            CycleDirection::Forward => (*index + 1) % candidates.len(),
-            CycleDirection::Backward => {
-                if *index == 0 {
-                    candidates.len() - 1
-                } else {
-                    *index - 1
-                }
-            }
-        };
-        *candidate_index = Some(next);
-        *value = candidates[next].clone();
-    }
-    Ok(())
-}
-
-pub fn input_ok(state: &mut AppState) -> Result<()> {
-    // Search モードでは Enter でカーソル位置を維持したまま検索を終了する
-    if matches!(state.prompt, PromptMode::Search { .. }) {
-        state.prompt = PromptMode::None;
-        return Ok(());
-    }
-    let input = std::mem::replace(&mut state.prompt, PromptMode::None);
     let skip_clear = matches!(
         input,
         PromptMode::Select {
@@ -226,9 +24,9 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
         }
     );
     match input {
-        PromptMode::Confirm { action, .. } => execute_confirm_action(state, action),
+        PromptMode::Confirm { action, .. } => execute_confirm_action(action),
         PromptMode::Text { action, value, .. } => {
-            execute_text_action(state, action, value.as_str())
+            execute_text_action(state, store, action, value.as_str())
         }
         PromptMode::File { action, value, .. } => {
             execute_file_action(state, action, value.as_str())
@@ -246,49 +44,50 @@ pub fn input_ok(state: &mut AppState) -> Result<()> {
     Ok(())
 }
 
-pub fn input_cancel(state: &mut AppState) -> Result<()> {
-    if let PromptMode::Search { original_index, .. } = &state.prompt {
-        state.filer.file_table_state.select(*original_index);
-    }
-    state.prompt = PromptMode::None;
-    Ok(())
-}
-
-pub fn input_search_next(state: &mut AppState) -> Result<()> {
-    if let PromptMode::Search { value, .. } = &state.prompt {
-        state.filer.select_next_matching_file(value);
-    }
-    Ok(())
-}
-
-pub fn input_search_prev(state: &mut AppState) -> Result<()> {
-    if let PromptMode::Search { value, .. } = &state.prompt {
-        state.filer.select_prev_matching_file(value);
-    }
-    Ok(())
-}
-
-fn execute_confirm_action(_: &mut AppState, action: ConfirmAction) -> Result<()> {
+fn execute_confirm_action(action: ConfirmAction) -> Result<()> {
     match action {
         ConfirmAction::Delete { files } => execute_delete(files),
     }
 }
 
-fn execute_text_action(state: &mut AppState, action: TextAction, value: &str) -> Result<()> {
+fn execute_text_action(
+    state: &mut AppState,
+    store: &mut RootStore,
+    action: TextAction,
+    value: &str,
+) -> Result<()> {
     match action {
-        TextAction::Mkdir { dir } => execute_mkdir(dir, value),
-        TextAction::Touch { dir } => execute_touch(dir, value),
-        TextAction::Rename { file } => execute_rename(state, file, value),
-        TextAction::Zip { dir, files } => execute_zip(dir, files, value),
-        TextAction::Grep => execute_grep(state, value),
+        TextAction::Mkdir { dir } => dir.create_dir(value),
+        TextAction::Touch { dir } => dir.create_file(value),
+        TextAction::Rename { file } => {
+            file.rename(value)?;
+            state.filer.set_pending_select_name(value.to_string());
+            Ok(())
+        }
+        TextAction::Zip { dir, files } => dir.create_zip(value, &files),
+        TextAction::Grep => execute_grep(state, store, value),
     }
 }
 
 fn execute_file_action(state: &mut AppState, action: FileAction, value: &str) -> Result<()> {
     match action {
-        FileAction::Copy { files } => execute_copy(files, value),
-        FileAction::Move { files } => execute_move(files, value),
-        FileAction::Jump => execute_jump(state, value),
+        FileAction::Copy { files } => {
+            for file in &files {
+                file.copy_to(value)?;
+            }
+            Ok(())
+        }
+        FileAction::Move { files } => {
+            for file in &files {
+                file.move_to(value)?;
+            }
+            Ok(())
+        }
+        FileAction::Jump => {
+            let path = Path::new(value);
+            anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
+            state.filer.change_to(value)
+        }
     }
 }
 
@@ -308,62 +107,19 @@ fn execute_select_action(
     }
 }
 
-fn execute_copy(files: Vec<VFile>, value: &str) -> Result<()> {
-    for file in &files {
-        file.copy_to(value)?
-    }
-    Ok(())
-}
-
-fn execute_move(files: Vec<VFile>, value: &str) -> Result<()> {
-    for file in &files {
-        file.move_to(value)?
-    }
-    Ok(())
-}
-
-fn execute_jump(state: &mut AppState, value: &str) -> Result<()> {
-    let path = Path::new(value);
-    anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
-    state.filer.change_to(value)?;
-    Ok(())
-}
-
 fn execute_delete(files: Vec<VFile>) -> Result<()> {
     for file in &files {
-        file.delete()?
+        file.delete()?;
     }
     Ok(())
 }
 
-fn execute_mkdir(dir: VFile, value: &str) -> Result<()> {
-    dir.create_dir(value)?;
-    Ok(())
-}
-
-fn execute_touch(dir: VFile, value: &str) -> Result<()> {
-    dir.create_file(value)?;
-    Ok(())
-}
-
-fn execute_zip(dir: VFile, files: Vec<VFile>, value: &str) -> Result<()> {
-    dir.create_zip(value, &files)?;
-    Ok(())
-}
-
-fn execute_rename(state: &mut AppState, file: VFile, value: &str) -> Result<()> {
-    file.rename(value)?;
-    state.filer.set_pending_select_name(value.to_string());
-    Ok(())
-}
-
-fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
+fn execute_grep(state: &mut AppState, _store: &mut RootStore, value: &str) -> Result<()> {
     if value.is_empty() {
         return Ok(());
     }
 
     let dir_path = state.filer.current_dir.absolute_path().to_string();
-
     let pattern = value.to_string();
 
     let mut child = std::process::Command::new("grep")
@@ -399,57 +155,6 @@ fn execute_grep(state: &mut AppState, value: &str) -> Result<()> {
         let _ = child.wait();
     });
 
-    // grep実行時は既存のサイドパネルを置き換える（ユーザーが明示的に検索を実行した操作のため）
     state.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
     Ok(())
-}
-
-fn compute_all_path_candidates(input: &str) -> Result<Vec<String>> {
-    compute_path_candidates(input, false)
-}
-
-fn compute_dir_path_candidates(input: &str) -> Result<Vec<String>> {
-    compute_path_candidates(input, true)
-}
-
-fn compute_path_candidates(input: &str, dir_only: bool) -> Result<Vec<String>> {
-    let path = Path::new(input);
-    let (dir_path, prefix) = if input.ends_with('/') {
-        (path.to_path_buf(), String::new())
-    } else {
-        let dir = path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .map(|p| p.to_path_buf())
-            .context("Failed to get parent directory")?;
-        let prefix = path
-            .file_name()
-            .context("Failed to get file name")?
-            .to_string_lossy()
-            .to_string();
-        (dir, prefix)
-    };
-
-    let files = VFile::new(dir_path.to_string_lossy()).list()?;
-
-    let mut candidates: Vec<String> = files
-        .into_iter()
-        .filter_map(|f| {
-            if dir_only && !f.is_dir() {
-                return None;
-            }
-            let name = f.file_name()?;
-            if !name.starts_with(&prefix) {
-                return None;
-            }
-            let mut s = f.absolute_path().to_string();
-            if f.is_dir() {
-                s.push('/');
-            }
-            Some(s)
-        })
-        .collect();
-
-    candidates.sort();
-    Ok(candidates)
 }
