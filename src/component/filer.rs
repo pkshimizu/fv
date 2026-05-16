@@ -24,7 +24,7 @@ const CHECKED_SYMBOL: &str = "*";
 const BOOKMARK_SYMBOL: &str = "B";
 
 pub struct FilerComponent {
-    pub state: FilerState,
+    state: FilerState,
     active: bool,
 }
 

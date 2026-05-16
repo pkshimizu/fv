@@ -3,7 +3,7 @@ use ratatui::DefaultTerminal;
 use crate::component::{Action, Component, prompt};
 use crate::config::Config;
 use crate::event::{EventHandler, InputEvent};
-use crate::state::{AppContext, PromptMode};
+use crate::app_context::AppContext;
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -12,7 +12,7 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::io::stdout;
 
 pub struct App {
-    state: AppContext,
+    ctx: AppContext,
     store: RootStore,
     event_handler: EventHandler,
 }
@@ -20,14 +20,14 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Result<Self> {
         Ok(Self {
-            state: AppContext::new(config),
+            ctx: AppContext::new(config),
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
         })
     }
 
     pub fn init(&mut self) -> Result<()> {
-        self.state.init()?;
+        self.ctx.init()?;
         if let Err(e) = self.store.init() {
             tracing::warn!("Failed to initialize bookmark: {}", e);
         }
@@ -35,12 +35,12 @@ impl App {
     }
 
     fn launch_external_shell(
-        state: &AppContext,
+        ctx: &AppContext,
         terminal: &mut DefaultTerminal,
         event_handler: &EventHandler,
     ) -> Result<()> {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        let dir = state.filer.current_dir_path();
+        let dir = ctx.filer.current_dir_path();
 
         event_handler.pause();
 
@@ -65,30 +65,30 @@ impl App {
     }
 
     fn set_error(&mut self, message: String) {
-        self.state.prompt.mode = PromptMode::Error { message };
+        self.ctx.prompt.set_error(message);
     }
 
     /// Action を処理する
     fn handle_action(&mut self, action: Action, terminal: &mut DefaultTerminal) -> Result<()> {
         match action {
             Action::None => {}
-            Action::Quit => self.state.quit(),
+            Action::Quit => self.ctx.quit(),
             Action::Error(message) => {
                 self.set_error(message);
             }
             Action::LaunchShell => {
                 if let Err(e) =
-                    Self::launch_external_shell(&self.state, terminal, &self.event_handler)
+                    Self::launch_external_shell(&self.ctx, terminal, &self.event_handler)
                 {
                     self.set_error(format!("{e}"));
                 }
             }
             Action::CloseSidePanel => {
-                self.state.side_panel = None;
+                self.ctx.side_panel = None;
             }
             Action::NavigateTo(path) => {
-                self.state.side_panel = None;
-                self.state.filer.jump_to(&path)?;
+                self.ctx.side_panel = None;
+                self.ctx.filer.jump_to(&path)?;
             }
             Action::RemoveBookmark(path) => {
                 self.store.bookmark.remove(&path)?;
@@ -97,38 +97,37 @@ impl App {
                 self.store.bookmark.add(&path)?;
             }
             Action::ExecutePrompt(input) => {
-                prompt::execute_prompt_action(&mut self.state, &mut self.store, *input)?;
+                prompt::execute_prompt_action(&mut self.ctx, &mut self.store, *input)?;
             }
             Action::CancelPrompt => {
-                if let PromptMode::Search { original_index, .. } = &self.state.prompt.mode {
-                    self.state.filer.select_file_table(*original_index);
+                if let Some(idx) = self.ctx.prompt.cancel() {
+                    self.ctx.filer.select_file_table(Some(idx));
                 }
-                self.state.prompt.mode = PromptMode::None;
             }
             Action::SearchUpdate(value) => {
-                self.state.filer.select_matching_file(&value);
+                self.ctx.filer.select_matching_file(&value);
             }
             Action::SearchNext(value) => {
-                self.state.filer.select_next_matching_file(&value);
+                self.ctx.filer.select_next_matching_file(&value);
             }
             Action::SearchPrev(value) => {
-                self.state.filer.select_prev_matching_file(&value);
+                self.ctx.filer.select_prev_matching_file(&value);
             }
             Action::SetPromptMode(mode) => {
-                self.state.prompt.mode = *mode;
+                self.ctx.prompt.set_mode(*mode);
             }
             Action::ShowSidePanel(panel) => {
-                if self.state.side_panel.is_none() {
-                    self.state.side_panel = Some(panel);
+                if self.ctx.side_panel.is_none() {
+                    self.ctx.side_panel = Some(panel);
                 }
             }
             Action::OpenFile(path) => {
                 open::that(path)?;
             }
             Action::ShowBookmark => {
-                if self.state.side_panel.is_none() {
+                if self.ctx.side_panel.is_none() {
                     let paths = self.store.bookmark.get_paths().cloned().collect();
-                    self.state.side_panel = Some(crate::state::SidePanel::Bookmark(
+                    self.ctx.side_panel = Some(crate::state::SidePanel::Bookmark(
                         crate::component::BookmarkComponent::new(paths),
                     ));
                 }
@@ -138,28 +137,28 @@ impl App {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut watching_dir_path = self.state.filer.current_dir_path().to_string();
+        let mut watching_dir_path = self.ctx.filer.current_dir_path().to_string();
 
-        while self.state.running {
+        while self.ctx.running {
             // UI を描画
-            terminal.draw(|frame| ui::render_main_view(frame, &mut self.state, &self.store))?;
+            terminal.draw(|frame| ui::render_main_view(frame, &mut self.ctx, &self.store))?;
 
             // イベントを取得して処理
             match self.event_handler.next_event()? {
                 InputEvent::Key(key) => {
-                    let action = if self.state.prompt.mode.is_active() {
-                        self.state.prompt.handle_event(key)?
-                    } else if let Some(panel) = self.state.side_panel.as_mut() {
+                    let action = if self.ctx.prompt.is_active() {
+                        self.ctx.prompt.handle_event(key)?
+                    } else if let Some(panel) = self.ctx.side_panel.as_mut() {
                         panel.handle_event(key)?
                     } else {
-                        self.state.filer.handle_event(key)?
+                        self.ctx.filer.handle_event(key)?
                     };
                     if let Err(e) = self.handle_action(action, terminal) {
                         self.set_error(format!("{e}"));
                     }
                 }
                 InputEvent::FileChange => {
-                    if let Err(e) = self.state.filer.refresh_files() {
+                    if let Err(e) = self.ctx.filer.refresh_files() {
                         self.set_error(format!("{e}"));
                     }
                 }
@@ -167,15 +166,15 @@ impl App {
             }
 
             // コンポーネントのtick処理（非同期結果の受信等）
-            self.state.tick();
+            self.ctx.tick();
 
             // Filer のアクティブ状態を更新
-            self.state
+            self.ctx
                 .filer
-                .set_active(self.state.side_panel.is_none() && !self.state.prompt.mode.is_active());
+                .set_active(self.ctx.side_panel.is_none() && !self.ctx.prompt.is_active());
 
             // カレントディレクトリの監視
-            let current_dir_path = self.state.filer.current_dir_path();
+            let current_dir_path = self.ctx.filer.current_dir_path();
             if current_dir_path != watching_dir_path {
                 self.event_handler.watch_directory(current_dir_path)?;
                 watching_dir_path = current_dir_path.to_string();
