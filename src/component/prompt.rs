@@ -19,7 +19,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::fs::VFile;
 
 pub struct PromptComponent {
-    pub mode: PromptMode,
+    mode: PromptMode,
 }
 
 impl PromptComponent {
@@ -27,6 +27,28 @@ impl PromptComponent {
         Self {
             mode: PromptMode::None,
         }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.mode.is_active()
+    }
+
+    pub fn set_mode(&mut self, mode: PromptMode) {
+        self.mode = mode;
+    }
+
+    pub fn set_error(&mut self, message: String) {
+        self.mode = PromptMode::Error { message };
+    }
+
+    pub fn cancel(&mut self) -> Option<usize> {
+        let original_index = if let PromptMode::Search { original_index, .. } = &self.mode {
+            *original_index
+        } else {
+            None
+        };
+        self.mode = PromptMode::None;
+        original_index
     }
 
     fn handle_input_event(&mut self, key: KeyEvent) -> Result<Action> {

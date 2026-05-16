@@ -3,7 +3,7 @@ use ratatui::DefaultTerminal;
 use crate::component::{Action, Component, prompt};
 use crate::config::Config;
 use crate::event::{EventHandler, InputEvent};
-use crate::state::{AppContext, PromptMode};
+use crate::state::AppContext;
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -65,7 +65,7 @@ impl App {
     }
 
     fn set_error(&mut self, message: String) {
-        self.state.prompt.mode = PromptMode::Error { message };
+        self.state.prompt.set_error(message);
     }
 
     /// Action を処理する
@@ -100,10 +100,9 @@ impl App {
                 prompt::execute_prompt_action(&mut self.state, &mut self.store, *input)?;
             }
             Action::CancelPrompt => {
-                if let PromptMode::Search { original_index, .. } = &self.state.prompt.mode {
-                    self.state.filer.select_file_table(*original_index);
+                if let Some(idx) = self.state.prompt.cancel() {
+                    self.state.filer.select_file_table(Some(idx));
                 }
-                self.state.prompt.mode = PromptMode::None;
             }
             Action::SearchUpdate(value) => {
                 self.state.filer.select_matching_file(&value);
@@ -115,7 +114,7 @@ impl App {
                 self.state.filer.select_prev_matching_file(&value);
             }
             Action::SetPromptMode(mode) => {
-                self.state.prompt.mode = *mode;
+                self.state.prompt.set_mode(*mode);
             }
             Action::ShowSidePanel(panel) => {
                 if self.state.side_panel.is_none() {
@@ -147,7 +146,7 @@ impl App {
             // イベントを取得して処理
             match self.event_handler.next_event()? {
                 InputEvent::Key(key) => {
-                    let action = if self.state.prompt.mode.is_active() {
+                    let action = if self.state.prompt.is_active() {
                         self.state.prompt.handle_event(key)?
                     } else if let Some(panel) = self.state.side_panel.as_mut() {
                         panel.handle_event(key)?
@@ -172,7 +171,7 @@ impl App {
             // Filer のアクティブ状態を更新
             self.state
                 .filer
-                .set_active(self.state.side_panel.is_none() && !self.state.prompt.mode.is_active());
+                .set_active(self.state.side_panel.is_none() && !self.state.prompt.is_active());
 
             // カレントディレクトリの監視
             let current_dir_path = self.state.filer.current_dir_path();
