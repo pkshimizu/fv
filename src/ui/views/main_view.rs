@@ -1,11 +1,11 @@
 use crate::component::Component;
-use crate::state::AppContext;
+use crate::app_context::AppContext;
 use crate::store::RootStore;
 use crate::ui::features::build_header;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
-pub fn render_main_view(frame: &mut Frame, state: &mut AppContext, store: &RootStore) {
+pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootStore) {
     let area = frame.area();
 
     let [header_area, content_area, prompt_area] = Layout::vertical([
@@ -15,18 +15,18 @@ pub fn render_main_view(frame: &mut Frame, state: &mut AppContext, store: &RootS
     ])
     .areas(area);
 
-    frame.render_widget(build_header(state), header_area);
-    match &mut state.side_panel {
+    frame.render_widget(build_header(ctx), header_area);
+    match &mut ctx.side_panel {
         Some(panel) => {
             let [filer_area, panel_area] =
                 Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .areas(content_area);
-            state.filer.render_with_store(frame, filer_area, store);
+            ctx.filer.render_with_store(frame, filer_area, store);
             panel.render(frame, panel_area);
         }
         None => {
-            state.filer.render_with_store(frame, content_area, store);
+            ctx.filer.render_with_store(frame, content_area, store);
         }
     }
-    state.prompt.render(frame, prompt_area);
+    ctx.prompt.render(frame, prompt_area);
 }

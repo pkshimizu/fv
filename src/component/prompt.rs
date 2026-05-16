@@ -1,7 +1,8 @@
 use crate::component::{Action, Component, GrepComponent};
+use crate::app_context::AppContext;
 use crate::state::{
-    AppContext, ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction, SidePanel,
+    SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -414,7 +415,7 @@ fn compute_path_candidates(input: &str, dir_only: bool) -> Result<Vec<String>> {
 /// PromptComponent の input_ok が Action::ExecutePrompt(PromptMode) を返し、
 /// App::handle_action がこの関数を呼び出す。
 pub fn execute_prompt_action(
-    state: &mut AppContext,
+    ctx: &mut AppContext,
     store: &mut RootStore,
     input: PromptMode,
 ) -> Result<()> {
@@ -428,20 +429,20 @@ pub fn execute_prompt_action(
     match input {
         PromptMode::Confirm { action, .. } => execute_confirm_action(action),
         PromptMode::Text { action, value, .. } => {
-            execute_text_action(state, store, action, value.as_str())
+            execute_text_action(ctx, store, action, value.as_str())
         }
         PromptMode::File { action, value, .. } => {
-            execute_file_action(state, action, value.as_str())
+            execute_file_action(ctx, action, value.as_str())
         }
         PromptMode::Select {
             action,
             selected_index,
             ..
-        } => execute_select_action(state, action, selected_index),
+        } => execute_select_action(ctx, action, selected_index),
         PromptMode::None | PromptMode::Error { .. } | PromptMode::Search { .. } => Ok(()),
     }?;
     if !skip_clear {
-        state.filer.clear_checked_paths();
+        ctx.filer.clear_checked_paths();
     }
     Ok(())
 }
@@ -458,7 +459,7 @@ fn execute_confirm_action(action: ConfirmAction) -> Result<()> {
 }
 
 fn execute_text_action(
-    state: &mut AppContext,
+    ctx: &mut AppContext,
     store: &mut RootStore,
     action: TextAction,
     value: &str,
@@ -468,15 +469,15 @@ fn execute_text_action(
         TextAction::Touch { dir } => dir.create_file(value),
         TextAction::Rename { file } => {
             file.rename(value)?;
-            state.filer.set_pending_select_name(value.to_string());
+            ctx.filer.set_pending_select_name(value.to_string());
             Ok(())
         }
         TextAction::Zip { dir, files } => dir.create_zip(value, &files),
-        TextAction::Grep => execute_grep(state, store, value),
+        TextAction::Grep => execute_grep(ctx, store, value),
     }
 }
 
-fn execute_file_action(state: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
+fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => {
             for file in &files {
@@ -493,33 +494,33 @@ fn execute_file_action(state: &mut AppContext, action: FileAction, value: &str) 
         FileAction::Jump => {
             let path = Path::new(value);
             anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
-            state.filer.change_to(value)
+            ctx.filer.change_to(value)
         }
     }
 }
 
 fn execute_select_action(
-    state: &mut AppContext,
+    ctx: &mut AppContext,
     action: SelectAction,
     selected_index: usize,
 ) -> Result<()> {
     match action {
         SelectAction::Sort => {
             if let Some(&sort_key) = SortKey::ALL.get(selected_index) {
-                state.filer.set_sort_key(sort_key);
-                state.filer.refresh_files()?;
+                ctx.filer.set_sort_key(sort_key);
+                ctx.filer.refresh_files()?;
             }
             Ok(())
         }
     }
 }
 
-fn execute_grep(state: &mut AppContext, _store: &mut RootStore, value: &str) -> Result<()> {
+fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Result<()> {
     if value.is_empty() {
         return Ok(());
     }
 
-    let dir_path = state.filer.current_dir_path().to_string();
+    let dir_path = ctx.filer.current_dir_path().to_string();
     let pattern = value.to_string();
 
     let mut child = std::process::Command::new("grep")
@@ -555,6 +556,6 @@ fn execute_grep(state: &mut AppContext, _store: &mut RootStore, value: &str) -> 
         let _ = child.wait();
     });
 
-    state.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
+    ctx.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
     Ok(())
 }

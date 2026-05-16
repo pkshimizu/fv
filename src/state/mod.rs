@@ -1,4 +1,3 @@
-mod app;
 mod filer;
 mod path_list;
 mod prompt;
@@ -6,7 +5,6 @@ mod side_panel;
 pub(crate) mod table_cursor;
 mod text_output;
 
-pub use app::AppContext;
 pub use filer::{FilerState, SortKey};
 pub use path_list::PathListState;
 pub use prompt::{

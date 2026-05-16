@@ -1,4 +1,5 @@
 mod app;
+mod app_context;
 mod component;
 mod config;
 mod event;
