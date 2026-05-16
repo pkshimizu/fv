@@ -6,7 +6,7 @@ mod side_panel;
 pub(crate) mod table_cursor;
 mod text_output;
 
-pub use app::{AppState, Area};
+pub use app::AppState;
 pub use filer::{FilerState, SortKey};
 pub use path_list::PathListState;
 pub use prompt::{
