@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::state::SidePanel;
 use anyhow::Result;
 
-pub struct AppState {
+pub struct AppContext {
     pub config: Config,
     pub running: bool,
     pub filer: FilerComponent,
@@ -11,7 +11,7 @@ pub struct AppState {
     pub side_panel: Option<SidePanel>,
 }
 
-impl AppState {
+impl AppContext {
     pub fn new(config: Config) -> Self {
         Self {
             config,

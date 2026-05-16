@@ -3,7 +3,7 @@ mod bookmark;
 mod file_info;
 mod filer;
 mod grep;
-mod prompt;
+pub mod prompt;
 
 pub use attribute::AttributeComponent;
 pub use bookmark::BookmarkComponent;
@@ -65,7 +65,9 @@ pub trait Component {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action>;
 
     /// コンポーネントを描画する。
-    fn render(&mut self, frame: &mut Frame, area: Rect);
+    /// デフォルトは空実装。描画に追加のコンテキストが必要なコンポーネントは
+    /// 独自の描画メソッド（例: render_with_store）を使用する。
+    fn render(&mut self, _frame: &mut Frame, _area: Rect) {}
 
     /// 毎フレーム呼ばれるライフサイクルメソッド。非同期結果の受信等に使用する。
     fn tick(&mut self) {}

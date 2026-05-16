@@ -1,11 +1,11 @@
 use crate::component::Component;
-use crate::state::AppState;
+use crate::state::AppContext;
 use crate::store::RootStore;
 use crate::ui::features::build_header;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout};
 
-pub fn render_main_view(frame: &mut Frame, state: &mut AppState, store: &RootStore) {
+pub fn render_main_view(frame: &mut Frame, state: &mut AppContext, store: &RootStore) {
     let area = frame.area();
 
     let [header_area, content_area, prompt_area] = Layout::vertical([

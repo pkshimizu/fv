@@ -452,10 +452,6 @@ impl Component for FilerComponent {
             _ => Ok(Action::None),
         }
     }
-
-    fn render(&mut self, _frame: &mut Frame, _area: Rect) {
-        // Store 参照が必要なため、render_with_store() を使用する
-    }
 }
 
 impl FilerComponent {

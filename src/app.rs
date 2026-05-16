@@ -1,10 +1,9 @@
 use ratatui::DefaultTerminal;
 
-use crate::cmd::prompt;
-use crate::component::{Action, Component};
+use crate::component::{Action, Component, prompt};
 use crate::config::Config;
 use crate::event::{EventHandler, InputEvent};
-use crate::state::{AppState, PromptMode};
+use crate::state::{AppContext, PromptMode};
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -13,7 +12,7 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::io::stdout;
 
 pub struct App {
-    state: AppState,
+    state: AppContext,
     store: RootStore,
     event_handler: EventHandler,
 }
@@ -21,7 +20,7 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Result<Self> {
         Ok(Self {
-            state: AppState::new(config),
+            state: AppContext::new(config),
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
         })
@@ -36,7 +35,7 @@ impl App {
     }
 
     fn launch_external_shell(
-        state: &AppState,
+        state: &AppContext,
         terminal: &mut DefaultTerminal,
         event_handler: &EventHandler,
     ) -> Result<()> {

@@ -23,38 +23,61 @@ cargo build --release # Release build
 
 Single-binary Rust project. Entry point is `src/main.rs`.
 
-### Flux Architecture
+### Component Architecture
 
-本プロジェクトはFluxアーキテクチャに基づいて設計されています。
+本プロジェクトは Component Architecture パターンに基づいて設計されています。
+各エリア（Filer, Prompt, Bookmark 等）が `Component` trait を実装し、
+イベント処理・状態・描画を自己完結的に持ちます。
 
 ```
-User Input → Event (検知) → Command (Action) → State (Store) → UI (View)
-                                                    ↑
-                                                 Config
+KeyEvent → Component::handle_event → Action → App::handle_action → 状態更新
+                                                     ↓
+                                        Component::render → UI描画
 ```
 
 ### Directory Structure
 
 ```
 src/
-├── main.rs          # エントリーポイント
-├── app.rs           # アプリケーションのメインループ
-├── config.rs        # 設定関連
-├── event.rs         # イベント処理（キー入力の検知）
-├── cmd/             # コマンド（Flux の Action）
+├── main.rs              # エントリーポイント
+├── app.rs               # アプリケーションのメインループ、Action処理
+├── config.rs            # 設定関連
+├── event.rs             # イベント取得（EventHandler、InputEvent）
+├── component/           # コンポーネント（イベント処理 + 状態 + 描画）
+│   ├── mod.rs           # Component trait、Action enum 定義
+│   ├── filer.rs         # ファイル一覧（FilerComponent）
+│   ├── prompt.rs        # プロンプト入力（PromptComponent）+ 確定アクション実行
+│   ├── attribute.rs     # ファイル属性パネル（AttributeComponent）
+│   ├── file_info.rs     # ファイル情報パネル（FileInfoComponent）
+│   ├── bookmark.rs      # ブックマークパネル（BookmarkComponent）
+│   └── grep.rs          # Grepパネル（GrepComponent）
+├── state/               # データ型・状態管理
 │   ├── mod.rs
-│   ├── command.rs   # Command enum 定義
-│   └── quit.rs      # Quit コマンドの実装
-├── state/           # 状態管理（Flux の Store）
+│   ├── app.rs           # AppContext（コンポーネントコンテナ）
+│   ├── filer.rs         # FilerState（ファイル一覧データ）
+│   ├── prompt.rs        # PromptMode enum、関連型
+│   ├── side_panel.rs    # SidePanel enum（Component trait 実装）
+│   ├── path_list.rs     # PathListState（リスト系パネル共通）
+│   ├── text_output.rs   # TextOutputState（テキスト表示共通）
+│   └── table_cursor.rs  # TableCursor（テーブルカーソル共通）
+├── ui/                  # UI描画ヘルパー
 │   ├── mod.rs
-│   └── app.rs       # AppState
-├── ui/              # UI描画（Flux の View）
+│   ├── views/
+│   │   └── main_view.rs # メインビュー（レイアウト構成）
+│   ├── features/
+│   │   └── header.rs    # ヘッダー描画
+│   └── widgets/
+│       └── block.rs     # 共通ウィジェット
+├── fs/                  # ファイルシステム操作
 │   ├── mod.rs
-│   └── views/
-│       ├── mod.rs
-│       └── main_view.rs
-└── fs/              # ファイルシステム操作
-    └── mod.rs
+│   ├── file.rs          # VFile（ファイル操作）
+│   ├── file_info.rs     # FileInfo（ファイル詳細情報）
+│   ├── file_metadata.rs # VFileMetadata
+│   ├── file_time.rs     # VFileTime
+│   └── permissions.rs   # VPermissions
+└── store/               # 永続化
+    ├── mod.rs
+    └── bookmark.rs      # BookmarkStore
 ```
 
 ### Module Responsibilities
@@ -62,36 +85,42 @@ src/
 | Module | Responsibility |
 |--------|----------------|
 | `config` | アプリケーション設定を保持 |
-| `event` | キー入力を検知し、Command に変換 |
-| `cmd` | アプリケーションで実行可能な操作を定義（enum + 分離パターン） |
-| `state` | Command を受け取り状態を更新 |
-| `ui` | State に基づいて画面を描画 |
-| `fs` | ファイルシステム操作（将来の拡張用） |
-| `app` | メインループの制御 |
+| `event` | キー入力・ファイル変更を検知し InputEvent として返す |
+| `component` | 各エリアのイベント処理・状態・描画を統合（Component trait） |
+| `state` | データ型の定義、AppContext（コンポーネントコンテナ） |
+| `ui` | レイアウト構成と共通ウィジェット |
+| `fs` | ファイルシステム操作 |
+| `store` | 永続データの管理（ブックマーク等） |
+| `app` | メインループ、Action の処理 |
 
-### Command Pattern
+### Component Pattern
 
-コマンドは enum で定義し、各コマンドの実装は個別ファイルに分離します。
+各コンポーネントは `Component` trait を実装します。
 
 ```rust
-// cmd/command.rs
-pub enum Command {
-    Quit,
-    None,
-}
-
-impl Command {
-    pub fn exec(self, state: &mut AppState) {
-        match self {
-            Command::Quit => quit::exec(state),
-            Command::None => {}
-        }
-    }
+// component/mod.rs
+pub trait Component {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<Action>;
+    fn render(&mut self, frame: &mut Frame, area: Rect) {}
+    fn tick(&mut self) {}
 }
 ```
 
-新しいコマンドを追加する場合:
-1. `cmd/command.rs` の enum にバリアントを追加
-2. `cmd/` に新しいファイルを作成して実装
-3. `cmd/mod.rs` でモジュールを宣言
-4. `exec` メソッドの match に1行追加
+`Action` enum でアプリ全体に影響する操作を表現します。
+
+```rust
+pub enum Action {
+    None,
+    Quit,
+    Error(String),
+    LaunchShell,
+    SetPromptMode(Box<PromptMode>),
+    ShowSidePanel(SidePanel),
+    // ...
+}
+```
+
+新しいサイドパネルを追加する場合:
+1. `component/` に新しいファイルを作成し `Component` trait を実装
+2. `state/side_panel.rs` の `SidePanel` enum にバリアントを追加
+3. `SidePanel` の `Component` trait 委譲に match アームを追加
