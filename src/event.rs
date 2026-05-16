@@ -6,25 +6,23 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::cmd::command::{AppCommand, Command, FilerCommand};
-use crate::state::{AppState, Area};
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent};
+use crossterm::event::{self, Event, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
-pub enum AppEvent {
+enum AppEvent {
     Key(KeyEvent),
     FileChange,
 }
 
-/// EventHandler::next の戻り値
-pub enum AppEventResult {
-    /// 何もない（タイムアウト）
+/// EventHandler::next_event の戻り値
+pub enum InputEvent {
+    /// キーイベント
+    Key(KeyEvent),
+    /// ファイル変更検知
+    FileChange,
+    /// 何もなし（タイムアウト）
     None,
-    /// 既存の Command ベースの処理
-    Command(Command),
-    /// コンポーネントに委譲するキーイベント
-    KeyEvent(KeyEvent),
 }
 
 pub struct EventHandler {
@@ -73,16 +71,12 @@ impl EventHandler {
         self.paused.store(false, Ordering::Relaxed);
     }
 
-    pub fn next(&self, state: &AppState) -> Result<AppEventResult> {
+    /// 次のイベントを返す
+    pub fn next_event(&mut self) -> Result<InputEvent> {
         match self.rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(AppEvent::Key(key)) => Ok(match state.active_area() {
-                Area::SideComponent | Area::Prompt => AppEventResult::KeyEvent(key),
-                Area::Filer => AppEventResult::Command(Self::key_to_command(key)),
-            }),
-            Ok(AppEvent::FileChange) => Ok(AppEventResult::Command(Command::Filer(
-                FilerCommand::RefreshFiles,
-            ))),
-            Err(_) => Ok(AppEventResult::None),
+            Ok(AppEvent::Key(key)) => Ok(InputEvent::Key(key)),
+            Ok(AppEvent::FileChange) => Ok(InputEvent::FileChange),
+            Err(_) => Ok(InputEvent::None),
         }
     }
 
@@ -101,38 +95,6 @@ impl EventHandler {
         watcher.watch(Path::new(path), RecursiveMode::NonRecursive)?;
         self.watcher = Some(watcher);
         Ok(())
-    }
-
-    fn key_to_command(key: KeyEvent) -> Command {
-        match (key.modifiers, key.code) {
-            (_, KeyCode::Char('c')) => Command::Filer(FilerCommand::PromptCopy),
-            (_, KeyCode::Char('f')) => Command::Filer(FilerCommand::PromptSearch),
-            (_, KeyCode::Char('g')) => Command::Filer(FilerCommand::PromptGrep),
-            (_, KeyCode::Char('d')) => Command::Filer(FilerCommand::PromptDelete),
-            (_, KeyCode::Char('k')) => Command::Filer(FilerCommand::PromptMkdir),
-            (_, KeyCode::Char('n')) => Command::Filer(FilerCommand::PromptTouch),
-            (_, KeyCode::Char('p')) => Command::Filer(FilerCommand::PromptZip),
-            (_, KeyCode::Char('m')) => Command::Filer(FilerCommand::PromptMove),
-            (_, KeyCode::Char('r')) => Command::Filer(FilerCommand::PromptRename),
-            (_, KeyCode::Char('s')) => Command::Filer(FilerCommand::PromptSort),
-            (_, KeyCode::Char('j')) => Command::Filer(FilerCommand::PromptJump),
-            (_, KeyCode::Char('q')) => Command::App(AppCommand::Quit),
-            (_, KeyCode::Char(' ')) => Command::Filer(FilerCommand::ToggleCheckedFile),
-            (_, KeyCode::Char('.')) => Command::Filer(FilerCommand::ToggleDotFiles),
-            (_, KeyCode::Char('+')) => Command::Filer(FilerCommand::AddBookmark),
-            (_, KeyCode::Char('-')) => Command::Filer(FilerCommand::RemoveBookmark),
-            (_, KeyCode::Char('a')) => Command::Filer(FilerCommand::ShowAttribute),
-            (_, KeyCode::Char('b')) => Command::Filer(FilerCommand::ShowBookmark),
-            (_, KeyCode::Char('h')) => Command::Filer(FilerCommand::LaunchShell),
-            (_, KeyCode::Char('i')) => Command::Filer(FilerCommand::ShowFileInfo),
-            (_, KeyCode::Up) => Command::Filer(FilerCommand::MoveCursorUp),
-            (_, KeyCode::Down) => Command::Filer(FilerCommand::MoveCursorDown),
-            (_, KeyCode::Left) => Command::Filer(FilerCommand::MoveCursorLeft),
-            (_, KeyCode::Right) => Command::Filer(FilerCommand::MoveCursorRight),
-            (_, KeyCode::Enter) => Command::Filer(FilerCommand::EnterFile),
-            (_, KeyCode::Backspace) => Command::Filer(FilerCommand::ChangeParentDir),
-            _ => Command::App(AppCommand::None),
-        }
     }
 }
 

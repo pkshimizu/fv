@@ -80,15 +80,9 @@ impl PromptMode {
     /// テキスト入力モードの場合、カーソル位置と入力値を返す
     pub fn cursor_and_value(&self) -> Option<(usize, &str)> {
         match self {
-            PromptMode::Text {
-                cursor, value, ..
-            }
-            | PromptMode::File {
-                cursor, value, ..
-            }
-            | PromptMode::Search {
-                cursor, value, ..
-            } => Some((*cursor, value)),
+            PromptMode::Text { cursor, value, .. }
+            | PromptMode::File { cursor, value, .. }
+            | PromptMode::Search { cursor, value, .. } => Some((*cursor, value)),
             _ => None,
         }
     }

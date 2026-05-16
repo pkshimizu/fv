@@ -1,10 +1,9 @@
 use ratatui::DefaultTerminal;
 
-use crate::cmd::prompt;
-use crate::component::{Action, Component};
+use crate::component::{Action, Component, prompt};
 use crate::config::Config;
-use crate::event::{AppEventResult, EventHandler};
-use crate::state::{AppState, PromptMode};
+use crate::event::{EventHandler, InputEvent};
+use crate::state::{AppContext, PromptMode};
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -13,7 +12,7 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::io::stdout;
 
 pub struct App {
-    state: AppState,
+    state: AppContext,
     store: RootStore,
     event_handler: EventHandler,
 }
@@ -21,7 +20,7 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Result<Self> {
         Ok(Self {
-            state: AppState::new(config),
+            state: AppContext::new(config),
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
         })
@@ -36,12 +35,12 @@ impl App {
     }
 
     fn launch_external_shell(
-        state: &AppState,
+        state: &AppContext,
         terminal: &mut DefaultTerminal,
         event_handler: &EventHandler,
     ) -> Result<()> {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        let dir = state.filer.current_dir.absolute_path();
+        let dir = state.filer.current_dir_path();
 
         event_handler.pause();
 
@@ -69,7 +68,7 @@ impl App {
         self.state.prompt.mode = PromptMode::Error { message };
     }
 
-    /// Action を処理する。コンポーネントの handle_event が返した Action をここで実行する。
+    /// Action を処理する
     fn handle_action(&mut self, action: Action, terminal: &mut DefaultTerminal) -> Result<()> {
         match action {
             Action::None => {}
@@ -94,12 +93,15 @@ impl App {
             Action::RemoveBookmark(path) => {
                 self.store.bookmark.remove(&path)?;
             }
+            Action::AddBookmark(path) => {
+                self.store.bookmark.add(&path)?;
+            }
             Action::ExecutePrompt(input) => {
                 prompt::execute_prompt_action(&mut self.state, &mut self.store, *input)?;
             }
             Action::CancelPrompt => {
                 if let PromptMode::Search { original_index, .. } = &self.state.prompt.mode {
-                    self.state.filer.file_table_state.select(*original_index);
+                    self.state.filer.select_file_table(*original_index);
                 }
                 self.state.prompt.mode = PromptMode::None;
             }
@@ -112,51 +114,68 @@ impl App {
             Action::SearchPrev(value) => {
                 self.state.filer.select_prev_matching_file(&value);
             }
+            Action::SetPromptMode(mode) => {
+                self.state.prompt.mode = *mode;
+            }
+            Action::ShowSidePanel(panel) => {
+                if self.state.side_panel.is_none() {
+                    self.state.side_panel = Some(panel);
+                }
+            }
+            Action::OpenFile(path) => {
+                open::that(path)?;
+            }
+            Action::ShowBookmark => {
+                if self.state.side_panel.is_none() {
+                    let paths = self.store.bookmark.get_paths().cloned().collect();
+                    self.state.side_panel = Some(crate::state::SidePanel::Bookmark(
+                        crate::component::BookmarkComponent::new(paths),
+                    ));
+                }
+            }
         }
         Ok(())
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut watching_dir_path = self.state.filer.current_dir.absolute_path().to_string();
+        let mut watching_dir_path = self.state.filer.current_dir_path().to_string();
 
         while self.state.running {
             // UI を描画
             terminal.draw(|frame| ui::render_main_view(frame, &mut self.state, &self.store))?;
 
             // イベントを取得して処理
-            match self.event_handler.next(&self.state)? {
-                AppEventResult::Command(command) => {
-                    if let Err(e) = command.exec(&mut self.state, &mut self.store) {
-                        self.set_error(format!("{e}"));
-                    }
-                }
-                AppEventResult::KeyEvent(key) => {
-                    // Prompt がアクティブなら Prompt コンポーネントに委譲
+            match self.event_handler.next_event()? {
+                InputEvent::Key(key) => {
                     let action = if self.state.prompt.mode.is_active() {
                         self.state.prompt.handle_event(key)?
                     } else if let Some(panel) = self.state.side_panel.as_mut() {
                         panel.handle_event(key)?
                     } else {
-                        Action::None
+                        self.state.filer.handle_event(key)?
                     };
                     if let Err(e) = self.handle_action(action, terminal) {
                         self.set_error(format!("{e}"));
                     }
                 }
-                AppEventResult::None => {}
-            }
-
-            // 外部シェル起動（既存フラグベース → 段階的に Action に移行予定）
-            if self.state.launch_shell {
-                self.state.launch_shell = false;
-                self.handle_action(Action::LaunchShell, terminal)?;
+                InputEvent::FileChange => {
+                    if let Err(e) = self.state.filer.refresh_files() {
+                        self.set_error(format!("{e}"));
+                    }
+                }
+                InputEvent::None => {}
             }
 
             // コンポーネントのtick処理（非同期結果の受信等）
             self.state.tick();
 
+            // Filer のアクティブ状態を更新
+            self.state
+                .filer
+                .set_active(self.state.side_panel.is_none() && !self.state.prompt.mode.is_active());
+
             // カレントディレクトリの監視
-            let current_dir_path = self.state.filer.current_dir.absolute_path();
+            let current_dir_path = self.state.filer.current_dir_path();
             if current_dir_path != watching_dir_path {
                 self.event_handler.watch_directory(current_dir_path)?;
                 watching_dir_path = current_dir_path.to_string();
