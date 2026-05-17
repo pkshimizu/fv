@@ -10,18 +10,23 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 pub struct SettingsComponent {
+    /// 初期値のインデックス
+    initial_option: usize,
     /// 選択中のオプションインデックス
     selected_option: usize,
-    /// 変更があったかどうか
-    dirty: bool,
 }
 
 impl SettingsComponent {
     pub fn new(startup_dir: &StartupDirectory) -> Self {
+        let index = startup_dir.index();
         Self {
-            selected_option: startup_dir.index(),
-            dirty: false,
+            initial_option: index,
+            selected_option: index,
         }
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.selected_option != self.initial_option
     }
 
     fn to_startup_directory(&self) -> StartupDirectory {
@@ -33,7 +38,7 @@ impl Component for SettingsComponent {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('o') | KeyCode::Esc => {
-                if self.dirty {
+                if self.is_dirty() {
                     Ok(Action::SaveSettings(Box::new(self.to_startup_directory())))
                 } else {
                     Ok(Action::CloseSidePanel)
@@ -42,14 +47,12 @@ impl Component for SettingsComponent {
             KeyCode::Left => {
                 if self.selected_option > 0 {
                     self.selected_option -= 1;
-                    self.dirty = true;
                 }
                 Ok(Action::None)
             }
             KeyCode::Right => {
                 if self.selected_option + 1 < StartupDirectory::ALL.len() {
                     self.selected_option += 1;
-                    self.dirty = true;
                 }
                 Ok(Action::None)
             }

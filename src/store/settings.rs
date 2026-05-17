@@ -41,7 +41,7 @@ pub struct Settings {
 #[derive(Debug)]
 pub struct SettingsStore {
     json_path: PathBuf,
-    pub settings: Settings,
+    settings: Settings,
 }
 
 impl SettingsStore {
@@ -69,7 +69,7 @@ impl SettingsStore {
         }
     }
 
-    pub fn save(&self) -> Result<()> {
+    fn save(&self) -> Result<()> {
         if let Some(parent) = self.json_path.parent() {
             std::fs::create_dir_all(parent)
                 .context("Failed to create settings config directory")?;
