@@ -9,40 +9,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-/// StartupDirectory の選択肢
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StartupDirOption {
-    Current,
-    Home,
-}
-
-impl StartupDirOption {
-    const ALL: &'static [StartupDirOption] = &[StartupDirOption::Current, StartupDirOption::Home];
-
-    fn label(&self) -> &'static str {
-        match self {
-            StartupDirOption::Current => "Current Directory",
-            StartupDirOption::Home => "Home Directory",
-        }
-    }
-
-    fn from_startup_directory(dir: &StartupDirectory) -> usize {
-        match dir {
-            StartupDirectory::CurrentDirectory => 0,
-            StartupDirectory::HomeDirectory => 1,
-        }
-    }
-
-    fn to_startup_directory(index: usize) -> StartupDirectory {
-        match Self::ALL[index] {
-            StartupDirOption::Current => StartupDirectory::CurrentDirectory,
-            StartupDirOption::Home => StartupDirectory::HomeDirectory,
-        }
-    }
-}
-
 pub struct SettingsComponent {
-    /// 選択中のオプション
+    /// 選択中のオプションインデックス
     selected_option: usize,
     /// 変更があったかどうか
     dirty: bool,
@@ -51,13 +19,13 @@ pub struct SettingsComponent {
 impl SettingsComponent {
     pub fn new(startup_dir: &StartupDirectory) -> Self {
         Self {
-            selected_option: StartupDirOption::from_startup_directory(startup_dir),
+            selected_option: startup_dir.index(),
             dirty: false,
         }
     }
 
     fn to_startup_directory(&self) -> StartupDirectory {
-        StartupDirOption::to_startup_directory(self.selected_option)
+        StartupDirectory::ALL[self.selected_option].clone()
     }
 }
 
@@ -79,7 +47,7 @@ impl Component for SettingsComponent {
                 Ok(Action::None)
             }
             KeyCode::Right => {
-                if self.selected_option + 1 < StartupDirOption::ALL.len() {
+                if self.selected_option + 1 < StartupDirectory::ALL.len() {
                     self.selected_option += 1;
                     self.dirty = true;
                 }
@@ -94,16 +62,13 @@ impl Component for SettingsComponent {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let mut lines: Vec<Line> = Vec::new();
-
-        // 設定項目: Startup Directory（ラベル + 横並びラジオボタン）
         let mut spans: Vec<Span> = vec![Span::styled(
             " Startup Directory: ",
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD),
         )];
-        for (i, option) in StartupDirOption::ALL.iter().enumerate() {
+        for (i, option) in StartupDirectory::ALL.iter().enumerate() {
             if i > 0 {
                 spans.push(Span::raw("  "));
             }
@@ -116,8 +81,8 @@ impl Component for SettingsComponent {
             };
             spans.push(Span::styled(format!("{marker} {}", option.label()), style));
         }
-        lines.push(Line::from(spans));
 
+        let lines = vec![Line::from(spans)];
         let paragraph = Paragraph::new(lines);
         frame.render_widget(paragraph, inner);
     }

@@ -14,6 +14,24 @@ impl Default for StartupDirectory {
     }
 }
 
+impl StartupDirectory {
+    pub const ALL: &'static [StartupDirectory] = &[
+        StartupDirectory::CurrentDirectory,
+        StartupDirectory::HomeDirectory,
+    ];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            StartupDirectory::CurrentDirectory => "Current Directory",
+            StartupDirectory::HomeDirectory => "Home Directory",
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        Self::ALL.iter().position(|d| d == self).unwrap_or(0)
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
@@ -56,8 +74,8 @@ impl SettingsStore {
             std::fs::create_dir_all(parent)
                 .context("Failed to create settings config directory")?;
         }
-        let content = serde_json::to_string_pretty(&self.settings)
-            .context("Failed to serialize settings")?;
+        let content =
+            serde_json::to_string_pretty(&self.settings).context("Failed to serialize settings")?;
         let tmp_path = self.json_path.with_extension("json.tmp");
         std::fs::write(&tmp_path, content).context("Failed to write settings temp file")?;
         std::fs::rename(&tmp_path, &self.json_path).context("Failed to save settings file")?;

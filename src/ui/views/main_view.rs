@@ -1,5 +1,5 @@
-use crate::component::Component;
 use crate::app_context::AppContext;
+use crate::component::Component;
 use crate::store::RootStore;
 use crate::ui::features::build_header;
 use ratatui::Frame;

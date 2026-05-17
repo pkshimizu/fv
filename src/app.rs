@@ -1,9 +1,9 @@
 use ratatui::DefaultTerminal;
 
+use crate::app_context::AppContext;
 use crate::component::{Action, Component, prompt};
 use crate::config::Config;
 use crate::event::{EventHandler, InputEvent};
-use crate::app_context::AppContext;
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
