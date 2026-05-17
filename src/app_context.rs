@@ -22,8 +22,8 @@ impl AppContext {
         }
     }
 
-    pub fn init(&mut self) -> Result<()> {
-        self.filer.init()
+    pub fn init(&mut self, startup_dir: Option<std::path::PathBuf>) -> Result<()> {
+        self.filer.init(startup_dir)
     }
 
     pub fn quit(&mut self) {

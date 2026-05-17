@@ -1,5 +1,6 @@
 use crate::component::{
     Action, AttributeComponent, BookmarkComponent, Component, FileInfoComponent, GrepComponent,
+    SettingsComponent,
 };
 use anyhow::Result;
 use crossterm::event::KeyEvent;
@@ -11,6 +12,7 @@ pub enum SidePanel {
     Grep(GrepComponent),
     FileInfo(FileInfoComponent),
     Attribute(AttributeComponent),
+    Settings(SettingsComponent),
 }
 
 impl Component for SidePanel {
@@ -20,6 +22,7 @@ impl Component for SidePanel {
             SidePanel::FileInfo(c) => c.handle_event(event),
             SidePanel::Bookmark(c) => c.handle_event(event),
             SidePanel::Grep(c) => c.handle_event(event),
+            SidePanel::Settings(c) => c.handle_event(event),
         }
     }
 
@@ -29,6 +32,7 @@ impl Component for SidePanel {
             SidePanel::FileInfo(c) => c.render(frame, area),
             SidePanel::Bookmark(c) => c.render(frame, area),
             SidePanel::Grep(c) => c.render(frame, area),
+            SidePanel::Settings(c) => c.render(frame, area),
         }
     }
 
@@ -38,6 +42,7 @@ impl Component for SidePanel {
             SidePanel::FileInfo(c) => c.tick(),
             SidePanel::Bookmark(c) => c.tick(),
             SidePanel::Grep(c) => c.tick(),
+            SidePanel::Settings(c) => c.tick(),
         }
     }
 }

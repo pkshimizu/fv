@@ -27,11 +27,20 @@ impl App {
     }
 
     pub fn init(&mut self) -> Result<()> {
-        self.ctx.init()?;
         if let Err(e) = self.store.init() {
-            tracing::warn!("Failed to initialize bookmark: {}", e);
+            tracing::warn!("Failed to initialize store: {}", e);
         }
+        let startup_dir = self.resolve_startup_directory();
+        self.ctx.init(startup_dir)?;
         Ok(())
+    }
+
+    fn resolve_startup_directory(&self) -> Option<std::path::PathBuf> {
+        use crate::store::StartupDirectory;
+        match self.store.settings.startup_directory() {
+            StartupDirectory::CurrentDirectory => None,
+            StartupDirectory::HomeDirectory => dirs::home_dir(),
+        }
     }
 
     fn launch_external_shell(
@@ -131,6 +140,18 @@ impl App {
                         crate::component::BookmarkComponent::new(paths),
                     ));
                 }
+            }
+            Action::ShowSettings => {
+                if self.ctx.side_panel.is_none() {
+                    let startup_dir = self.store.settings.startup_directory().clone();
+                    self.ctx.side_panel = Some(crate::state::SidePanel::Settings(
+                        crate::component::SettingsComponent::new(&startup_dir),
+                    ));
+                }
+            }
+            Action::SaveSettings(startup_dir) => {
+                self.store.settings.set_startup_directory(*startup_dir)?;
+                self.ctx.side_panel = None;
             }
         }
         Ok(())

@@ -36,8 +36,8 @@ impl FilerComponent {
         }
     }
 
-    pub fn init(&mut self) -> Result<()> {
-        self.state.init()
+    pub fn init(&mut self, startup_dir: Option<std::path::PathBuf>) -> Result<()> {
+        self.state.init(startup_dir)
     }
 
     pub fn set_active(&mut self, active: bool) {
@@ -449,6 +449,7 @@ impl Component for FilerComponent {
             KeyCode::Char('a') => self.show_attribute(),
             KeyCode::Char('b') => Ok(Action::ShowBookmark),
             KeyCode::Char('i') => self.show_file_info(),
+            KeyCode::Char('o') => Ok(Action::ShowSettings),
             _ => Ok(Action::None),
         }
     }
