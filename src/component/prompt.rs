@@ -1,5 +1,5 @@
-use crate::component::{Action, Component, GrepComponent};
 use crate::app_context::AppContext;
+use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction, SidePanel,
     SortKey, TextAction,
@@ -431,9 +431,7 @@ pub fn execute_prompt_action(
         PromptMode::Text { action, value, .. } => {
             execute_text_action(ctx, store, action, value.as_str())
         }
-        PromptMode::File { action, value, .. } => {
-            execute_file_action(ctx, action, value.as_str())
-        }
+        PromptMode::File { action, value, .. } => execute_file_action(ctx, action, value.as_str()),
         PromptMode::Select {
             action,
             selected_index,

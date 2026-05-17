@@ -4,6 +4,7 @@ mod file_info;
 mod filer;
 mod grep;
 pub mod prompt;
+mod settings;
 
 pub use attribute::AttributeComponent;
 pub use bookmark::BookmarkComponent;
@@ -11,8 +12,10 @@ pub use file_info::FileInfoComponent;
 pub use filer::FilerComponent;
 pub use grep::GrepComponent;
 pub use prompt::PromptComponent;
+pub use settings::SettingsComponent;
 
 use crate::state::{PromptMode, SidePanel};
+use crate::store::StartupDirectory;
 use anyhow::Result;
 pub use crossterm::event::KeyEvent;
 use ratatui::Frame;
@@ -42,6 +45,10 @@ pub enum Action {
     OpenFile(String),
     /// ブックマーク一覧を表示する
     ShowBookmark,
+    /// 設定画面を表示する
+    ShowSettings,
+    /// 設定を保存する
+    SaveSettings(Box<StartupDirectory>),
     /// パスに遷移する（ファイルならディレクトリ移動+選択、ディレクトリなら移動）
     NavigateTo(String),
     /// ブックマークを削除する

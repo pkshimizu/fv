@@ -118,11 +118,15 @@ impl FilerState {
         }
     }
 
-    pub fn init(&mut self) -> Result<()> {
-        let init_dir = std::env::current_dir()
-            .ok()
-            .or_else(dirs::home_dir)
-            .context("Failed to get initial directory")?;
+    pub fn init(&mut self, startup_dir: Option<std::path::PathBuf>) -> Result<()> {
+        let init_dir = if let Some(dir) = startup_dir {
+            dir
+        } else {
+            std::env::current_dir()
+                .ok()
+                .or_else(dirs::home_dir)
+                .context("Failed to get initial directory")?
+        };
         let current_dir_path = init_dir.to_str().context("Failed to get path string")?;
         self.load_current_dir(Some(VFile::new(current_dir_path)))?;
 
