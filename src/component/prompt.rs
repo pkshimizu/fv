@@ -1,8 +1,8 @@
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction, SidePanel,
+    SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -19,6 +19,19 @@ use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
 use crate::fs::VFile;
+
+/// 非同期処理からの進捗メッセージ。
+/// mpsc チャネル経由で PromptComponent に送信される。
+#[derive(Debug)]
+#[allow(dead_code)]
+pub enum ProgressMessage {
+    /// 進捗状況の更新（例: "Deleting... 3/10 files"）
+    Update(String),
+    /// 処理が正常に完了した
+    Complete,
+    /// 処理がエラーで終了した
+    Error(String),
+}
 
 pub struct PromptComponent {
     mode: PromptMode,
@@ -48,7 +61,7 @@ impl PromptComponent {
     /// 非同期処理の進捗表示を開始する。
     /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
     #[allow(dead_code)]
-    pub fn start_progress(&mut self, receiver: mpsc::Receiver<ProgressMessage>, message: String) {
+    pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
         self.mode = PromptMode::Progress { message };
         self.progress = Some(receiver);
     }
@@ -322,11 +335,12 @@ impl Component for PromptComponent {
     }
 
     fn tick(&mut self) {
-        let Some(receiver) = &self.progress else {
-            return;
-        };
         loop {
-            match receiver.try_recv() {
+            let msg = match self.progress.as_ref() {
+                Some(receiver) => receiver.try_recv(),
+                None => return,
+            };
+            match msg {
                 Ok(ProgressMessage::Update(msg)) => {
                     self.mode = PromptMode::Progress { message: msg };
                 }
@@ -342,9 +356,7 @@ impl Component for PromptComponent {
                 }
                 Err(mpsc::TryRecvError::Empty) => return,
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    if matches!(self.mode, PromptMode::Progress { .. }) {
-                        self.mode = PromptMode::None;
-                    }
+                    self.mode = PromptMode::None;
                     self.progress = None;
                     return;
                 }

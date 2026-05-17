@@ -1,17 +1,5 @@
 use crate::fs::VFile;
 
-/// 非同期処理からの進捗メッセージ。
-/// mpsc チャネル経由で PromptComponent に送信される。
-#[allow(dead_code)]
-pub enum ProgressMessage {
-    /// 進捗状況の更新（例: "Deleting... 3/10 files"）
-    Update(String),
-    /// 処理が正常に完了した
-    Complete,
-    /// 処理がエラーで終了した
-    Error(String),
-}
-
 #[derive(Debug)]
 pub enum TextAction {
     Mkdir { dir: VFile },
