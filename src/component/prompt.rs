@@ -1,8 +1,8 @@
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction, SidePanel,
-    SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
+    SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -19,19 +19,6 @@ use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
 use crate::fs::VFile;
-
-/// 非同期処理からの進捗メッセージ。
-/// mpsc チャネル経由で PromptComponent に送信される。
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum ProgressMessage {
-    /// 進捗状況の更新（例: "Deleting... 3/10 files"）
-    Update(String),
-    /// 処理が正常に完了した
-    Complete,
-    /// 処理がエラーで終了した
-    Error(String),
-}
 
 pub struct PromptComponent {
     mode: PromptMode,
@@ -335,32 +322,33 @@ impl Component for PromptComponent {
     }
 
     fn tick(&mut self) {
-        loop {
-            let msg = match self.progress.as_ref() {
-                Some(receiver) => receiver.try_recv(),
-                None => return,
-            };
+        // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する
+        let Some(receiver) = self.progress.as_ref() else {
+            return;
+        };
+        while let Ok(msg) = receiver.try_recv() {
             match msg {
-                Ok(ProgressMessage::Update(msg)) => {
-                    self.mode = PromptMode::Progress { message: msg };
+                ProgressMessage::Update(text) => {
+                    self.mode = PromptMode::Progress { message: text };
                 }
-                Ok(ProgressMessage::Complete) => {
+                ProgressMessage::Complete => {
                     self.mode = PromptMode::None;
                     self.progress = None;
                     return;
                 }
-                Ok(ProgressMessage::Error(msg)) => {
-                    self.mode = PromptMode::Error { message: msg };
-                    self.progress = None;
-                    return;
-                }
-                Err(mpsc::TryRecvError::Empty) => return,
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    self.mode = PromptMode::None;
+                ProgressMessage::Error(text) => {
+                    self.mode = PromptMode::Error { message: text };
                     self.progress = None;
                     return;
                 }
             }
+        }
+        // while let ループを Err で抜けた場合、Disconnected ならエラー表示する
+        if matches!(receiver.try_recv(), Err(mpsc::TryRecvError::Disconnected)) {
+            self.mode = PromptMode::Error {
+                message: "Progress channel disconnected unexpectedly".to_string(),
+            };
+            self.progress = None;
         }
     }
 }
