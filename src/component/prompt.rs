@@ -1,8 +1,8 @@
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, PromptMode, SelectAction, SidePanel,
-    SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
+    SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -15,18 +15,21 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use std::io::BufRead;
 use std::path::Path;
+use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
 use crate::fs::VFile;
 
 pub struct PromptComponent {
     mode: PromptMode,
+    progress: Option<mpsc::Receiver<ProgressMessage>>,
 }
 
 impl PromptComponent {
     pub fn new() -> Self {
         Self {
             mode: PromptMode::None,
+            progress: None,
         }
     }
 
@@ -40,6 +43,14 @@ impl PromptComponent {
 
     pub fn set_error(&mut self, message: String) {
         self.mode = PromptMode::Error { message };
+    }
+
+    /// 非同期処理の進捗表示を開始する。
+    /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
+    #[allow(dead_code)]
+    pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
+        self.mode = PromptMode::Progress { message };
+        self.progress = Some(receiver);
     }
 
     pub fn cancel(&mut self) -> Option<usize> {
@@ -272,6 +283,8 @@ impl PromptComponent {
             PromptMode::Error { message } => Paragraph::new(message.as_str())
                 .style(Style::default().fg(Color::Red))
                 .block(build_bordered_block("Error", BorderStyle::Error)),
+            PromptMode::Progress { message } => Paragraph::new(message.as_str())
+                .block(build_bordered_block("Progress", BorderStyle::Active)),
         };
         frame.render_widget(widget, area);
 
@@ -299,12 +312,44 @@ impl Component for PromptComponent {
             PromptMode::Select { .. } => self.handle_select_event(event),
             PromptMode::Confirm { .. } => self.handle_confirm_event(event),
             PromptMode::Error { .. } => self.handle_error_event(event),
+            PromptMode::Progress { .. } => Ok(Action::None),
             PromptMode::None => Ok(Action::None),
         }
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         self.render_prompt(frame, area);
+    }
+
+    fn tick(&mut self) {
+        // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する
+        let Some(receiver) = self.progress.as_ref() else {
+            return;
+        };
+        while let Ok(msg) = receiver.try_recv() {
+            match msg {
+                ProgressMessage::Update(text) => {
+                    self.mode = PromptMode::Progress { message: text };
+                }
+                ProgressMessage::Complete => {
+                    self.mode = PromptMode::None;
+                    self.progress = None;
+                    return;
+                }
+                ProgressMessage::Error(text) => {
+                    self.mode = PromptMode::Error { message: text };
+                    self.progress = None;
+                    return;
+                }
+            }
+        }
+        // while let ループを Err で抜けた場合、Disconnected ならエラー表示する
+        if matches!(receiver.try_recv(), Err(mpsc::TryRecvError::Disconnected)) {
+            self.mode = PromptMode::Error {
+                message: "Progress channel disconnected unexpectedly".to_string(),
+            };
+            self.progress = None;
+        }
     }
 }
 
@@ -437,7 +482,10 @@ pub fn execute_prompt_action(
             selected_index,
             ..
         } => execute_select_action(ctx, action, selected_index),
-        PromptMode::None | PromptMode::Error { .. } | PromptMode::Search { .. } => Ok(()),
+        PromptMode::None
+        | PromptMode::Error { .. }
+        | PromptMode::Search { .. }
+        | PromptMode::Progress { .. } => Ok(()),
     }?;
     if !skip_clear {
         ctx.filer.clear_checked_paths();

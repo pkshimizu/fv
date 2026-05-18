@@ -31,6 +31,7 @@ impl AppContext {
     }
 
     pub fn tick(&mut self) {
+        self.prompt.tick();
         if let Some(panel) = &mut self.side_panel {
             panel.tick();
         }
