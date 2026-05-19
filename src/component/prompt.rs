@@ -47,6 +47,7 @@ impl PromptComponent {
 
     /// 非同期処理の進捗表示を開始する。
     /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
+    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
     #[allow(dead_code)]
     pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
         self.mode = PromptMode::Progress { message };
@@ -326,29 +327,30 @@ impl Component for PromptComponent {
         let Some(receiver) = self.progress.as_ref() else {
             return;
         };
-        while let Ok(msg) = receiver.try_recv() {
-            match msg {
-                ProgressMessage::Update(text) => {
+        loop {
+            match receiver.try_recv() {
+                Ok(ProgressMessage::Update(text)) => {
                     self.mode = PromptMode::Progress { message: text };
                 }
-                ProgressMessage::Complete => {
+                Ok(ProgressMessage::Complete) => {
                     self.mode = PromptMode::None;
                     self.progress = None;
                     return;
                 }
-                ProgressMessage::Error(text) => {
+                Ok(ProgressMessage::Error(text)) => {
                     self.mode = PromptMode::Error { message: text };
                     self.progress = None;
                     return;
                 }
+                Err(mpsc::TryRecvError::Empty) => return,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.mode = PromptMode::Error {
+                        message: "Progress channel disconnected unexpectedly".to_string(),
+                    };
+                    self.progress = None;
+                    return;
+                }
             }
-        }
-        // while let ループを Err で抜けた場合、Disconnected ならエラー表示する
-        if matches!(receiver.try_recv(), Err(mpsc::TryRecvError::Disconnected)) {
-            self.mode = PromptMode::Error {
-                message: "Progress channel disconnected unexpectedly".to_string(),
-            };
-            self.progress = None;
         }
     }
 }
@@ -540,7 +542,8 @@ fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) ->
         FileAction::Jump => {
             let path = Path::new(value);
             anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
-            ctx.filer.change_to(value)
+            ctx.filer.change_to(value);
+            Ok(())
         }
     }
 }
@@ -554,7 +557,7 @@ fn execute_select_action(
         SelectAction::Sort => {
             if let Some(&sort_key) = SortKey::ALL.get(selected_index) {
                 ctx.filer.set_sort_key(sort_key);
-                ctx.filer.refresh_files()?;
+                ctx.filer.refresh_files();
             }
             Ok(())
         }

@@ -3,9 +3,10 @@ use crate::fs::VFile;
 /// 非同期処理からの進捗メッセージ。
 /// mpsc チャネル経由で PromptComponent に送信される。
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum ProgressMessage {
     /// 進捗状況の更新（例: "Deleting... 3/10 files"）
+    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
+    #[allow(dead_code)]
     Update(String),
     /// 処理が正常に完了した
     Complete,
@@ -90,7 +91,7 @@ pub enum PromptMode {
 
 impl PromptMode {
     pub fn is_active(&self) -> bool {
-        !matches!(self, PromptMode::None)
+        !matches!(self, PromptMode::None | PromptMode::Progress { .. })
     }
 
     /// テキスト入力モードの場合、カーソル位置と入力値を返す
