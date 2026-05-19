@@ -110,6 +110,7 @@ pub struct FilerState {
     dir_load_rx: Option<mpsc::Receiver<VFile>>,
     progress_rx: Option<mpsc::Receiver<ProgressMessage>>,
     load_error: Option<String>,
+    prev_dir: Option<VFile>,
 }
 
 impl std::fmt::Debug for FilerState {
@@ -138,6 +139,7 @@ impl FilerState {
             dir_load_rx: None,
             progress_rx: None,
             load_error: None,
+            prev_dir: None,
         }
     }
 
@@ -300,7 +302,10 @@ impl FilerState {
         self.load_error = None;
 
         if let Some(new_dir) = new_dir {
+            self.prev_dir = Some(self.current_dir.clone());
             self.current_dir = new_dir;
+        } else {
+            self.prev_dir = None;
         }
 
         self.current_dir_files.clear();
@@ -359,6 +364,11 @@ impl FilerState {
                         self.load_error = Some(e);
                         self.progress_rx = None;
                         self.dir_load_rx = None;
+                        // エラー時は元のディレクトリに戻して同期リロード
+                        if let Some(prev_dir) = self.prev_dir.take() {
+                            let _ = self.load_current_dir_sync(Some(prev_dir));
+                            self.file_table_state.select(Some(0));
+                        }
                         return;
                     }
                     Ok(_) => {} // Update/Complete は無視
@@ -412,6 +422,7 @@ impl FilerState {
 
     /// 非同期ロード完了後のソート・選択復元・チェック済みパスのクリーンアップ
     fn finalize_loaded_files(&mut self) {
+        self.prev_dir = None;
         Self::sort_files(&mut self.current_dir_files, self.sort_key);
 
         // 選択ファイル状態の復元
