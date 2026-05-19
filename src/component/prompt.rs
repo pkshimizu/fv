@@ -47,6 +47,7 @@ impl PromptComponent {
 
     /// 非同期処理の進捗表示を開始する。
     /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
+    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
     #[allow(dead_code)]
     pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
         self.mode = PromptMode::Progress { message };
