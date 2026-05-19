@@ -324,6 +324,7 @@ impl FilerState {
                 }
             };
 
+            const PROGRESS_NOTIFY_INTERVAL: u64 = 100;
             let mut count = 0u64;
             for entry in entries {
                 let Ok(entry) = entry else { continue };
@@ -346,7 +347,7 @@ impl FilerState {
                     return; // キャンセルされた
                 }
                 count += 1;
-                if count % 100 == 0 {
+                if count % PROGRESS_NOTIFY_INTERVAL == 0 {
                     let _ = progress_tx
                         .send(ProgressMessage::Update(format!("Loading... {count} files")));
                 }
