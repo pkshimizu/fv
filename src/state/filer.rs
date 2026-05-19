@@ -371,7 +371,11 @@ impl FilerState {
                         }
                         return;
                     }
-                    Ok(_) => {} // Update/Complete は無視
+                    Ok(ProgressMessage::Complete) => {
+                        self.progress_rx = None;
+                        break;
+                    }
+                    Ok(_) => {} // Update は無視
                     Err(mpsc::TryRecvError::Empty) => break,
                     Err(mpsc::TryRecvError::Disconnected) => {
                         self.progress_rx = None;
