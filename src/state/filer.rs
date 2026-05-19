@@ -508,12 +508,14 @@ impl FilerState {
 
     fn compare_files(a: &VFile, b: &VFile, sort_key: SortKey) -> Ordering {
         // ディレクトリ優先は常に維持
-        match (a.is_dir(), b.is_dir()) {
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
+        let ord = match (a.is_dir(), b.is_dir()) {
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
             (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
             _ => sort_key.compare(a, b),
-        }
+        };
+        // 同値の場合はファイル名で安定化
+        ord.then_with(|| a.file_name().cmp(&b.file_name()))
     }
 
     fn sort_files(files: &mut [VFile], sort_key: SortKey) {
