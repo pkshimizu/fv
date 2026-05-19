@@ -327,29 +327,30 @@ impl Component for PromptComponent {
         let Some(receiver) = self.progress.as_ref() else {
             return;
         };
-        while let Ok(msg) = receiver.try_recv() {
-            match msg {
-                ProgressMessage::Update(text) => {
+        loop {
+            match receiver.try_recv() {
+                Ok(ProgressMessage::Update(text)) => {
                     self.mode = PromptMode::Progress { message: text };
                 }
-                ProgressMessage::Complete => {
+                Ok(ProgressMessage::Complete) => {
                     self.mode = PromptMode::None;
                     self.progress = None;
                     return;
                 }
-                ProgressMessage::Error(text) => {
+                Ok(ProgressMessage::Error(text)) => {
                     self.mode = PromptMode::Error { message: text };
                     self.progress = None;
                     return;
                 }
+                Err(mpsc::TryRecvError::Empty) => return,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    self.mode = PromptMode::Error {
+                        message: "Progress channel disconnected unexpectedly".to_string(),
+                    };
+                    self.progress = None;
+                    return;
+                }
             }
-        }
-        // while let ループを Err で抜けた場合、Disconnected ならエラー表示する
-        if matches!(receiver.try_recv(), Err(mpsc::TryRecvError::Disconnected)) {
-            self.mode = PromptMode::Error {
-                message: "Progress channel disconnected unexpectedly".to_string(),
-            };
-            self.progress = None;
         }
     }
 }
