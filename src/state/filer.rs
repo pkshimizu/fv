@@ -324,8 +324,6 @@ impl FilerState {
                 }
             };
 
-            const PROGRESS_NOTIFY_INTERVAL: usize = 100;
-            let mut count: usize = 0;
             for entry in entries {
                 let Ok(entry) = entry else { continue };
 
@@ -345,11 +343,6 @@ impl FilerState {
                 let vfile = VFile::new(path_str);
                 if file_tx.send(vfile).is_err() {
                     return; // キャンセルされた
-                }
-                count += 1;
-                if count % PROGRESS_NOTIFY_INTERVAL == 0 {
-                    let _ = progress_tx
-                        .send(ProgressMessage::Update(format!("Loading... {count} files")));
                 }
             }
             let _ = progress_tx.send(ProgressMessage::Complete);

@@ -5,6 +5,8 @@ use crate::fs::VFile;
 #[derive(Debug)]
 pub enum ProgressMessage {
     /// 進捗状況の更新（例: "Deleting... 3/10 files"）
+    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
+    #[allow(dead_code)]
     Update(String),
     /// 処理が正常に完了した
     Complete,
