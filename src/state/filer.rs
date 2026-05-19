@@ -397,29 +397,12 @@ impl FilerState {
         };
 
         const MAX_RECV_PER_FRAME: usize = 200;
-        let mut count = 0;
+        let mut batch: Vec<VFile> = Vec::new();
         let mut disconnected = false;
 
-        let sort_key = self.sort_key;
-        while count < MAX_RECV_PER_FRAME {
+        while batch.len() < MAX_RECV_PER_FRAME {
             match rx.try_recv() {
-                Ok(file) => {
-                    // ソート順を維持してバイナリサーチ挿入
-                    let pos = self
-                        .current_dir_files
-                        .binary_search_by(|existing| {
-                            Self::compare_files(existing, &file, sort_key)
-                        })
-                        .unwrap_or_else(|pos| pos);
-                    self.current_dir_files.insert(pos, file);
-                    // 挿入位置が選択位置以前なら選択位置を補正
-                    if let Some(selected) = self.file_table_state.selected() {
-                        if pos <= selected {
-                            self.file_table_state.select(Some(selected + 1));
-                        }
-                    }
-                    count += 1;
-                }
+                Ok(file) => batch.push(file),
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => {
                     disconnected = true;
@@ -428,15 +411,60 @@ impl FilerState {
             }
         }
 
+        // バッチをソートして既存リストとマージ（O(k log k + n)）
+        if !batch.is_empty() {
+            let sort_key = self.sort_key;
+            Self::sort_files(&mut batch, sort_key);
+
+            // 選択位置の補正: マージ前の選択ファイル名を記録
+            let selected_name = self
+                .file_table_state
+                .selected()
+                .and_then(|i| self.current_dir_files.get(i))
+                .and_then(|f| f.file_name().map(String::from));
+
+            // ソート済み同士のマージ
+            let existing_files = std::mem::take(&mut self.current_dir_files);
+            let mut merged = Vec::with_capacity(existing_files.len() + batch.len());
+            let mut existing = existing_files.into_iter().peekable();
+            let mut incoming = batch.into_iter().peekable();
+
+            while existing.peek().is_some() || incoming.peek().is_some() {
+                let take_existing = match (existing.peek(), incoming.peek()) {
+                    (Some(a), Some(b)) => {
+                        Self::compare_files(a, b, sort_key) != Ordering::Greater
+                    }
+                    (Some(_), None) => true,
+                    _ => false,
+                };
+                if take_existing {
+                    merged.push(existing.next().unwrap());
+                } else {
+                    merged.push(incoming.next().unwrap());
+                }
+            }
+            self.current_dir_files = merged;
+
+            // 選択位置の復元
+            if let Some(name) = selected_name {
+                if let Some(idx) = self
+                    .current_dir_files
+                    .iter()
+                    .position(|f| f.file_name().unwrap_or_default() == name)
+                {
+                    self.file_table_state.select(Some(idx));
+                }
+            } else if self.file_table_state.selected().is_none()
+                && !self.current_dir_files.is_empty()
+            {
+                self.file_table_state.select(Some(0));
+            }
+        }
+
         if disconnected {
             self.dir_load_rx = None;
             self.progress_rx = None;
             self.finalize_loaded_files();
-        } else if count > 0
-            && self.file_table_state.selected().is_none()
-            && !self.current_dir_files.is_empty()
-        {
-            self.file_table_state.select(Some(0));
         }
     }
 
