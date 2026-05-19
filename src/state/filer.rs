@@ -375,10 +375,7 @@ impl FilerState {
         let mut count = 0;
         let mut disconnected = false;
 
-        loop {
-            if count >= MAX_RECV_PER_FRAME {
-                break;
-            }
+        while count < MAX_RECV_PER_FRAME {
             match rx.try_recv() {
                 Ok(file) => {
                     self.current_dir_files.push(file);
