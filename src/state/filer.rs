@@ -431,9 +431,7 @@ impl FilerState {
 
             while existing.peek().is_some() || incoming.peek().is_some() {
                 let take_existing = match (existing.peek(), incoming.peek()) {
-                    (Some(a), Some(b)) => {
-                        Self::compare_files(a, b, sort_key) != Ordering::Greater
-                    }
+                    (Some(a), Some(b)) => Self::compare_files(a, b, sort_key) != Ordering::Greater,
                     (Some(_), None) => true,
                     _ => false,
                 };
