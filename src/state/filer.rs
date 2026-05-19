@@ -400,10 +400,24 @@ impl FilerState {
         let mut count = 0;
         let mut disconnected = false;
 
+        let sort_key = self.sort_key;
         while count < MAX_RECV_PER_FRAME {
             match rx.try_recv() {
                 Ok(file) => {
-                    self.current_dir_files.push(file);
+                    // ソート順を維持してバイナリサーチ挿入
+                    let pos = self
+                        .current_dir_files
+                        .binary_search_by(|existing| {
+                            Self::compare_files(existing, &file, sort_key)
+                        })
+                        .unwrap_or_else(|pos| pos);
+                    self.current_dir_files.insert(pos, file);
+                    // 挿入位置が選択位置以前なら選択位置を補正
+                    if let Some(selected) = self.file_table_state.selected() {
+                        if pos <= selected {
+                            self.file_table_state.select(Some(selected + 1));
+                        }
+                    }
                     count += 1;
                 }
                 Err(mpsc::TryRecvError::Empty) => break,
@@ -431,10 +445,10 @@ impl FilerState {
         self.load_error.take()
     }
 
-    /// 非同期ロード完了後のソート・選択復元・チェック済みパスのクリーンアップ
+    /// 非同期ロード完了後の選択復元・チェック済みパスのクリーンアップ
+    /// （ファイルは receive_files でソート済み挿入されるためソート不要）
     fn finalize_loaded_files(&mut self) {
         self.prev_dir = None;
-        Self::sort_files(&mut self.current_dir_files, self.sort_key);
 
         // 選択ファイル状態の復元
         if let Some(name) = self.pending_select_name.take() {
@@ -464,16 +478,18 @@ impl FilerState {
         self.dir_load_rx.is_some()
     }
 
+    fn compare_files(a: &VFile, b: &VFile, sort_key: SortKey) -> Ordering {
+        // ディレクトリ優先は常に維持
+        match (a.is_dir(), b.is_dir()) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
+            _ => sort_key.compare(a, b),
+        }
+    }
+
     fn sort_files(files: &mut [VFile], sort_key: SortKey) {
-        files.sort_by(|a, b| {
-            // ディレクトリ優先は常に維持
-            match (a.is_dir(), b.is_dir()) {
-                (true, false) => Ordering::Less,
-                (false, true) => Ordering::Greater,
-                (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
-                _ => sort_key.compare(a, b),
-            }
-        });
+        files.sort_by(|a, b| Self::compare_files(a, b, sort_key));
     }
 
     pub fn jump_to(&mut self, file_path: &str) -> Result<()> {
