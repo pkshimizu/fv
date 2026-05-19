@@ -93,9 +93,14 @@ impl FilerFilter {
             .collect()
     }
 
-    /// フィルタ条件を変更する場合は start_async_load 内のインラインフィルタも同期すること
     fn should_include(&self, file: &VFile) -> bool {
-        self.show_dot_file || file.file_name().is_none_or(|name| !name.starts_with('.'))
+        self.show_dot_file || file.file_name().is_none_or(Self::is_visible_name)
+    }
+
+    /// ファイル名がフィルタ条件（ドットファイル非表示）で可視かどうかを判定する。
+    /// should_include と start_async_load 内で共通利用される。
+    fn is_visible_name(name: &str) -> bool {
+        !name.starts_with('.')
     }
 }
 
@@ -332,10 +337,9 @@ impl FilerState {
                 let Ok(entry) = entry else { continue };
 
                 // ドットファイルフィルタ（VFile構築前に判定して高速化）
-                // FilerFilter::should_include と同等の条件。変更時は両方を同期すること
                 if !show_dot_file {
                     if let Some(name) = entry.file_name().to_str() {
-                        if name.starts_with('.') {
+                        if !FilerFilter::is_visible_name(name) {
                             continue;
                         }
                     }
