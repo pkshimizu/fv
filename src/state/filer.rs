@@ -428,11 +428,13 @@ impl FilerState {
         }
 
         // チェック済みファイルのクリーンアップ
-        self.checked_paths.retain(|path| {
-            self.current_dir_files
-                .iter()
-                .any(|file| file.absolute_path() == path.as_str())
-        });
+        let file_paths: HashSet<&str> = self
+            .current_dir_files
+            .iter()
+            .map(|f| f.absolute_path())
+            .collect();
+        self.checked_paths
+            .retain(|path| file_paths.contains(path.as_str()));
     }
 
     pub fn is_loading(&self) -> bool {
