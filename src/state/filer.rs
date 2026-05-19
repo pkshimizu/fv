@@ -368,8 +368,17 @@ impl FilerState {
                         self.dir_load_rx = None;
                         // エラー時は元のディレクトリに戻して同期リロード
                         if let Some(prev_dir) = self.prev_dir.take() {
-                            let _ = self.load_current_dir_sync(Some(prev_dir));
-                            self.file_table_state.select(Some(0));
+                            if let Err(restore_err) =
+                                self.load_current_dir_sync(Some(prev_dir))
+                            {
+                                if let Some(err) = &mut self.load_error {
+                                    err.push_str(&format!(
+                                        " (restore failed: {restore_err})"
+                                    ));
+                                }
+                            } else {
+                                self.file_table_state.select(Some(0));
+                            }
                         }
                         return;
                     }
