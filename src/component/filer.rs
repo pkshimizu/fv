@@ -1,8 +1,8 @@
 use crate::component::{Action, AttributeComponent, Component, FileInfoComponent};
 use crate::fs::VFile;
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, FilerState, ProgressMessage, PromptMode,
-    SelectAction, SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
+    SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -13,7 +13,6 @@ use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
-use std::sync::mpsc;
 
 use crate::fs::VFileTime;
 use num_format::{Locale, ToFormattedString};
@@ -49,16 +48,17 @@ impl FilerComponent {
         self.state.current_dir.absolute_path()
     }
 
-    pub fn jump_to(&mut self, path: &str) -> Result<mpsc::Receiver<ProgressMessage>> {
-        self.state.jump_to(path)
+    pub fn jump_to(&mut self, path: &str) -> Result<()> {
+        self.state.jump_to(path)?;
+        Ok(())
     }
 
-    pub fn change_to(&mut self, path: &str) -> mpsc::Receiver<ProgressMessage> {
-        self.state.change_to(path)
+    pub fn change_to(&mut self, path: &str) {
+        self.state.change_to(path);
     }
 
-    pub fn refresh_files(&mut self) -> mpsc::Receiver<ProgressMessage> {
-        self.state.refresh_files()
+    pub fn refresh_files(&mut self) {
+        self.state.refresh_files();
     }
 
     pub fn is_loading(&self) -> bool {
@@ -305,11 +305,8 @@ impl FilerComponent {
         };
         if file.is_dir() {
             let path = file.absolute_path().to_string();
-            let rx = self.state.change_to(&path);
-            Ok(Action::StartProgress {
-                message: "Loading...".to_string(),
-                receiver: rx,
-            })
+            self.state.change_to(&path);
+            Ok(Action::None)
         } else {
             Ok(Action::OpenFile(file.absolute_path().to_string()))
         }
@@ -419,14 +416,8 @@ impl Component for FilerComponent {
             }
             KeyCode::Enter => self.enter_file(),
             KeyCode::Backspace => {
-                if let Some(rx) = self.state.change_dir_in_parent_dir() {
-                    Ok(Action::StartProgress {
-                        message: "Loading...".to_string(),
-                        receiver: rx,
-                    })
-                } else {
-                    Ok(Action::None)
-                }
+                self.state.change_dir_in_parent_dir();
+                Ok(Action::None)
             }
             KeyCode::Char('q') => Ok(Action::Quit),
             KeyCode::Char('c') => Ok(self.prompt_copy()),
@@ -447,11 +438,8 @@ impl Component for FilerComponent {
                 Ok(Action::None)
             }
             KeyCode::Char('.') => {
-                let rx = self.state.toggle_show_dot_file();
-                Ok(Action::StartProgress {
-                    message: "Loading...".to_string(),
-                    receiver: rx,
-                })
+                self.state.toggle_show_dot_file();
+                Ok(Action::None)
             }
             KeyCode::Char('+') => {
                 if let Some(file) = self.state.selected_file() {

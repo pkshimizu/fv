@@ -325,9 +325,8 @@ impl FilerState {
                 }
                 count += 1;
                 if count % 100 == 0 {
-                    let _ = progress_tx.send(ProgressMessage::Update(format!(
-                        "Loading... {count} files"
-                    )));
+                    let _ = progress_tx
+                        .send(ProgressMessage::Update(format!("Loading... {count} files")));
                 }
             }
             let _ = progress_tx.send(ProgressMessage::Complete);

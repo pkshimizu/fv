@@ -97,8 +97,7 @@ impl App {
             }
             Action::NavigateTo(path) => {
                 self.ctx.side_panel = None;
-                let rx = self.ctx.filer.jump_to(&path)?;
-                self.ctx.prompt.start_progress("Loading...".to_string(), rx);
+                self.ctx.filer.jump_to(&path)?;
             }
             Action::RemoveBookmark(path) => {
                 self.store.bookmark.remove(&path)?;
@@ -149,9 +148,6 @@ impl App {
                         crate::component::SettingsComponent::new(&startup_dir),
                     ));
                 }
-            }
-            Action::StartProgress { message, receiver } => {
-                self.ctx.prompt.start_progress(message, receiver);
             }
             Action::SaveSettings(startup_dir) => {
                 self.store.settings.set_startup_directory(*startup_dir)?;
