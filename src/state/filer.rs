@@ -358,7 +358,7 @@ impl FilerState {
 
     /// tick ごとにチャネルからファイルを受信する
     pub fn receive_files(&mut self) {
-        // 進捗チャネルからエラーを監視
+        // 進捗チャネルからエラーを監視（Update/Complete は意図的に無視）
         if let Some(progress_rx) = &self.progress_rx {
             while let Ok(msg) = progress_rx.try_recv() {
                 if let ProgressMessage::Error(e) = msg {
