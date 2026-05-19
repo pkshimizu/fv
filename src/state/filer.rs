@@ -1,9 +1,11 @@
 use crate::fs::VFile;
+use crate::state::ProgressMessage;
 use crate::state::table_cursor::TableCursor;
 use anyhow::{Context, Result};
 use ratatui::widgets::TableState;
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::sync::mpsc;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SortKey {
@@ -87,14 +89,15 @@ impl FilerFilter {
     fn apply(&self, files: Vec<VFile>) -> Vec<VFile> {
         files
             .into_iter()
-            .filter(|file| {
-                self.show_dot_file || file.file_name().is_none_or(|name| !name.starts_with('.'))
-            })
+            .filter(|file| self.should_include(file))
             .collect()
+    }
+
+    fn should_include(&self, file: &VFile) -> bool {
+        self.show_dot_file || file.file_name().is_none_or(|name| !name.starts_with('.'))
     }
 }
 
-#[derive(Debug)]
 pub struct FilerState {
     pub current_dir: VFile,
     pub current_dir_files: Vec<VFile>,
@@ -103,6 +106,7 @@ pub struct FilerState {
     pub sort_key: SortKey,
     filter: FilerFilter,
     pending_select_name: Option<String>,
+    dir_load_rx: Option<mpsc::Receiver<VFile>>,
 }
 
 impl FilerState {
@@ -115,6 +119,7 @@ impl FilerState {
             sort_key: SortKey::NameAsc,
             filter: FilerFilter::new(),
             pending_select_name: None,
+            dir_load_rx: None,
         }
     }
 
@@ -128,7 +133,7 @@ impl FilerState {
                 .context("Failed to get initial directory")?
         };
         let current_dir_path = init_dir.to_str().context("Failed to get path string")?;
-        self.load_current_dir(Some(VFile::new(current_dir_path)))?;
+        self.load_current_dir_sync(Some(VFile::new(current_dir_path)))?;
 
         self.file_table_state.select(Some(0));
         Ok(())
@@ -154,54 +159,26 @@ impl FilerState {
         self.cursor().last();
     }
 
-    pub fn change_to(&mut self, path: &str) -> Result<()> {
-        self.load_current_dir(Some(VFile::new(path)))?;
-        self.file_table_state.select(Some(0));
-        Ok(())
+    pub fn change_to(&mut self, path: &str) -> mpsc::Receiver<ProgressMessage> {
+        self.start_async_load(Some(VFile::new(path)))
     }
 
-    pub fn change_dir_in_parent_dir(&mut self) -> Result<()> {
+    pub fn change_dir_in_parent_dir(&mut self) -> Option<mpsc::Receiver<ProgressMessage>> {
         let parent_dir = self.current_dir.parent_dir();
-        if let Some(parent_dir) = parent_dir {
-            self.change_to(parent_dir.absolute_path())?;
-        }
-        Ok(())
+        parent_dir.map(|p| self.start_async_load(Some(p)))
     }
 
     pub fn set_pending_select_name(&mut self, name: String) {
         self.pending_select_name = Some(name);
     }
 
-    pub fn refresh_files(&mut self) -> Result<()> {
+    pub fn refresh_files(&mut self) -> mpsc::Receiver<ProgressMessage> {
         let selected_name = self.pending_select_name.take().or_else(|| {
             self.selected_file()
                 .and_then(|f| f.file_name().map(String::from))
         });
-
-        self.load_current_dir(None)?;
-
-        // 選択ファイル状態の更新
-        if let Some(name) = selected_name {
-            let new_index = self
-                .current_dir_files
-                .iter()
-                .position(|f| f.file_name().unwrap_or_default() == name)
-                .unwrap_or(0);
-            self.file_table_state.select(Some(
-                new_index.min(self.current_dir_files.len().saturating_sub(1)),
-            ));
-        } else {
-            self.file_table_state.select(Some(0));
-        }
-
-        // チェック済みファイルの更新
-        self.checked_paths.retain(|path| {
-            self.current_dir_files
-                .iter()
-                .any(|file| file.absolute_path() == path.as_str())
-        });
-
-        Ok(())
+        self.pending_select_name = selected_name;
+        self.start_async_load(None)
     }
 
     pub fn selected_file(&self) -> Option<&VFile> {
@@ -228,7 +205,7 @@ impl FilerState {
         }
     }
 
-    pub fn toggle_show_dot_file(&mut self) -> Result<()> {
+    pub fn toggle_show_dot_file(&mut self) -> mpsc::Receiver<ProgressMessage> {
         self.filter.show_dot_file = !self.filter.show_dot_file;
         self.refresh_files()
     }
@@ -278,24 +255,15 @@ impl FilerState {
         None
     }
 
-    fn load_current_dir(&mut self, current_dir: Option<VFile>) -> Result<()> {
+    /// 起動時の同期ロード（init 専用）
+    fn load_current_dir_sync(&mut self, current_dir: Option<VFile>) -> Result<()> {
         let mut files = if let Some(current_dir) = &current_dir {
             current_dir.list()?
         } else {
             self.current_dir.list()?
         };
         files = self.filter.apply(files);
-
-        let sort_key = self.sort_key;
-        files.sort_by(|a, b| {
-            // ディレクトリ優先は常に維持
-            match (a.is_dir(), b.is_dir()) {
-                (true, false) => Ordering::Less,
-                (false, true) => Ordering::Greater,
-                (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
-                _ => sort_key.compare(a, b),
-            }
-        });
+        Self::sort_files(&mut files, self.sort_key);
 
         if let Some(current_dir) = current_dir {
             self.current_dir = current_dir;
@@ -305,17 +273,158 @@ impl FilerState {
         Ok(())
     }
 
-    pub fn jump_to(&mut self, file_path: &str) -> Result<()> {
+    /// ディレクトリ走査を別スレッドで実行し、結果をmpscチャネルで受信する。
+    /// 進捗表示用の Receiver を返す。
+    fn start_async_load(&mut self, new_dir: Option<VFile>) -> mpsc::Receiver<ProgressMessage> {
+        // 既存のロードをキャンセル
+        self.dir_load_rx = None;
+
+        if let Some(new_dir) = new_dir {
+            self.current_dir = new_dir;
+        }
+
+        self.current_dir_files.clear();
+        self.file_table_state.select(None);
+
+        let (file_tx, file_rx) = mpsc::channel::<VFile>();
+        let (progress_tx, progress_rx) = mpsc::channel::<ProgressMessage>();
+
+        self.dir_load_rx = Some(file_rx);
+
+        let dir_path = self.current_dir.absolute_path().to_string();
+        let show_dot_file = self.filter.show_dot_file;
+
+        std::thread::spawn(move || {
+            let entries = match std::fs::read_dir(&dir_path) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    let _ = progress_tx.send(ProgressMessage::Error(format!("{e}")));
+                    return;
+                }
+            };
+
+            let mut count = 0u64;
+            for entry in entries {
+                let Ok(entry) = entry else { continue };
+
+                // ドットファイルフィルタ（VFile構築前に判定して高速化）
+                if !show_dot_file {
+                    if let Some(name) = entry.file_name().to_str() {
+                        if name.starts_with('.') {
+                            continue;
+                        }
+                    }
+                }
+
+                let Some(path_str) = entry.path().to_str().map(String::from) else {
+                    continue;
+                };
+                let vfile = VFile::new(path_str);
+                if file_tx.send(vfile).is_err() {
+                    return; // キャンセルされた
+                }
+                count += 1;
+                if count % 100 == 0 {
+                    let _ = progress_tx.send(ProgressMessage::Update(format!(
+                        "Loading... {count} files"
+                    )));
+                }
+            }
+            let _ = progress_tx.send(ProgressMessage::Complete);
+        });
+
+        progress_rx
+    }
+
+    /// tick ごとにチャネルからファイルを受信する
+    pub fn receive_files(&mut self) {
+        let Some(rx) = &self.dir_load_rx else {
+            return;
+        };
+
+        const MAX_RECV_PER_FRAME: usize = 200;
+        let mut count = 0;
+        let mut disconnected = false;
+
+        loop {
+            if count >= MAX_RECV_PER_FRAME {
+                break;
+            }
+            match rx.try_recv() {
+                Ok(file) => {
+                    self.current_dir_files.push(file);
+                    count += 1;
+                }
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    disconnected = true;
+                    break;
+                }
+            }
+        }
+
+        if disconnected {
+            self.dir_load_rx = None;
+            self.finalize_loaded_files();
+        } else if count > 0
+            && self.file_table_state.selected().is_none()
+            && !self.current_dir_files.is_empty()
+        {
+            self.file_table_state.select(Some(0));
+        }
+    }
+
+    /// 非同期ロード完了後のソート・選択復元・チェック済みパスのクリーンアップ
+    fn finalize_loaded_files(&mut self) {
+        Self::sort_files(&mut self.current_dir_files, self.sort_key);
+
+        // 選択ファイル状態の復元
+        if let Some(name) = self.pending_select_name.take() {
+            let new_index = self
+                .current_dir_files
+                .iter()
+                .position(|f| f.file_name().unwrap_or_default() == name)
+                .unwrap_or(0);
+            self.file_table_state.select(Some(
+                new_index.min(self.current_dir_files.len().saturating_sub(1)),
+            ));
+        } else if !self.current_dir_files.is_empty() {
+            self.file_table_state.select(Some(0));
+        }
+
+        // チェック済みファイルのクリーンアップ
+        self.checked_paths.retain(|path| {
+            self.current_dir_files
+                .iter()
+                .any(|file| file.absolute_path() == path.as_str())
+        });
+    }
+
+    pub fn is_loading(&self) -> bool {
+        self.dir_load_rx.is_some()
+    }
+
+    fn sort_files(files: &mut [VFile], sort_key: SortKey) {
+        files.sort_by(|a, b| {
+            // ディレクトリ優先は常に維持
+            match (a.is_dir(), b.is_dir()) {
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
+                _ => sort_key.compare(a, b),
+            }
+        });
+    }
+
+    pub fn jump_to(&mut self, file_path: &str) -> Result<mpsc::Receiver<ProgressMessage>> {
         let path = std::path::Path::new(file_path);
         let parent = path
             .parent()
             .and_then(|p| p.to_str())
             .context("Invalid path")?;
-        self.change_to(parent)?;
         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            self.set_pending_select_name(name.to_string());
-            self.refresh_files()?;
+            self.pending_select_name = Some(name.to_string());
         }
-        Ok(())
+        Ok(self.change_to(parent))
     }
 }

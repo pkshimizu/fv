@@ -47,7 +47,6 @@ impl PromptComponent {
 
     /// 非同期処理の進捗表示を開始する。
     /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
-    #[allow(dead_code)]
     pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
         self.mode = PromptMode::Progress { message };
         self.progress = Some(receiver);
@@ -540,7 +539,9 @@ fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) ->
         FileAction::Jump => {
             let path = Path::new(value);
             anyhow::ensure!(path.is_dir(), "{value} はディレクトリではありません");
-            ctx.filer.change_to(value)
+            let rx = ctx.filer.change_to(value);
+            ctx.prompt.start_progress("Loading...".to_string(), rx);
+            Ok(())
         }
     }
 }
@@ -554,7 +555,8 @@ fn execute_select_action(
         SelectAction::Sort => {
             if let Some(&sort_key) = SortKey::ALL.get(selected_index) {
                 ctx.filer.set_sort_key(sort_key);
-                ctx.filer.refresh_files()?;
+                let rx = ctx.filer.refresh_files();
+                ctx.prompt.start_progress("Loading...".to_string(), rx);
             }
             Ok(())
         }

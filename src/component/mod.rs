@@ -14,12 +14,13 @@ pub use grep::GrepComponent;
 pub use prompt::PromptComponent;
 pub use settings::SettingsComponent;
 
-use crate::state::{PromptMode, SidePanel};
+use crate::state::{ProgressMessage, PromptMode, SidePanel};
 use crate::store::StartupDirectory;
 use anyhow::Result;
 pub use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use std::sync::mpsc;
 
 /// アプリ全体に影響するアクション。
 /// コンポーネントの `handle_event` が返し、App のメインループで処理する。
@@ -63,6 +64,11 @@ pub enum Action {
     SearchPrev(String),
     /// インクリメンタル検索（入力値変更時）
     SearchUpdate(String),
+    /// 非同期処理の進捗表示を開始する
+    StartProgress {
+        message: String,
+        receiver: mpsc::Receiver<ProgressMessage>,
+    },
 }
 
 /// コンポーネントの共通インターフェース。

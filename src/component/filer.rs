@@ -1,8 +1,8 @@
 use crate::component::{Action, AttributeComponent, Component, FileInfoComponent};
 use crate::fs::VFile;
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, FilerState, ProgressMessage, PromptMode,
+    SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -13,6 +13,7 @@ use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
+use std::sync::mpsc;
 
 use crate::fs::VFileTime;
 use num_format::{Locale, ToFormattedString};
@@ -48,16 +49,20 @@ impl FilerComponent {
         self.state.current_dir.absolute_path()
     }
 
-    pub fn jump_to(&mut self, path: &str) -> Result<()> {
+    pub fn jump_to(&mut self, path: &str) -> Result<mpsc::Receiver<ProgressMessage>> {
         self.state.jump_to(path)
     }
 
-    pub fn change_to(&mut self, path: &str) -> Result<()> {
+    pub fn change_to(&mut self, path: &str) -> mpsc::Receiver<ProgressMessage> {
         self.state.change_to(path)
     }
 
-    pub fn refresh_files(&mut self) -> Result<()> {
+    pub fn refresh_files(&mut self) -> mpsc::Receiver<ProgressMessage> {
         self.state.refresh_files()
+    }
+
+    pub fn is_loading(&self) -> bool {
+        self.state.is_loading()
     }
 
     pub fn select_matching_file(&mut self, value: &str) {
@@ -300,8 +305,11 @@ impl FilerComponent {
         };
         if file.is_dir() {
             let path = file.absolute_path().to_string();
-            self.state.change_to(&path)?;
-            Ok(Action::None)
+            let rx = self.state.change_to(&path);
+            Ok(Action::StartProgress {
+                message: "Loading...".to_string(),
+                receiver: rx,
+            })
         } else {
             Ok(Action::OpenFile(file.absolute_path().to_string()))
         }
@@ -387,6 +395,10 @@ impl FilerComponent {
 }
 
 impl Component for FilerComponent {
+    fn tick(&mut self) {
+        self.state.receive_files();
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Up => {
@@ -407,8 +419,14 @@ impl Component for FilerComponent {
             }
             KeyCode::Enter => self.enter_file(),
             KeyCode::Backspace => {
-                self.state.change_dir_in_parent_dir()?;
-                Ok(Action::None)
+                if let Some(rx) = self.state.change_dir_in_parent_dir() {
+                    Ok(Action::StartProgress {
+                        message: "Loading...".to_string(),
+                        receiver: rx,
+                    })
+                } else {
+                    Ok(Action::None)
+                }
             }
             KeyCode::Char('q') => Ok(Action::Quit),
             KeyCode::Char('c') => Ok(self.prompt_copy()),
@@ -429,8 +447,11 @@ impl Component for FilerComponent {
                 Ok(Action::None)
             }
             KeyCode::Char('.') => {
-                self.state.toggle_show_dot_file()?;
-                Ok(Action::None)
+                let rx = self.state.toggle_show_dot_file();
+                Ok(Action::StartProgress {
+                    message: "Loading...".to_string(),
+                    receiver: rx,
+                })
             }
             KeyCode::Char('+') => {
                 if let Some(file) = self.state.selected_file() {
@@ -459,7 +480,15 @@ impl FilerComponent {
     /// Store を参照してファイルテーブルを描画する
     pub fn render_with_store(&mut self, frame: &mut Frame, area: Rect, store: &RootStore) {
         let list_size = self.state.current_dir_files.len();
-        let title = format!("{} ({})", self.state.current_dir.absolute_path(), list_size);
+        let title = if self.state.is_loading() {
+            format!(
+                "{} ({}) Loading...",
+                self.state.current_dir.absolute_path(),
+                list_size
+            )
+        } else {
+            format!("{} ({})", self.state.current_dir.absolute_path(), list_size)
+        };
         let border_style = if self.active {
             BorderStyle::Active
         } else {

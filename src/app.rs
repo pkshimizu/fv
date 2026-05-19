@@ -97,7 +97,8 @@ impl App {
             }
             Action::NavigateTo(path) => {
                 self.ctx.side_panel = None;
-                self.ctx.filer.jump_to(&path)?;
+                let rx = self.ctx.filer.jump_to(&path)?;
+                self.ctx.prompt.start_progress("Loading...".to_string(), rx);
             }
             Action::RemoveBookmark(path) => {
                 self.store.bookmark.remove(&path)?;
@@ -149,6 +150,9 @@ impl App {
                     ));
                 }
             }
+            Action::StartProgress { message, receiver } => {
+                self.ctx.prompt.start_progress(message, receiver);
+            }
             Action::SaveSettings(startup_dir) => {
                 self.store.settings.set_startup_directory(*startup_dir)?;
                 self.ctx.side_panel = None;
@@ -179,8 +183,8 @@ impl App {
                     }
                 }
                 InputEvent::FileChange => {
-                    if let Err(e) = self.ctx.filer.refresh_files() {
-                        self.set_error(format!("{e}"));
+                    if !self.ctx.filer.is_loading() {
+                        self.ctx.filer.refresh_files();
                     }
                 }
                 InputEvent::None => {}
