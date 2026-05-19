@@ -397,15 +397,12 @@ impl FilerState {
         };
 
         const MAX_RECV_PER_FRAME: usize = 200;
-        let mut count = 0;
+        let mut batch: Vec<VFile> = Vec::new();
         let mut disconnected = false;
 
-        while count < MAX_RECV_PER_FRAME {
+        while batch.len() < MAX_RECV_PER_FRAME {
             match rx.try_recv() {
-                Ok(file) => {
-                    self.current_dir_files.push(file);
-                    count += 1;
-                }
+                Ok(file) => batch.push(file),
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => {
                     disconnected = true;
@@ -414,15 +411,58 @@ impl FilerState {
             }
         }
 
+        // バッチをソートして既存リストとマージ（O(k log k + n)）
+        if !batch.is_empty() {
+            let sort_key = self.sort_key;
+            Self::sort_files(&mut batch, sort_key);
+
+            // 選択位置の補正: マージ前の選択ファイル名を記録
+            let selected_name = self
+                .file_table_state
+                .selected()
+                .and_then(|i| self.current_dir_files.get(i))
+                .and_then(|f| f.file_name().map(String::from));
+
+            // ソート済み同士のマージ
+            let existing_files = std::mem::take(&mut self.current_dir_files);
+            let mut merged = Vec::with_capacity(existing_files.len() + batch.len());
+            let mut existing = existing_files.into_iter().peekable();
+            let mut incoming = batch.into_iter().peekable();
+
+            while existing.peek().is_some() || incoming.peek().is_some() {
+                let take_existing = match (existing.peek(), incoming.peek()) {
+                    (Some(a), Some(b)) => Self::compare_files(a, b, sort_key) != Ordering::Greater,
+                    (Some(_), None) => true,
+                    _ => false,
+                };
+                if take_existing {
+                    merged.push(existing.next().unwrap());
+                } else {
+                    merged.push(incoming.next().unwrap());
+                }
+            }
+            self.current_dir_files = merged;
+
+            // 選択位置の復元
+            if let Some(name) = selected_name {
+                if let Some(idx) = self
+                    .current_dir_files
+                    .iter()
+                    .position(|f| f.file_name().unwrap_or_default() == name)
+                {
+                    self.file_table_state.select(Some(idx));
+                }
+            } else if self.file_table_state.selected().is_none()
+                && !self.current_dir_files.is_empty()
+            {
+                self.file_table_state.select(Some(0));
+            }
+        }
+
         if disconnected {
             self.dir_load_rx = None;
             self.progress_rx = None;
             self.finalize_loaded_files();
-        } else if count > 0
-            && self.file_table_state.selected().is_none()
-            && !self.current_dir_files.is_empty()
-        {
-            self.file_table_state.select(Some(0));
         }
     }
 
@@ -431,10 +471,10 @@ impl FilerState {
         self.load_error.take()
     }
 
-    /// 非同期ロード完了後のソート・選択復元・チェック済みパスのクリーンアップ
+    /// 非同期ロード完了後の選択復元・チェック済みパスのクリーンアップ
+    /// （ファイルは receive_files でソート済み挿入されるためソート不要）
     fn finalize_loaded_files(&mut self) {
         self.prev_dir = None;
-        Self::sort_files(&mut self.current_dir_files, self.sort_key);
 
         // 選択ファイル状態の復元
         if let Some(name) = self.pending_select_name.take() {
@@ -464,16 +504,20 @@ impl FilerState {
         self.dir_load_rx.is_some()
     }
 
+    fn compare_files(a: &VFile, b: &VFile, sort_key: SortKey) -> Ordering {
+        // ディレクトリ優先は常に維持
+        let ord = match (a.is_dir(), b.is_dir()) {
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
+            _ => sort_key.compare(a, b),
+        };
+        // 同値の場合はファイル名で安定化
+        ord.then_with(|| a.file_name().cmp(&b.file_name()))
+    }
+
     fn sort_files(files: &mut [VFile], sort_key: SortKey) {
-        files.sort_by(|a, b| {
-            // ディレクトリ優先は常に維持
-            match (a.is_dir(), b.is_dir()) {
-                (true, false) => Ordering::Less,
-                (false, true) => Ordering::Greater,
-                (true, true) if !sort_key.is_apply_for_dirs() => a.file_name().cmp(&b.file_name()),
-                _ => sort_key.compare(a, b),
-            }
-        });
+        files.sort_by(|a, b| Self::compare_files(a, b, sort_key));
     }
 
     pub fn jump_to(&mut self, file_path: &str) -> Result<()> {
