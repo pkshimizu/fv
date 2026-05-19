@@ -107,6 +107,8 @@ pub struct FilerState {
     filter: FilerFilter,
     pending_select_name: Option<String>,
     dir_load_rx: Option<mpsc::Receiver<VFile>>,
+    progress_rx: Option<mpsc::Receiver<ProgressMessage>>,
+    load_error: Option<String>,
 }
 
 impl FilerState {
@@ -120,6 +122,8 @@ impl FilerState {
             filter: FilerFilter::new(),
             pending_select_name: None,
             dir_load_rx: None,
+            progress_rx: None,
+            load_error: None,
         }
     }
 
@@ -159,26 +163,27 @@ impl FilerState {
         self.cursor().last();
     }
 
-    pub fn change_to(&mut self, path: &str) -> mpsc::Receiver<ProgressMessage> {
-        self.start_async_load(Some(VFile::new(path)))
+    pub fn change_to(&mut self, path: &str) {
+        self.start_async_load(Some(VFile::new(path)));
     }
 
-    pub fn change_dir_in_parent_dir(&mut self) -> Option<mpsc::Receiver<ProgressMessage>> {
-        let parent_dir = self.current_dir.parent_dir();
-        parent_dir.map(|p| self.start_async_load(Some(p)))
+    pub fn change_dir_in_parent_dir(&mut self) {
+        if let Some(parent_dir) = self.current_dir.parent_dir() {
+            self.start_async_load(Some(parent_dir));
+        }
     }
 
     pub fn set_pending_select_name(&mut self, name: String) {
         self.pending_select_name = Some(name);
     }
 
-    pub fn refresh_files(&mut self) -> mpsc::Receiver<ProgressMessage> {
+    pub fn refresh_files(&mut self) {
         let selected_name = self.pending_select_name.take().or_else(|| {
             self.selected_file()
                 .and_then(|f| f.file_name().map(String::from))
         });
         self.pending_select_name = selected_name;
-        self.start_async_load(None)
+        self.start_async_load(None);
     }
 
     pub fn selected_file(&self) -> Option<&VFile> {
@@ -205,9 +210,9 @@ impl FilerState {
         }
     }
 
-    pub fn toggle_show_dot_file(&mut self) -> mpsc::Receiver<ProgressMessage> {
+    pub fn toggle_show_dot_file(&mut self) {
         self.filter.show_dot_file = !self.filter.show_dot_file;
-        self.refresh_files()
+        self.refresh_files();
     }
 
     pub fn select_matching_file(&mut self, query: &str) {
@@ -274,10 +279,11 @@ impl FilerState {
     }
 
     /// ディレクトリ走査を別スレッドで実行し、結果をmpscチャネルで受信する。
-    /// 進捗表示用の Receiver を返す。
-    fn start_async_load(&mut self, new_dir: Option<VFile>) -> mpsc::Receiver<ProgressMessage> {
+    fn start_async_load(&mut self, new_dir: Option<VFile>) {
         // 既存のロードをキャンセル
         self.dir_load_rx = None;
+        self.progress_rx = None;
+        self.load_error = None;
 
         if let Some(new_dir) = new_dir {
             self.current_dir = new_dir;
@@ -290,6 +296,7 @@ impl FilerState {
         let (progress_tx, progress_rx) = mpsc::channel::<ProgressMessage>();
 
         self.dir_load_rx = Some(file_rx);
+        self.progress_rx = Some(progress_rx);
 
         let dir_path = self.current_dir.absolute_path().to_string();
         let show_dot_file = self.filter.show_dot_file;
@@ -331,12 +338,22 @@ impl FilerState {
             }
             let _ = progress_tx.send(ProgressMessage::Complete);
         });
-
-        progress_rx
     }
 
     /// tick ごとにチャネルからファイルを受信する
     pub fn receive_files(&mut self) {
+        // 進捗チャネルからエラーを監視
+        if let Some(progress_rx) = &self.progress_rx {
+            while let Ok(msg) = progress_rx.try_recv() {
+                if let ProgressMessage::Error(e) = msg {
+                    self.load_error = Some(e);
+                    self.progress_rx = None;
+                    self.dir_load_rx = None;
+                    return;
+                }
+            }
+        }
+
         let Some(rx) = &self.dir_load_rx else {
             return;
         };
@@ -364,6 +381,7 @@ impl FilerState {
 
         if disconnected {
             self.dir_load_rx = None;
+            self.progress_rx = None;
             self.finalize_loaded_files();
         } else if count > 0
             && self.file_table_state.selected().is_none()
@@ -371,6 +389,11 @@ impl FilerState {
         {
             self.file_table_state.select(Some(0));
         }
+    }
+
+    /// 非同期ロードのエラーを取り出す
+    pub fn take_error(&mut self) -> Option<String> {
+        self.load_error.take()
     }
 
     /// 非同期ロード完了後のソート・選択復元・チェック済みパスのクリーンアップ
@@ -415,7 +438,7 @@ impl FilerState {
         });
     }
 
-    pub fn jump_to(&mut self, file_path: &str) -> Result<mpsc::Receiver<ProgressMessage>> {
+    pub fn jump_to(&mut self, file_path: &str) -> Result<()> {
         let path = std::path::Path::new(file_path);
         let parent = path
             .parent()
@@ -424,6 +447,7 @@ impl FilerState {
         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
             self.pending_select_name = Some(name.to_string());
         }
-        Ok(self.change_to(parent))
+        self.change_to(parent);
+        Ok(())
     }
 }

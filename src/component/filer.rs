@@ -49,8 +49,7 @@ impl FilerComponent {
     }
 
     pub fn jump_to(&mut self, path: &str) -> Result<()> {
-        self.state.jump_to(path)?;
-        Ok(())
+        self.state.jump_to(path)
     }
 
     pub fn change_to(&mut self, path: &str) {
@@ -63,6 +62,10 @@ impl FilerComponent {
 
     pub fn is_loading(&self) -> bool {
         self.state.is_loading()
+    }
+
+    pub fn take_error(&mut self) -> Option<String> {
+        self.state.take_error()
     }
 
     pub fn select_matching_file(&mut self, value: &str) {

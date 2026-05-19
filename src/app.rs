@@ -189,6 +189,11 @@ impl App {
             // コンポーネントのtick処理（非同期結果の受信等）
             self.ctx.tick();
 
+            // 非同期ロードのエラーを検知して表示
+            if let Some(error) = self.ctx.filer.take_error() {
+                self.set_error(error);
+            }
+
             // Filer のアクティブ状態を更新
             self.ctx
                 .filer
