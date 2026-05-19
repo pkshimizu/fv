@@ -353,12 +353,20 @@ impl FilerState {
     pub fn receive_files(&mut self) {
         // 進捗チャネルからエラーを監視（Update/Complete は意図的に無視）
         if let Some(progress_rx) = &self.progress_rx {
-            while let Ok(msg) = progress_rx.try_recv() {
-                if let ProgressMessage::Error(e) = msg {
-                    self.load_error = Some(e);
-                    self.progress_rx = None;
-                    self.dir_load_rx = None;
-                    return;
+            loop {
+                match progress_rx.try_recv() {
+                    Ok(ProgressMessage::Error(e)) => {
+                        self.load_error = Some(e);
+                        self.progress_rx = None;
+                        self.dir_load_rx = None;
+                        return;
+                    }
+                    Ok(_) => {} // Update/Complete は無視
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        self.progress_rx = None;
+                        break;
+                    }
                 }
             }
         }
