@@ -306,10 +306,9 @@ impl FilerState {
         self.progress_rx = None;
         self.load_error = None;
 
+        self.prev_dir = Some(self.current_dir.clone());
         if let Some(new_dir) = new_dir {
-            self.prev_dir = Some(std::mem::replace(&mut self.current_dir, new_dir));
-        } else {
-            self.prev_dir = None;
+            self.current_dir = new_dir;
         }
 
         self.current_dir_files.clear();
