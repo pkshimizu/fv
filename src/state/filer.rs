@@ -324,8 +324,8 @@ impl FilerState {
                 }
             };
 
-            const PROGRESS_NOTIFY_INTERVAL: u64 = 100;
-            let mut count = 0u64;
+            const PROGRESS_NOTIFY_INTERVAL: usize = 100;
+            let mut count: usize = 0;
             for entry in entries {
                 let Ok(entry) = entry else { continue };
 
