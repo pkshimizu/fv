@@ -111,6 +111,19 @@ pub struct FilerState {
     load_error: Option<String>,
 }
 
+impl std::fmt::Debug for FilerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FilerState")
+            .field("current_dir", &self.current_dir)
+            .field("current_dir_files", &self.current_dir_files.len())
+            .field("sort_key", &self.sort_key)
+            .field("pending_select_name", &self.pending_select_name)
+            .field("is_loading", &self.dir_load_rx.is_some())
+            .field("load_error", &self.load_error)
+            .finish()
+    }
+}
+
 impl FilerState {
     pub fn new() -> Self {
         Self {
