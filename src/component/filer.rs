@@ -1,4 +1,6 @@
-use crate::component::{Action, AttributeComponent, Component, FileInfoComponent, TreeComponent};
+use crate::component::{
+    Action, AttributeComponent, Component, FileInfoComponent, PreviewComponent, TreeComponent,
+};
 use crate::fs::VFile;
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
@@ -382,6 +384,23 @@ impl FilerComponent {
         )))
     }
 
+    fn show_preview(&self) -> Result<Action> {
+        let Some(file) = self.state.selected_file() else {
+            return Ok(Action::None);
+        };
+        if file.is_dir() {
+            return Ok(Action::None);
+        }
+        let path = file.absolute_path();
+        let file_name = file.file_name().unwrap_or("(unknown)");
+        match PreviewComponent::new(path, file_name) {
+            Ok(component) => Ok(Action::ShowSidePanel(SidePanel::Preview(component))),
+            Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
+                message: e.to_string(),
+            }))),
+        }
+    }
+
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {
         let files = &self.state.current_dir_files;
         let rows: Vec<Row> = files
@@ -513,6 +532,7 @@ impl Component for FilerComponent {
             KeyCode::Char('i') => self.show_file_info(),
             KeyCode::Char('o') => Ok(Action::ShowSettings),
             KeyCode::Char('t') => Ok(self.show_tree()),
+            KeyCode::Char('v') => self.show_preview(),
             _ => Ok(Action::None),
         }
     }
