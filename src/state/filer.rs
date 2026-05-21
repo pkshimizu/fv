@@ -231,6 +231,10 @@ impl FilerState {
         }
     }
 
+    pub fn show_dot_file(&self) -> bool {
+        self.filter.show_dot_file
+    }
+
     pub fn toggle_show_dot_file(&mut self) {
         self.filter.show_dot_file = !self.filter.show_dot_file;
         self.refresh_files();

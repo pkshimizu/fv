@@ -1,4 +1,4 @@
-use crate::component::{Action, AttributeComponent, Component, FileInfoComponent};
+use crate::component::{Action, AttributeComponent, Component, FileInfoComponent, TreeComponent};
 use crate::fs::VFile;
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
@@ -333,6 +333,19 @@ impl FilerComponent {
         )))
     }
 
+    fn show_tree(&self) -> Action {
+        let current_path = if let Some(file) = self.state.selected_file() {
+            file.absolute_path().to_string()
+        } else {
+            self.state.current_dir.absolute_path().to_string()
+        };
+        let show_dot_file = self.state.show_dot_file();
+        Action::ShowSidePanel(SidePanel::Tree(TreeComponent::new(
+            &current_path,
+            show_dot_file,
+        )))
+    }
+
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {
         let files = &self.state.current_dir_files;
         let rows: Vec<Row> = files
@@ -462,6 +475,7 @@ impl Component for FilerComponent {
             KeyCode::Char('b') => Ok(Action::ShowBookmark),
             KeyCode::Char('i') => self.show_file_info(),
             KeyCode::Char('o') => Ok(Action::ShowSettings),
+            KeyCode::Char('t') => Ok(self.show_tree()),
             _ => Ok(Action::None),
         }
     }
