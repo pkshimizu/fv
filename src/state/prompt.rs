@@ -20,6 +20,7 @@ pub enum TextAction {
     Touch { dir: VFile },
     Rename { file: VFile },
     Zip { dir: VFile, files: Vec<VFile> },
+    Unzip { file: VFile, dir: VFile },
     Grep,
 }
 
@@ -54,7 +55,7 @@ pub enum PromptMode {
         title: String,
         value: String,
         cursor: usize,
-        action: TextAction,
+        action: Box<TextAction>,
     },
     File {
         title: String,

@@ -182,7 +182,7 @@ impl FilerComponent {
                 title,
                 value: String::new(),
                 cursor: 0,
-                action: TextAction::Mkdir { dir },
+                action: Box::new(TextAction::Mkdir { dir }),
             }))
         } else {
             Action::None
@@ -197,7 +197,7 @@ impl FilerComponent {
                 title,
                 value: String::new(),
                 cursor: 0,
-                action: TextAction::Touch { dir },
+                action: Box::new(TextAction::Touch { dir }),
             }))
         } else {
             Action::None
@@ -234,7 +234,43 @@ impl FilerComponent {
             title,
             value,
             cursor,
-            action: TextAction::Zip { dir, files },
+            action: Box::new(TextAction::Zip { dir, files }),
+        }))
+    }
+
+    fn prompt_unzip(&self) -> Action {
+        let Some(file) = self.state.selected_file() else {
+            return Action::None;
+        };
+        let Some(file_name) = file.file_name() else {
+            return Action::None;
+        };
+        // 圧縮ファイルかどうかを拡張子で判定
+        let path = Path::new(file_name);
+        let is_archive = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"));
+        if !is_archive {
+            return Action::SetPromptMode(Box::new(PromptMode::Error {
+                message: format!("{file_name} is not a zip file"),
+            }));
+        }
+        let dir = self.state.current_dir.clone();
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "extracted".to_string());
+        let title = format!("Unzip {file_name} to");
+        let cursor = stem.chars().count();
+        Action::SetPromptMode(Box::new(PromptMode::Text {
+            title,
+            value: stem,
+            cursor,
+            action: Box::new(TextAction::Unzip {
+                file: file.clone(),
+                dir,
+            }),
         }))
     }
 
@@ -252,9 +288,9 @@ impl FilerComponent {
             title,
             value,
             cursor,
-            action: TextAction::Rename {
+            action: Box::new(TextAction::Rename {
                 file: selected_file.clone(),
-            },
+            }),
         }))
     }
 
@@ -284,7 +320,7 @@ impl FilerComponent {
             title: "Grep".to_string(),
             value: String::new(),
             cursor: 0,
-            action: TextAction::Grep,
+            action: Box::new(TextAction::Grep),
         }))
     }
 
@@ -441,6 +477,7 @@ impl Component for FilerComponent {
             KeyCode::Char('k') => Ok(self.prompt_mkdir()),
             KeyCode::Char('n') => Ok(self.prompt_touch()),
             KeyCode::Char('p') => Ok(self.prompt_zip()),
+            KeyCode::Char('u') => Ok(self.prompt_unzip()),
             KeyCode::Char('m') => Ok(self.prompt_move()),
             KeyCode::Char('r') => Ok(self.prompt_rename()),
             KeyCode::Char('s') => Ok(self.prompt_sort()),
