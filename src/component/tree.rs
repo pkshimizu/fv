@@ -78,7 +78,7 @@ impl Component for TreeComponent {
 
         let table = Table::new(rows, [Constraint::Fill(1)])
             .block(block)
-            .highlight_symbol("+ ")
+            .highlight_symbol("> ")
             .row_highlight_style(Style::default().add_modifier(Modifier::UNDERLINED));
         frame.render_stateful_widget(table, area, &mut self.state.table_state);
     }
