@@ -533,7 +533,6 @@ fn execute_text_action(
                 .with_context(|| format!("{}: Failed to create directory", dest_path.display()))?;
             let dest_str = dest_path.to_str().context("Invalid path")?;
             file.extract_zip(dest_str)?;
-            ctx.filer.change_to(dest_str);
             Ok(())
         }
         TextAction::Grep => execute_grep(ctx, store, value),
