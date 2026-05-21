@@ -476,7 +476,7 @@ pub fn execute_prompt_action(
     match input {
         PromptMode::Confirm { action, .. } => execute_confirm_action(action),
         PromptMode::Text { action, value, .. } => {
-            execute_text_action(ctx, store, action, value.as_str())
+            execute_text_action(ctx, store, *action, value.as_str())
         }
         PromptMode::File { action, value, .. } => execute_file_action(ctx, action, value.as_str()),
         PromptMode::Select {
@@ -521,6 +521,21 @@ fn execute_text_action(
             Ok(())
         }
         TextAction::Zip { dir, files } => dir.create_zip(value, &files),
+        TextAction::Unzip { file, dir } => {
+            anyhow::ensure!(
+                std::path::Path::new(value)
+                    .components()
+                    .all(|c| matches!(c, std::path::Component::Normal(_))),
+                "{value}: Invalid directory name"
+            );
+            let dest_path = std::path::Path::new(dir.absolute_path()).join(value);
+            std::fs::create_dir_all(&dest_path)
+                .with_context(|| format!("{}: Failed to create directory", dest_path.display()))?;
+            let dest_str = dest_path.to_str().context("Invalid path")?;
+            file.extract_zip(dest_str)?;
+            ctx.filer.change_to(dest_str);
+            Ok(())
+        }
         TextAction::Grep => execute_grep(ctx, store, value),
     }
 }

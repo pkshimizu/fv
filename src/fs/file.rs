@@ -153,6 +153,36 @@ impl VFile {
         result
     }
 
+    pub fn extract_zip(&self, dest_dir: &str) -> Result<()> {
+        let zip_file = std::fs::File::open(self.absolute_path())
+            .with_context(|| format!("{}: Failed to open zip file", self.path))?;
+        let mut archive = zip::ZipArchive::new(zip_file)
+            .with_context(|| format!("{}: Failed to read zip archive", self.path))?;
+        let dest = Path::new(dest_dir);
+        for i in 0..archive.len() {
+            let mut entry = archive
+                .by_index(i)
+                .with_context(|| format!("{}: Failed to read zip entry", self.path))?;
+            let Some(enclosed_name) = entry.enclosed_name() else {
+                continue;
+            };
+            let out_path = dest.join(enclosed_name);
+            if entry.is_dir() {
+                std::fs::create_dir_all(&out_path).with_context(|| {
+                    format!("{}: Failed to create directory", out_path.display())
+                })?;
+            } else if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("{}: Failed to create directory", parent.display()))?;
+                let mut out_file = std::fs::File::create(&out_path)
+                    .with_context(|| format!("{}: Failed to create file", out_path.display()))?;
+                std::io::copy(&mut entry, &mut out_file)
+                    .with_context(|| format!("{}: Failed to extract file", out_path.display()))?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn delete(&self) -> Result<()> {
         let path = self.absolute_path();
         trash::delete(path).with_context(|| format!("{}: Failed to trash", self.path))?;
