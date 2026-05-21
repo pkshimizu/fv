@@ -5,6 +5,7 @@ mod filer;
 mod grep;
 pub mod prompt;
 mod settings;
+mod tree;
 
 pub use attribute::AttributeComponent;
 pub use bookmark::BookmarkComponent;
@@ -13,6 +14,7 @@ pub use filer::FilerComponent;
 pub use grep::GrepComponent;
 pub use prompt::PromptComponent;
 pub use settings::SettingsComponent;
+pub use tree::TreeComponent;
 
 use crate::state::{PromptMode, SidePanel};
 use crate::store::StartupDirectory;
