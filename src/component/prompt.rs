@@ -531,7 +531,10 @@ fn execute_text_action(
             let dest_path = std::path::Path::new(dir.absolute_path()).join(value);
             std::fs::create_dir_all(&dest_path)
                 .with_context(|| format!("{}: Failed to create directory", dest_path.display()))?;
-            file.extract_zip(dest_path.to_str().context("Invalid path")?)
+            let dest_str = dest_path.to_str().context("Invalid path")?;
+            file.extract_zip(dest_str)?;
+            ctx.filer.change_to(dest_str);
+            Ok(())
         }
         TextAction::Grep => execute_grep(ctx, store, value),
     }
