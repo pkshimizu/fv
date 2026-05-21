@@ -61,11 +61,7 @@ impl Component for TreeComponent {
         let rows = self.state.flat_nodes.iter().map(|entry| {
             let indent = "  ".repeat(entry.depth);
             let icon = if entry.is_dir {
-                if entry.expanded {
-                    "v "
-                } else {
-                    "> "
-                }
+                if entry.expanded { "v " } else { "> " }
             } else {
                 "  "
             };

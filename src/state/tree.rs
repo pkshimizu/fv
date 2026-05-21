@@ -218,11 +218,7 @@ impl TreeState {
         } else {
             // 親ディレクトリに移動
             if let Some(parent) = Path::new(&path).parent().and_then(|p| p.to_str()) {
-                if let Some(idx) = self
-                    .flat_nodes
-                    .iter()
-                    .position(|e| e.path == parent)
-                {
+                if let Some(idx) = self.flat_nodes.iter().position(|e| e.path == parent) {
                     self.table_state.select(Some(idx));
                 }
             }
