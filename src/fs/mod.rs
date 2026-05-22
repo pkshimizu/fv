@@ -3,6 +3,7 @@ pub mod file_info;
 mod file_metadata;
 mod file_time;
 mod permissions;
+pub mod text_preview;
 
 pub use file::VFile;
 pub use file_metadata::VFileMetadata;

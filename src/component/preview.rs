@@ -1,6 +1,5 @@
 use crate::component::{Action, Component};
-use crate::fs::VFile;
-use crate::fs::file_info::FileInfo;
+use crate::fs::text_preview::TextPreview;
 use crate::state::TextOutputState;
 use crate::ui::widgets::render_text_output;
 use anyhow::Result;
@@ -8,28 +7,31 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
-pub struct FileInfoComponent {
+pub struct PreviewComponent {
     title: String,
     text_output: TextOutputState,
 }
 
-impl FileInfoComponent {
-    pub fn new(file: &VFile) -> Result<Self> {
-        let info = FileInfo::from_file(file)?;
-        let lines = info.to_lines();
-        let title = format!("File Info ({})", lines.len());
-        let text_output = TextOutputState::with_lines(lines);
+impl PreviewComponent {
+    pub fn new(path: &str, file_name: &str) -> Result<Self> {
+        let preview = TextPreview::from_file(path)?;
+        let title = if preview.truncated {
+            format!("Preview - {file_name} (truncated)")
+        } else {
+            format!("Preview - {file_name}")
+        };
+        let text_output = TextOutputState::with_lines(preview.lines);
         Ok(Self { title, text_output })
     }
 }
 
-impl Component for FileInfoComponent {
+impl Component for PreviewComponent {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         if self.text_output.handle_scroll_key(event.code) {
             return Ok(Action::None);
         }
         match event.code {
-            KeyCode::Char('i') | KeyCode::Esc => Ok(Action::CloseSidePanel),
+            KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
             _ => Ok(Action::None),
         }
     }
