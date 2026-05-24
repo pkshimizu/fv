@@ -28,7 +28,7 @@ impl TextPreview {
             .read(&mut buf)
             .with_context(|| format!("Failed to read {path}"))?;
         if n > 0 && buf[..n].contains(&0) {
-            bail!("Not a text file");
+            bail!("Preview is not supported for this file type");
         }
         file.rewind()
             .with_context(|| format!("Failed to seek {path}"))?;
