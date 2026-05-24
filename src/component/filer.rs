@@ -408,8 +408,8 @@ impl FilerComponent {
         };
         match panel {
             Ok(p) => Ok(Action::ShowSidePanel(p)),
-            Err(_) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
-                message: "Preview is not supported for this file type".to_string(),
+            Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
+                message: format!("Failed to preview: {e}"),
             }))),
         }
     }

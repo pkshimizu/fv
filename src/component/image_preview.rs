@@ -1,6 +1,6 @@
 use crate::component::{Action, Component};
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -18,7 +18,14 @@ pub struct ImagePreviewComponent {
 }
 
 impl ImagePreviewComponent {
+    const MAX_PIXELS: usize = 4096 * 4096;
+
     pub fn new(path: &str, file_name: &str, picker: &Picker) -> Result<Self> {
+        if let Ok(size) = imagesize::size(path) {
+            if size.width * size.height > Self::MAX_PIXELS {
+                bail!("Image too large ({} x {} px)", size.width, size.height,);
+            }
+        }
         let dyn_img = image::open(path).with_context(|| format!("Failed to open image {path}"))?;
         let is_halfblocks = picker.protocol_type() == ProtocolType::Halfblocks;
         let protocol = picker.new_resize_protocol(dyn_img);
