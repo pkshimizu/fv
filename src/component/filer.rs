@@ -3,6 +3,7 @@ use crate::component::{
     PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
+use crate::fs::file_info::is_audio_file;
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
     SidePanel, SortKey, TextAction,
@@ -395,7 +396,7 @@ impl FilerComponent {
         let path = file.absolute_path();
         let file_name = file.file_name().unwrap_or("(unknown)");
 
-        let panel = if crate::fs::file_info::is_audio_file(path) {
+        let panel = if is_audio_file(path) {
             AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
         } else {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)

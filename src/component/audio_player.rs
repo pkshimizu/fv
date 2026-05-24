@@ -34,9 +34,7 @@ impl AudioPlayerComponent {
         let reader = BufReader::new(file);
         let source = Decoder::new(reader).with_context(|| format!("Failed to decode {path}"))?;
 
-        let duration = get_media_duration(path)
-            .filter(|d| d.is_finite() && *d >= 0.0)
-            .map(Duration::from_secs_f64);
+        let duration = get_media_duration(path);
         let duration_str = duration.map(format_duration);
         sink.append(source);
 
@@ -44,9 +42,9 @@ impl AudioPlayerComponent {
 
         Ok(Self {
             title,
+            sink,
             _stream: stream,
             _stream_handle: stream_handle,
-            sink,
             duration,
             duration_str,
         })

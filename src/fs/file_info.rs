@@ -84,15 +84,17 @@ impl FileKindLabel {
     }
 }
 
+/// 拡張子ベースで音声ファイルかどうかを判定する。
+/// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
+/// 軽量な事前判定としてこちらを使用する。
 pub fn is_audio_file(path: &str) -> bool {
+    const AUDIO_EXTS: &[&str] =
+        &["mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "aiff", "aif", "opus"];
     let ext = Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("");
-    matches!(
-        ext.to_ascii_lowercase().as_str(),
-        "mp3" | "wav" | "flac" | "ogg" | "aac" | "m4a" | "wma" | "aiff" | "aif" | "opus"
-    )
+    AUDIO_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
 }
 
 fn detect_file_kind(path: &str) -> DetectedFile {
@@ -185,11 +187,8 @@ fn append_media_entries(
     infer_type: &Option<infer::Type>,
 ) {
     entries.push(("Format", format_name_from(path, infer_type)));
-    if let Some(secs) = get_media_duration(path) {
-        entries.push((
-            "Duration",
-            format_duration(std::time::Duration::from_secs_f64(secs)),
-        ));
+    if let Some(duration) = get_media_duration(path) {
+        entries.push(("Duration", format_duration(duration)));
     }
 }
 
@@ -241,7 +240,7 @@ fn format_name_from(path: &str, infer_type: &Option<infer::Type>) -> String {
         })
 }
 
-pub fn get_media_duration(path: &str) -> Option<f64> {
+pub fn get_media_duration(path: &str) -> Option<std::time::Duration> {
     use symphonia::core::formats::FormatOptions;
     use symphonia::core::io::MediaSourceStream;
     use symphonia::core::meta::MetadataOptions;
@@ -270,7 +269,12 @@ pub fn get_media_duration(path: &str) -> Option<f64> {
     let n_frames = track.codec_params.n_frames?;
     let duration = time_base.calc_time(n_frames);
 
-    Some(duration.seconds as f64 + duration.frac)
+    let secs = duration.seconds as f64 + duration.frac;
+    if secs.is_finite() && secs >= 0.0 {
+        Some(std::time::Duration::from_secs_f64(secs))
+    } else {
+        None
+    }
 }
 
 pub fn format_duration(d: std::time::Duration) -> String {
