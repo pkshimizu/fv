@@ -21,10 +21,10 @@ impl ImagePreviewComponent {
     const MAX_PIXELS: usize = 4096 * 4096;
 
     pub fn new(path: &str, file_name: &str, picker: &Picker) -> Result<Self> {
-        if let Ok(size) = imagesize::size(path) {
-            if size.width * size.height > Self::MAX_PIXELS {
-                bail!("Image too large ({} x {} px)", size.width, size.height,);
-            }
+        if let Ok(size) = imagesize::size(path)
+            && size.width.saturating_mul(size.height) > Self::MAX_PIXELS
+        {
+            bail!("Image too large ({} x {} px)", size.width, size.height);
         }
         let dyn_img = image::open(path).with_context(|| format!("Failed to open image {path}"))?;
         let is_halfblocks = picker.protocol_type() == ProtocolType::Halfblocks;
