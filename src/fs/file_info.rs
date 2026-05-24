@@ -84,6 +84,20 @@ impl FileKindLabel {
     }
 }
 
+/// 拡張子ベースで画像ファイルかどうかを判定する。
+/// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
+/// 軽量な事前判定としてこちらを使用する。
+pub fn is_image_file(path: &str) -> bool {
+    const IMAGE_EXTS: &[&str] = &[
+        "png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "tif", "ico",
+    ];
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    IMAGE_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
+}
+
 /// 拡張子ベースで音声ファイルかどうかを判定する。
 /// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
 /// 軽量な事前判定としてこちらを使用する。

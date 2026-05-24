@@ -11,10 +11,19 @@ mod ui;
 use anyhow::Result;
 use app::App;
 use config::Config;
+use ratatui_image::picker::{Picker, ProtocolType};
 
 fn main() -> Result<()> {
+    // ターミナルの画像プロトコルを検出（alternate screen に入る前に実行する必要がある）
+    let mut picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
+    // iTerm2 は Kitty プロトコルのクエリに応答するが完全にはサポートしていないため、
+    // ネイティブの iTerm2 プロトコルを使用する
+    if std::env::var("TERM_PROGRAM").is_ok_and(|p| p.contains("iTerm")) {
+        picker.set_protocol_type(ProtocolType::Iterm2);
+    }
+
     let mut terminal = ratatui::init();
-    let mut app = App::new(Config::default())?;
+    let mut app = App::new(Config::default(), picker)?;
     app.init()?;
     let result = app.run(&mut terminal);
 

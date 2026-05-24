@@ -2,6 +2,7 @@ use crate::component::{Component, FilerComponent, PromptComponent};
 use crate::config::Config;
 use crate::state::SidePanel;
 use anyhow::Result;
+use ratatui_image::picker::Picker;
 
 pub struct AppContext {
     pub config: Config,
@@ -12,11 +13,11 @@ pub struct AppContext {
 }
 
 impl AppContext {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config, picker: Picker) -> Self {
         Self {
             config,
             running: true,
-            filer: FilerComponent::new(),
+            filer: FilerComponent::new(picker),
             prompt: PromptComponent::new(),
             side_panel: None,
         }

@@ -1,9 +1,9 @@
 use crate::component::{
     Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent,
-    PreviewComponent, TreeComponent,
+    ImagePreviewComponent, PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
-use crate::fs::file_info::is_audio_file;
+use crate::fs::file_info::{is_audio_file, is_image_file};
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
     SidePanel, SortKey, TextAction,
@@ -17,6 +17,7 @@ use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Text;
 use ratatui::widgets::{Block, Cell, Row, Table};
+use ratatui_image::picker::Picker;
 
 use crate::fs::VFileTime;
 use num_format::{Locale, ToFormattedString};
@@ -30,13 +31,15 @@ const BOOKMARK_SYMBOL: &str = "B";
 pub struct FilerComponent {
     state: FilerState,
     active: bool,
+    picker: Picker,
 }
 
 impl FilerComponent {
-    pub fn new() -> Self {
+    pub fn new(picker: Picker) -> Self {
         Self {
             state: FilerState::new(),
             active: true,
+            picker,
         }
     }
 
@@ -398,6 +401,8 @@ impl FilerComponent {
 
         let panel = if is_audio_file(path) {
             AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
+        } else if is_image_file(path) {
+            ImagePreviewComponent::new(path, file_name, &self.picker).map(SidePanel::ImagePreview)
         } else {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)
         };
