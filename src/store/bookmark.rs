@@ -50,7 +50,7 @@ impl BookmarkStore {
         Ok(())
     }
 
-    pub fn get_paths(&self) -> Iter<String> {
+    pub fn get_paths(&self) -> Iter<'_, String> {
         self.paths.iter()
     }
 

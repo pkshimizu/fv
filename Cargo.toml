@@ -25,3 +25,5 @@ encoding_rs = "0.8.35"
 symphonia = { version = "0.5.5", features = ["default"] }
 zip = "8.6.0"
 rodio = "0.20.1"
+ratatui-image = { version = "11", default-features = false, features = ["crossterm", "image-defaults"] }
+image = "0.25"

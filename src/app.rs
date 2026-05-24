@@ -18,9 +18,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: Config) -> Result<Self> {
+    pub fn new(config: Config, picker: ratatui_image::picker::Picker) -> Result<Self> {
         Ok(Self {
-            ctx: AppContext::new(config),
+            ctx: AppContext::new(config, picker),
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
         })

@@ -158,7 +158,7 @@ impl TreeState {
         state
     }
 
-    fn cursor(&mut self) -> TableCursor {
+    fn cursor(&mut self) -> TableCursor<'_> {
         TableCursor::new(&mut self.table_state, self.flat_nodes.len())
     }
 
