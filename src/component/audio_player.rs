@@ -1,5 +1,5 @@
 use crate::component::{Action, Component};
-use crate::fs::file_info::get_media_duration;
+use crate::fs::file_info::{format_duration, get_media_duration};
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent};
@@ -16,11 +16,12 @@ const SEEK_SECONDS: u64 = 5;
 
 pub struct AudioPlayerComponent {
     title: String,
+    // sink must be declared before _stream/_stream_handle to be dropped first
+    sink: Sink,
     _stream: OutputStream,
     _stream_handle: OutputStreamHandle,
-    sink: Sink,
     duration: Option<Duration>,
-    is_playing: bool,
+    duration_str: Option<String>,
 }
 
 impl AudioPlayerComponent {
@@ -33,7 +34,10 @@ impl AudioPlayerComponent {
         let reader = BufReader::new(file);
         let source = Decoder::new(reader).with_context(|| format!("Failed to decode {path}"))?;
 
-        let duration = get_media_duration(path).map(Duration::from_secs_f64);
+        let duration = get_media_duration(path)
+            .filter(|d| d.is_finite() && *d >= 0.0)
+            .map(Duration::from_secs_f64);
+        let duration_str = duration.map(format_duration);
         sink.append(source);
 
         let title = format!("Audio - {file_name}");
@@ -44,17 +48,15 @@ impl AudioPlayerComponent {
             _stream_handle: stream_handle,
             sink,
             duration,
-            is_playing: true,
+            duration_str,
         })
     }
 
-    fn toggle_play_pause(&mut self) {
-        if self.is_playing {
-            self.sink.pause();
-            self.is_playing = false;
-        } else {
+    fn toggle_play_pause(&self) {
+        if self.sink.is_paused() {
             self.sink.play();
-            self.is_playing = true;
+        } else {
+            self.sink.pause();
         }
     }
 
@@ -65,24 +67,16 @@ impl AudioPlayerComponent {
             Some(d) if target > d => d,
             _ => target,
         };
-        let _ = self.sink.try_seek(target);
+        if let Err(e) = self.sink.try_seek(target) {
+            tracing::warn!("Seek failed: {e}");
+        }
     }
 
     fn seek_backward(&self) {
         let current = self.sink.get_pos();
         let target = current.saturating_sub(Duration::from_secs(SEEK_SECONDS));
-        let _ = self.sink.try_seek(target);
-    }
-
-    fn format_time(d: Duration) -> String {
-        let total_secs = d.as_secs();
-        let h = total_secs / 3600;
-        let m = (total_secs % 3600) / 60;
-        let s = total_secs % 60;
-        if h > 0 {
-            format!("{h}:{m:02}:{s:02}")
-        } else {
-            format!("{m}:{s:02}")
+        if let Err(e) = self.sink.try_seek(target) {
+            tracing::warn!("Seek failed: {e}");
         }
     }
 }
@@ -112,11 +106,9 @@ impl Component for AudioPlayerComponent {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Time display: "再生秒数/全体秒数"
-        let current = self.sink.get_pos();
-        let current_str = Self::format_time(current);
-        let time_line = match self.duration {
-            Some(d) => format!("{current_str}/{}", Self::format_time(d)),
+        let current_str = format_duration(self.sink.get_pos());
+        let time_line = match &self.duration_str {
+            Some(d) => format!("{current_str}/{d}"),
             None => current_str,
         };
         frame.render_widget(Paragraph::new(Line::from(time_line)), inner);

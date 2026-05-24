@@ -395,30 +395,17 @@ impl FilerComponent {
         let path = file.absolute_path();
         let file_name = file.file_name().unwrap_or("(unknown)");
 
-        if Self::is_audio_file(path) {
-            return match AudioPlayerComponent::new(path, file_name) {
-                Ok(component) => {
-                    Ok(Action::ShowSidePanel(SidePanel::AudioPlayer(component)))
-                }
-                Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
-                    message: e.to_string(),
-                }))),
-            };
-        }
-
-        match PreviewComponent::new(path, file_name) {
-            Ok(component) => Ok(Action::ShowSidePanel(SidePanel::Preview(component))),
+        let panel = if crate::fs::file_info::is_audio_file(path) {
+            AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
+        } else {
+            PreviewComponent::new(path, file_name).map(SidePanel::Preview)
+        };
+        match panel {
+            Ok(p) => Ok(Action::ShowSidePanel(p)),
             Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
                 message: e.to_string(),
             }))),
         }
-    }
-
-    fn is_audio_file(path: &str) -> bool {
-        infer::get_from_path(path)
-            .ok()
-            .flatten()
-            .is_some_and(|t| t.mime_type().starts_with("audio/"))
     }
 
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {

@@ -84,6 +84,17 @@ impl FileKindLabel {
     }
 }
 
+pub fn is_audio_file(path: &str) -> bool {
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "mp3" | "wav" | "flac" | "ogg" | "aac" | "m4a" | "wma" | "aiff" | "aif" | "opus"
+    )
+}
+
 fn detect_file_kind(path: &str) -> DetectedFile {
     let Some(infer_type) = infer::get_from_path(path).ok().flatten() else {
         return DetectedFile {
@@ -174,8 +185,11 @@ fn append_media_entries(
     infer_type: &Option<infer::Type>,
 ) {
     entries.push(("Format", format_name_from(path, infer_type)));
-    if let Some(duration) = get_media_duration(path) {
-        entries.push(("Duration", format_duration(duration)));
+    if let Some(secs) = get_media_duration(path) {
+        entries.push((
+            "Duration",
+            format_duration(std::time::Duration::from_secs_f64(secs)),
+        ));
     }
 }
 
@@ -259,8 +273,8 @@ pub fn get_media_duration(path: &str) -> Option<f64> {
     Some(duration.seconds as f64 + duration.frac)
 }
 
-fn format_duration(seconds: f64) -> String {
-    let total = seconds as u64;
+pub fn format_duration(d: std::time::Duration) -> String {
+    let total = d.as_secs();
     let h = total / 3600;
     let m = (total % 3600) / 60;
     let s = total % 60;
