@@ -84,6 +84,20 @@ impl FileKindLabel {
     }
 }
 
+/// 拡張子ベースで音声ファイルかどうかを判定する。
+/// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
+/// 軽量な事前判定としてこちらを使用する。
+pub fn is_audio_file(path: &str) -> bool {
+    const AUDIO_EXTS: &[&str] = &[
+        "mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "aiff", "aif", "opus",
+    ];
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    AUDIO_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
+}
+
 fn detect_file_kind(path: &str) -> DetectedFile {
     let Some(infer_type) = infer::get_from_path(path).ok().flatten() else {
         return DetectedFile {
@@ -227,7 +241,7 @@ fn format_name_from(path: &str, infer_type: &Option<infer::Type>) -> String {
         })
 }
 
-fn get_media_duration(path: &str) -> Option<f64> {
+pub fn get_media_duration(path: &str) -> Option<std::time::Duration> {
     use symphonia::core::formats::FormatOptions;
     use symphonia::core::io::MediaSourceStream;
     use symphonia::core::meta::MetadataOptions;
@@ -256,11 +270,16 @@ fn get_media_duration(path: &str) -> Option<f64> {
     let n_frames = track.codec_params.n_frames?;
     let duration = time_base.calc_time(n_frames);
 
-    Some(duration.seconds as f64 + duration.frac)
+    let secs = duration.seconds as f64 + duration.frac;
+    if secs.is_finite() && secs >= 0.0 {
+        Some(std::time::Duration::from_secs_f64(secs))
+    } else {
+        None
+    }
 }
 
-fn format_duration(seconds: f64) -> String {
-    let total = seconds as u64;
+pub fn format_duration(d: std::time::Duration) -> String {
+    let total = d.as_secs();
     let h = total / 3600;
     let m = (total % 3600) / 60;
     let s = total % 60;

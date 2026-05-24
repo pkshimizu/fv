@@ -1,6 +1,6 @@
 use crate::component::{
-    Action, AttributeComponent, BookmarkComponent, Component, FileInfoComponent, GrepComponent,
-    PreviewComponent, SettingsComponent, TreeComponent,
+    Action, AttributeComponent, AudioPlayerComponent, BookmarkComponent, Component,
+    FileInfoComponent, GrepComponent, PreviewComponent, SettingsComponent, TreeComponent,
 };
 use anyhow::Result;
 use crossterm::event::KeyEvent;
@@ -15,6 +15,7 @@ pub enum SidePanel {
     Settings(SettingsComponent),
     Tree(TreeComponent),
     Preview(PreviewComponent),
+    AudioPlayer(AudioPlayerComponent),
 }
 
 impl Component for SidePanel {
@@ -27,6 +28,7 @@ impl Component for SidePanel {
             SidePanel::Settings(c) => c.handle_event(event),
             SidePanel::Tree(c) => c.handle_event(event),
             SidePanel::Preview(c) => c.handle_event(event),
+            SidePanel::AudioPlayer(c) => c.handle_event(event),
         }
     }
 
@@ -39,6 +41,7 @@ impl Component for SidePanel {
             SidePanel::Settings(c) => c.render(frame, area),
             SidePanel::Tree(c) => c.render(frame, area),
             SidePanel::Preview(c) => c.render(frame, area),
+            SidePanel::AudioPlayer(c) => c.render(frame, area),
         }
     }
 
@@ -51,6 +54,7 @@ impl Component for SidePanel {
             SidePanel::Settings(c) => c.tick(),
             SidePanel::Tree(c) => c.tick(),
             SidePanel::Preview(c) => c.tick(),
+            SidePanel::AudioPlayer(c) => c.tick(),
         }
     }
 }

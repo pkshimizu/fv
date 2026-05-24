@@ -1,7 +1,9 @@
 use crate::component::{
-    Action, AttributeComponent, Component, FileInfoComponent, PreviewComponent, TreeComponent,
+    Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent,
+    PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
+use crate::fs::file_info::is_audio_file;
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
     SidePanel, SortKey, TextAction,
@@ -393,10 +395,16 @@ impl FilerComponent {
         }
         let path = file.absolute_path();
         let file_name = file.file_name().unwrap_or("(unknown)");
-        match PreviewComponent::new(path, file_name) {
-            Ok(component) => Ok(Action::ShowSidePanel(SidePanel::Preview(component))),
-            Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
-                message: e.to_string(),
+
+        let panel = if is_audio_file(path) {
+            AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
+        } else {
+            PreviewComponent::new(path, file_name).map(SidePanel::Preview)
+        };
+        match panel {
+            Ok(p) => Ok(Action::ShowSidePanel(p)),
+            Err(_) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
+                message: "Preview is not supported for this file type".to_string(),
             }))),
         }
     }
