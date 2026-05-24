@@ -1,4 +1,5 @@
 mod attribute;
+mod audio_player;
 mod bookmark;
 mod file_info;
 mod filer;
@@ -9,6 +10,7 @@ mod settings;
 mod tree;
 
 pub use attribute::AttributeComponent;
+pub use audio_player::AudioPlayerComponent;
 pub use bookmark::BookmarkComponent;
 pub use file_info::FileInfoComponent;
 pub use filer::FilerComponent;

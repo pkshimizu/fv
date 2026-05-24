@@ -227,7 +227,7 @@ fn format_name_from(path: &str, infer_type: &Option<infer::Type>) -> String {
         })
 }
 
-fn get_media_duration(path: &str) -> Option<f64> {
+pub fn get_media_duration(path: &str) -> Option<f64> {
     use symphonia::core::formats::FormatOptions;
     use symphonia::core::io::MediaSourceStream;
     use symphonia::core::meta::MetadataOptions;

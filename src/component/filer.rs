@@ -1,5 +1,6 @@
 use crate::component::{
-    Action, AttributeComponent, Component, FileInfoComponent, PreviewComponent, TreeComponent,
+    Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent,
+    PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
 use crate::state::{
@@ -393,12 +394,31 @@ impl FilerComponent {
         }
         let path = file.absolute_path();
         let file_name = file.file_name().unwrap_or("(unknown)");
+
+        if Self::is_audio_file(path) {
+            return match AudioPlayerComponent::new(path, file_name) {
+                Ok(component) => {
+                    Ok(Action::ShowSidePanel(SidePanel::AudioPlayer(component)))
+                }
+                Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
+                    message: e.to_string(),
+                }))),
+            };
+        }
+
         match PreviewComponent::new(path, file_name) {
             Ok(component) => Ok(Action::ShowSidePanel(SidePanel::Preview(component))),
             Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
                 message: e.to_string(),
             }))),
         }
+    }
+
+    fn is_audio_file(path: &str) -> bool {
+        infer::get_from_path(path)
+            .ok()
+            .flatten()
+            .is_some_and(|t| t.mime_type().starts_with("audio/"))
     }
 
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {
