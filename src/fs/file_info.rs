@@ -88,8 +88,9 @@ impl FileKindLabel {
 /// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
 /// 軽量な事前判定としてこちらを使用する。
 pub fn is_audio_file(path: &str) -> bool {
-    const AUDIO_EXTS: &[&str] =
-        &["mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "aiff", "aif", "opus"];
+    const AUDIO_EXTS: &[&str] = &[
+        "mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "aiff", "aif", "opus",
+    ];
     let ext = Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
