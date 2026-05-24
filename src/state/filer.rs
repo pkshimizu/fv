@@ -164,7 +164,7 @@ impl FilerState {
         Ok(())
     }
 
-    fn cursor(&mut self) -> TableCursor {
+    fn cursor(&mut self) -> TableCursor<'_> {
         TableCursor::new(&mut self.file_table_state, self.current_dir_files.len())
     }
 

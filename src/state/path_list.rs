@@ -22,7 +22,7 @@ impl PathListState {
         }
     }
 
-    fn cursor(&mut self) -> TableCursor {
+    fn cursor(&mut self) -> TableCursor<'_> {
         TableCursor::new(&mut self.table_state, self.paths.len())
     }
 
