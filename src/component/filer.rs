@@ -350,7 +350,8 @@ impl FilerComponent {
             return Action::None;
         };
         let dir = self.state.current_dir.clone();
-        let path = file.absolute_path().to_string();
+        let raw_path = file.absolute_path();
+        let path = format!("'{}'", raw_path.replace('\'', "'\\''"));
         let cursor = path.chars().count();
         Action::SetPromptMode(Box::new(PromptMode::Text {
             title: "Execute".to_string(),

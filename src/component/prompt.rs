@@ -550,7 +550,8 @@ fn execute_text_action(
             Ok(())
         }
         TextAction::Grep => execute_grep(ctx, store, value),
-        TextAction::Execute { .. } => Ok(()),
+        // input_ok で Action::ExecuteCommand に変換されるため到達しない
+        TextAction::Execute { .. } => unreachable!(),
     }
 }
 
