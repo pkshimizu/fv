@@ -183,6 +183,19 @@ impl PromptComponent {
             return Ok(Action::None);
         }
         let input = std::mem::replace(&mut self.mode, PromptMode::None);
+        // Execute アクションはターミナル制御が必要なため、専用の Action に変換する
+        if let PromptMode::Text {
+            action: ref a,
+            ref value,
+            ..
+        } = input
+            && let TextAction::Execute { ref dir } = **a
+        {
+            return Ok(Action::ExecuteCommand(
+                value.clone(),
+                dir.absolute_path().to_string(),
+            ));
+        }
         Ok(Action::ExecutePrompt(Box::new(input)))
     }
 
@@ -536,6 +549,8 @@ fn execute_text_action(
             Ok(())
         }
         TextAction::Grep => execute_grep(ctx, store, value),
+        // input_ok で Action::ExecuteCommand に変換されるため到達しない
+        TextAction::Execute { .. } => unreachable!(),
     }
 }
 

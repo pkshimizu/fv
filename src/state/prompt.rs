@@ -22,6 +22,7 @@ pub enum TextAction {
     Zip { dir: VFile, files: Vec<VFile> },
     Unzip { file: VFile, dir: VFile },
     Grep,
+    Execute { dir: VFile },
 }
 
 #[derive(Debug)]

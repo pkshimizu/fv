@@ -345,6 +345,22 @@ impl FilerComponent {
         }))
     }
 
+    fn prompt_execute(&self) -> Action {
+        let Some(file) = self.state.selected_file() else {
+            return Action::None;
+        };
+        let dir = self.state.current_dir.clone();
+        let raw_path = file.absolute_path();
+        let path = format!("'{}'", raw_path.replace('\'', "'\\''"));
+        let cursor = path.chars().count();
+        Action::SetPromptMode(Box::new(PromptMode::Text {
+            title: "Execute".to_string(),
+            value: path,
+            cursor,
+            action: Box::new(TextAction::Execute { dir }),
+        }))
+    }
+
     fn enter_file(&mut self) -> Result<Action> {
         let Some(file) = self.state.selected_file() else {
             return Ok(Action::None);
@@ -546,6 +562,7 @@ impl Component for FilerComponent {
             KeyCode::Char('o') => Ok(Action::ShowSettings),
             KeyCode::Char('t') => Ok(self.show_tree()),
             KeyCode::Char('v') => self.show_preview(),
+            KeyCode::Char('x') => Ok(self.prompt_execute()),
             _ => Ok(Action::None),
         }
     }

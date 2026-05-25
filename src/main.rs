@@ -16,6 +16,8 @@ use ratatui_image::picker::{Picker, ProtocolType};
 fn main() -> Result<()> {
     // ターミナルの画像プロトコルを検出（alternate screen に入る前に実行する必要がある）
     let mut picker = Picker::from_query_stdio().unwrap_or_else(|_| Picker::halfblocks());
+    // クエリ応答がコンソールに残るのを消去する
+    print!("\r\x1b[2K");
     // iTerm2 は Kitty プロトコルのクエリに応答するが完全にはサポートしていないため、
     // ネイティブの iTerm2 プロトコルを使用する。
     // KITTY_WINDOW_ID が設定されている場合は実際の Kitty ターミナルなので上書きしない。
