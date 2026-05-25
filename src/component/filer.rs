@@ -1,5 +1,5 @@
 use crate::component::{
-    Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent,
+    Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent, HelpComponent,
     ImagePreviewComponent, PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
@@ -563,6 +563,7 @@ impl Component for FilerComponent {
             KeyCode::Char('t') => Ok(self.show_tree()),
             KeyCode::Char('v') => self.show_preview(),
             KeyCode::Char('x') => Ok(self.prompt_execute()),
+            KeyCode::Char('?') => Ok(Action::ShowSidePanel(SidePanel::Help(HelpComponent::new()))),
             _ => Ok(Action::None),
         }
     }
