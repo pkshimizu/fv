@@ -189,13 +189,12 @@ impl PromptComponent {
             ref value,
             ..
         } = input
+            && let TextAction::Execute { ref dir } = **a
         {
-            if let TextAction::Execute { ref dir } = **a {
-                return Ok(Action::ExecuteCommand(
-                    value.clone(),
-                    dir.absolute_path().to_string(),
-                ));
-            }
+            return Ok(Action::ExecuteCommand(
+                value.clone(),
+                dir.absolute_path().to_string(),
+            ));
         }
         Ok(Action::ExecutePrompt(Box::new(input)))
     }

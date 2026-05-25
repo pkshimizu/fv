@@ -70,12 +70,16 @@ impl App {
         result
     }
 
+    fn default_shell() -> String {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+    }
+
     fn launch_external_shell(
         ctx: &AppContext,
         terminal: &mut DefaultTerminal,
         event_handler: &EventHandler,
     ) -> Result<()> {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        let shell = Self::default_shell();
         let dir = ctx.filer.current_dir_path().to_string();
 
         Self::run_in_shell_mode(terminal, event_handler, || {
@@ -88,14 +92,12 @@ impl App {
     }
 
     fn execute_shell_command(
-        command: &str,
-        dir: &str,
+        command: String,
+        dir: String,
         terminal: &mut DefaultTerminal,
         event_handler: &EventHandler,
     ) -> Result<()> {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-        let command = command.to_string();
-        let dir = dir.to_string();
+        let shell = Self::default_shell();
 
         Self::run_in_shell_mode(terminal, event_handler, || {
             std::process::Command::new(&shell)
@@ -148,7 +150,7 @@ impl App {
             }
             Action::ExecuteCommand(command, dir) => {
                 if let Err(e) =
-                    Self::execute_shell_command(&command, &dir, terminal, &self.event_handler)
+                    Self::execute_shell_command(command, dir, terminal, &self.event_handler)
                 {
                     self.set_error(format!("{e}"));
                 }
