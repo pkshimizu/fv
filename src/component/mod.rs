@@ -71,6 +71,8 @@ pub enum Action {
     SearchPrev(String),
     /// インクリメンタル検索（入力値変更時）
     SearchUpdate(String),
+    /// シェルでコマンドを実行する（コマンド文字列, 作業ディレクトリ）
+    ExecuteCommand(String, String),
 }
 
 /// コンポーネントの共通インターフェース。

@@ -73,6 +73,44 @@ impl App {
         Ok(())
     }
 
+    fn execute_shell_command(
+        command: &str,
+        dir: &str,
+        terminal: &mut DefaultTerminal,
+        event_handler: &EventHandler,
+    ) -> Result<()> {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
+        event_handler.pause();
+
+        crossterm::terminal::disable_raw_mode()?;
+        execute!(stdout(), LeaveAlternateScreen)?;
+
+        let result = std::process::Command::new(&shell)
+            .arg("-c")
+            .arg(command)
+            .current_dir(dir)
+            .status()
+            .with_context(|| format!("コマンドの実行に失敗しました: {command}"));
+
+        // コマンド終了後、キー入力を待つ
+        if result.is_ok() {
+            eprintln!("\nPress Enter to continue...");
+            let _ = std::io::stdin().read_line(&mut String::new());
+        }
+
+        let r1 = execute!(stdout(), EnterAlternateScreen);
+        let r2 = crossterm::terminal::enable_raw_mode();
+        let r3 = terminal.clear();
+
+        event_handler.resume();
+
+        r1.and(r2).and(r3)?;
+
+        result?;
+        Ok(())
+    }
+
     fn set_error(&mut self, message: String) {
         self.ctx.prompt.set_error(message);
     }
@@ -107,6 +145,13 @@ impl App {
             }
             Action::ExecutePrompt(input) => {
                 prompt::execute_prompt_action(&mut self.ctx, &mut self.store, *input)?;
+            }
+            Action::ExecuteCommand(command, dir) => {
+                if let Err(e) =
+                    Self::execute_shell_command(&command, &dir, terminal, &self.event_handler)
+                {
+                    self.set_error(format!("{e}"));
+                }
             }
             Action::CancelPrompt => {
                 if let Some(idx) = self.ctx.prompt.cancel() {
