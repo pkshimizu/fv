@@ -496,6 +496,7 @@ impl Component for FilerComponent {
         self.state.receive_files();
     }
 
+    // キーバインドを変更した場合は help.rs の KEY_BINDINGS も更新すること。
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Up => {

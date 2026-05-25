@@ -6,6 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
+// キーバインド一覧。FilerComponent::handle_event のキーバインドと同期すること。
 const KEY_BINDINGS: &[(&str, &str)] = &[
     ("Backspace", "Go to parent directory"),
     ("Space", "Toggle check mark"),
