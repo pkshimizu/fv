@@ -1,5 +1,5 @@
 use crate::component::{
-    Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent,
+    Action, AttributeComponent, AudioPlayerComponent, Component, FileInfoComponent, HelpComponent,
     ImagePreviewComponent, PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
@@ -496,6 +496,7 @@ impl Component for FilerComponent {
         self.state.receive_files();
     }
 
+    // キーバインドを変更した場合は help.rs の KEY_BINDINGS も更新すること。
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Up => {
@@ -563,6 +564,7 @@ impl Component for FilerComponent {
             KeyCode::Char('t') => Ok(self.show_tree()),
             KeyCode::Char('v') => self.show_preview(),
             KeyCode::Char('x') => Ok(self.prompt_execute()),
+            KeyCode::Char('?') => Ok(Action::ShowSidePanel(SidePanel::Help(HelpComponent::new()))),
             _ => Ok(Action::None),
         }
     }
