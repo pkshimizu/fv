@@ -88,4 +88,9 @@ impl HistoryStore {
             None
         }
     }
+
+    /// 履歴の最後のエントリを返す。
+    pub fn last_entry(&self) -> Option<&str> {
+        self.entries.back().map(|s| s.as_str())
+    }
 }

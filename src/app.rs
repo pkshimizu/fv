@@ -42,6 +42,13 @@ impl App {
         match self.store.settings.startup_directory() {
             StartupDirectory::CurrentDirectory => None,
             StartupDirectory::HomeDirectory => dirs::home_dir(),
+            StartupDirectory::LastDirectory => self
+                .store
+                .history
+                .last_entry()
+                .filter(|p| std::path::Path::new(p).is_dir())
+                .map(std::path::PathBuf::from)
+                .or_else(dirs::home_dir),
         }
     }
 
