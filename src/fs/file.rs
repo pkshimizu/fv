@@ -413,7 +413,6 @@ fn copy_entry_with_progress(
         copy_symlink(src, dest, ctx)
     } else if file_type.is_dir() {
         copy_dir_with_progress(src, dest, ctx)
-            .with_context(|| format!("{}: Failed to copy directory", dest.display()))
     } else {
         copy_file_with_progress(src, dest, ctx)
     }
@@ -458,13 +457,21 @@ fn copy_file_with_progress(src: &Path, dest: &Path, ctx: &mut CopyContext) -> Re
     // OS の高速コピー (fcopyfile / copy_file_range / sendfile) を活用できる std::fs::copy を使う。
     if total_bytes < PROGRESS_NOTIFY_BYTES {
         ctx.check_cancel()?;
-        std::fs::copy(src, dest)
-            .with_context(|| format!("{}: Failed to copy file", dest.display()))?;
+        copy_file_fast(src, dest)?;
     } else {
         copy_file_streaming(src, dest, total_bytes, ctx)?;
     }
 
     ctx.complete_one(total_bytes, total_bytes);
+    Ok(())
+}
+
+fn copy_file_fast(src: &Path, dest: &Path) -> Result<()> {
+    // dest が事前に存在しなかった場合のみ、失敗時に書きかけの dest を削除する。
+    // 既存ファイルへの上書きで失敗した場合は、削除すると元データを失うため敢えて残す。
+    let mut guard = PartialDestGuard::new(dest);
+    std::fs::copy(src, dest).with_context(|| format!("{}: Failed to copy file", dest.display()))?;
+    guard.disarm();
     Ok(())
 }
 
@@ -479,6 +486,7 @@ fn copy_file_streaming(
     // O_NOFOLLOW を付け、resolve_dest_path との間で dest に symlink を差し込まれた場合に
     // 任意のファイル（/etc/passwd など）を truncate する TOCTOU 攻撃を防ぐ。
     // 通常コピーは regular file または非存在パスにしか書き込まないため副作用なし。
+    let mut guard = PartialDestGuard::new(dest);
     let mut dest_file = std::fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -509,7 +517,38 @@ fn copy_file_streaming(
     dest_file
         .flush()
         .with_context(|| format!("{}: Failed to flush file", dest.display()))?;
+    guard.disarm();
     Ok(())
+}
+
+/// コピー失敗時に書きかけの dest を削除するための RAII ガード。
+/// dest が事前に存在していた場合は arm せず、既存ファイルを誤って消さないようにする。
+struct PartialDestGuard<'a> {
+    path: &'a Path,
+    armed: bool,
+}
+
+impl<'a> PartialDestGuard<'a> {
+    fn new(path: &'a Path) -> Self {
+        // try_exists がエラー時は保守的に「存在する」とみなして cleanup を抑止する
+        let pre_existed = path.try_exists().unwrap_or(true);
+        Self {
+            path,
+            armed: !pre_existed,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PartialDestGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = std::fs::remove_file(self.path);
+        }
+    }
 }
 
 /// move_to で EXDEV フォールバック時に使う簡易コピー（進捗通知なし、キャンセル不要）。

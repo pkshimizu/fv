@@ -32,10 +32,10 @@ pub fn spawn_copy_files(files: Vec<VFile>, dest: String) -> mpsc::Receiver<Progr
                 let _ = tx.send(ProgressMessage::Complete);
             }
             Ok(Err(e)) => {
-                let _ = tx.send(ProgressMessage::Error(format!("{e:#}")));
+                let _ = tx.send(ProgressMessage::Error(e));
             }
             Err(payload) => {
-                let _ = tx.send(ProgressMessage::Error(format!(
+                let _ = tx.send(ProgressMessage::Error(anyhow::anyhow!(
                     "Copy thread panicked: {}",
                     panic_message(&*payload)
                 )));

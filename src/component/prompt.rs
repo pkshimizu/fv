@@ -350,8 +350,10 @@ impl Component for PromptComponent {
                     self.progress = None;
                     return;
                 }
-                Ok(ProgressMessage::Error(text)) => {
-                    self.mode = PromptMode::Error { message: text };
+                Ok(ProgressMessage::Error(err)) => {
+                    self.mode = PromptMode::Error {
+                        message: format!("{err:#}"),
+                    };
                     self.progress = None;
                     return;
                 }

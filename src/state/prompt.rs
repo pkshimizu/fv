@@ -14,8 +14,8 @@ pub enum ProgressMessage {
     Update(Box<dyn ProgressFormatter + Send>),
     /// 処理が正常に完了した
     Complete,
-    /// 処理がエラーで終了した
-    Error(String),
+    /// 処理がエラーで終了した。エラーチェーンは受信側で必要なフォーマット (`{}` / `{:#}` / `{:?}`) を選択できる。
+    Error(anyhow::Error),
 }
 
 #[derive(Debug)]

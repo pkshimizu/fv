@@ -331,7 +331,7 @@ impl FilerState {
             let entries = match std::fs::read_dir(&dir_path) {
                 Ok(entries) => entries,
                 Err(e) => {
-                    let _ = progress_tx.send(ProgressMessage::Error(format!("{e}")));
+                    let _ = progress_tx.send(ProgressMessage::Error(anyhow::Error::from(e)));
                     return;
                 }
             };
@@ -367,7 +367,7 @@ impl FilerState {
             loop {
                 match progress_rx.try_recv() {
                     Ok(ProgressMessage::Error(e)) => {
-                        self.load_error = Some(e);
+                        self.load_error = Some(format!("{e:#}"));
                         self.progress_rx = None;
                         self.dir_load_rx = None;
                         // エラー時は元のディレクトリに戻して同期リロード
