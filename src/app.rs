@@ -246,10 +246,13 @@ impl App {
                 .filer
                 .set_active(self.ctx.side_panel.is_none() && !self.ctx.prompt.is_active());
 
-            // カレントディレクトリの監視
+            // カレントディレクトリの監視と履歴保存
             let current_dir_path = self.ctx.filer.current_dir_path();
             if current_dir_path != watching_dir_path {
                 self.event_handler.watch_directory(current_dir_path)?;
+                if let Err(e) = self.store.history.add(current_dir_path) {
+                    tracing::warn!("Failed to save history: {e}");
+                }
                 watching_dir_path = current_dir_path.to_string();
             }
         }
