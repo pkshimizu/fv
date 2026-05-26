@@ -313,9 +313,9 @@ pub(crate) fn copy_files_with_progress(
         for file in files {
             ctx.check_cancel()?;
             let src = Path::new(file.absolute_path());
-            let dest_path = resolve_dest_path(src, dest, file.absolute_path())?;
-            ensure_dest_not_inside_src(src, &dest_path)?;
-            copy_entry_with_progress(src, &dest_path, None, &mut ctx)?;
+            let resolved_dest = resolve_dest_path(src, dest, file.absolute_path())?;
+            ensure_dest_not_inside_src(src, &resolved_dest)?;
+            copy_entry_with_progress(src, &resolved_dest, None, &mut ctx)?;
         }
         Ok(())
     })
@@ -361,39 +361,34 @@ fn ensure_dest_not_inside_src(src: &Path, dest_path: &Path) -> Result<()> {
 fn count_files(files: &[VFile]) -> Result<usize> {
     let mut total = 0;
     for f in files {
-        total += count_files_at(Path::new(f.absolute_path()))?;
+        let path = Path::new(f.absolute_path());
+        let file_type = std::fs::symlink_metadata(path)
+            .with_context(|| format!("{}: Failed to read metadata", path.display()))?
+            .file_type();
+        total += count_entries(path, file_type)?;
     }
     Ok(total)
 }
 
-fn count_files_at(path: &Path) -> Result<usize> {
-    let file_type = std::fs::symlink_metadata(path)
-        .with_context(|| format!("{}: Failed to read metadata", path.display()))?
-        .file_type();
-    // FileType の is_dir / is_file / is_symlink は相互排他なので is_dir() のみで十分
-    if file_type.is_dir() {
-        count_files_recursive(path)
-    } else {
-        Ok(1)
+/// `path` 配下のファイル/symlink 数を再帰的に数える。
+/// `file_type` は `path` 自身の型で、内側ループでは `DirEntry::file_type()` から得て渡すことで
+/// `symlink_metadata` の追加 syscall を避ける。
+/// FileType の is_dir / is_file / is_symlink は相互排他なので is_dir() のみで判定。
+fn count_entries(path: &Path, file_type: FileType) -> Result<usize> {
+    if !file_type.is_dir() {
+        return Ok(1);
     }
-}
-
-fn count_files_recursive(dir: &Path) -> Result<usize> {
     let mut count = 0;
     for entry in
-        read_dir(dir).with_context(|| format!("{}: Failed to read directory", dir.display()))?
+        read_dir(path).with_context(|| format!("{}: Failed to read directory", path.display()))?
     {
         let entry =
-            entry.with_context(|| format!("{}: Failed to read directory entry", dir.display()))?;
+            entry.with_context(|| format!("{}: Failed to read directory entry", path.display()))?;
         let entry_path = entry.path();
-        let file_type = entry
+        let entry_type = entry
             .file_type()
             .with_context(|| format!("{}: Failed to get file type", entry_path.display()))?;
-        if file_type.is_dir() {
-            count += count_files_recursive(&entry_path)?;
-        } else {
-            count += 1;
-        }
+        count += count_entries(&entry_path, entry_type)?;
     }
     Ok(count)
 }

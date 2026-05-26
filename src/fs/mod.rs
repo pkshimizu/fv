@@ -3,6 +3,7 @@ pub(crate) mod file;
 pub mod file_info;
 mod file_metadata;
 mod file_time;
+pub(crate) mod format;
 mod permissions;
 pub mod text_preview;
 

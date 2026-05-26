@@ -1,5 +1,6 @@
 use crate::fs::VFile;
 use crate::fs::file::{CopyProgress, copy_files_with_progress};
+use crate::fs::format::format_bytes;
 use crate::state::{ProgressFormatter, ProgressMessage};
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
@@ -68,20 +69,5 @@ impl ProgressFormatter for CopyProgress {
             format_bytes(self.current_bytes),
             format_bytes(self.current_total_bytes),
         )
-    }
-}
-
-fn format_bytes(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = 1024 * KB;
-    const GB: u64 = 1024 * MB;
-    if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{bytes} B")
     }
 }
