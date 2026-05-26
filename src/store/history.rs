@@ -60,9 +60,7 @@ impl HistoryStore {
             return Ok(());
         }
         // カーソルより後ろの履歴を削除（ブラウザの「進む」履歴をクリア）
-        while self.entries.len() > self.cursor {
-            self.entries.pop_back();
-        }
+        self.entries.truncate(self.cursor);
         self.entries.push_back(path.to_string());
         if self.entries.len() > MAX_HISTORY {
             self.entries.pop_front();
