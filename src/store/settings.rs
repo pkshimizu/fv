@@ -6,6 +6,7 @@ use std::path::PathBuf;
 pub enum StartupDirectory {
     CurrentDirectory,
     HomeDirectory,
+    LastDirectory,
 }
 
 impl Default for StartupDirectory {
@@ -18,12 +19,14 @@ impl StartupDirectory {
     pub const ALL: &'static [StartupDirectory] = &[
         StartupDirectory::CurrentDirectory,
         StartupDirectory::HomeDirectory,
+        StartupDirectory::LastDirectory,
     ];
 
     pub fn label(&self) -> &'static str {
         match self {
             StartupDirectory::CurrentDirectory => "Current Directory",
             StartupDirectory::HomeDirectory => "Home Directory",
+            StartupDirectory::LastDirectory => "Last Directory",
         }
     }
 
