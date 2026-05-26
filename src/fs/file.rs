@@ -1,18 +1,30 @@
 use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
 use std::fs::{create_dir, read_dir, rename};
-use std::io::{Read, Write};
+use std::io::{BufWriter, Read, Write};
 use std::os::unix::fs::symlink;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+const COPY_BUFFER_SIZE: usize = 64 * 1024;
+
+/// `AtomicUsize` のセンチネル値。総ファイル数がまだ確定していないことを表す。
+const TOTAL_FILES_UNKNOWN: usize = usize::MAX;
 
 /// ファイルコピー処理の進捗。
 /// 全体のファイル数進捗と、現在コピー中のファイルのバイト進捗を表す。
+/// `total_files` はバックグラウンドで集計されるため、確定するまでは `None`。
 #[derive(Debug, Clone, Copy)]
 pub struct CopyProgress {
     pub copied_files: usize,
-    pub total_files: usize,
+    pub total_files: Option<usize>,
     pub current_bytes: u64,
     pub current_total_bytes: u64,
+}
+
+fn load_total_files(total: &AtomicUsize) -> Option<usize> {
+    let v = total.load(Ordering::Acquire);
+    (v != TOTAL_FILES_UNKNOWN).then_some(v)
 }
 
 #[derive(Debug, Clone)]
@@ -233,29 +245,49 @@ impl VFile {
 /// ファイル群を進捗を通知しながらコピーする。
 /// `on_progress` は処理開始時、各ファイルの読み込みチャンク毎、各ファイルのコピー完了時に呼ばれる。
 /// シンボリックリンクは辿らず、リンク自体を再作成する。
+/// 総ファイル数はコピーをブロックせず別スレッドで集計し、確定するまで `CopyProgress::total_files` は `None` になる。
+/// `cancel` を `true` に設定するとコピー処理が中断され `Err` が返る。
 pub fn copy_files_with_progress(
     files: &[VFile],
     dest: &str,
+    cancel: &AtomicBool,
     mut on_progress: impl FnMut(CopyProgress),
 ) -> Result<()> {
-    let total_files = count_files(files)?;
-    let mut copied_files = 0usize;
-    on_progress(CopyProgress {
-        copied_files,
-        total_files,
-        current_bytes: 0,
-        current_total_bytes: 0,
-    });
-    for file in files {
-        let src = Path::new(file.absolute_path());
-        let dest_path = resolve_dest_path(src, dest, file.absolute_path())?;
-        copy_entry_with_progress(
-            src,
-            &dest_path,
-            &mut copied_files,
-            total_files,
-            &mut on_progress,
-        )?;
+    let total_files = AtomicUsize::new(TOTAL_FILES_UNKNOWN);
+    std::thread::scope(|s| -> Result<()> {
+        s.spawn(|| {
+            if let Ok(count) = count_files(files) {
+                total_files.store(count, Ordering::Release);
+            }
+        });
+
+        let mut copied_files = 0;
+        on_progress(CopyProgress {
+            copied_files,
+            total_files: load_total_files(&total_files),
+            current_bytes: 0,
+            current_total_bytes: 0,
+        });
+        for file in files {
+            check_cancel(cancel)?;
+            let src = Path::new(file.absolute_path());
+            let dest_path = resolve_dest_path(src, dest, file.absolute_path())?;
+            copy_entry_with_progress(
+                src,
+                &dest_path,
+                &mut copied_files,
+                &total_files,
+                cancel,
+                &mut on_progress,
+            )?;
+        }
+        Ok(())
+    })
+}
+
+fn check_cancel(cancel: &AtomicBool) -> Result<()> {
+    if cancel.load(Ordering::Relaxed) {
+        anyhow::bail!("Copy canceled");
     }
     Ok(())
 }
@@ -272,7 +304,8 @@ fn count_files_at(path: &Path) -> Result<usize> {
     let file_type = std::fs::symlink_metadata(path)
         .with_context(|| format!("{}: Failed to read metadata", path.display()))?
         .file_type();
-    if file_type.is_dir() && !file_type.is_symlink() {
+    // FileType の is_dir / is_file / is_symlink は相互排他なので is_dir() のみで十分
+    if file_type.is_dir() {
         count_files_recursive(path)
     } else {
         Ok(1)
@@ -284,10 +317,13 @@ fn count_files_recursive(dir: &Path) -> Result<usize> {
     for entry in
         read_dir(dir).with_context(|| format!("{}: Failed to read directory", dir.display()))?
     {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
+        let entry =
+            entry.with_context(|| format!("{}: Failed to read directory entry", dir.display()))?;
         let entry_path = entry.path();
-        if file_type.is_dir() && !file_type.is_symlink() {
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("{}: Failed to get file type", entry_path.display()))?;
+        if file_type.is_dir() {
             count += count_files_recursive(&entry_path)?;
         } else {
             count += 1;
@@ -300,8 +336,9 @@ fn copy_entry_with_progress(
     src: &Path,
     dest: &Path,
     copied_files: &mut usize,
-    total_files: usize,
-    on_progress: &mut impl FnMut(CopyProgress),
+    total_files: &AtomicUsize,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(CopyProgress),
 ) -> Result<()> {
     let file_type = std::fs::symlink_metadata(src)
         .with_context(|| format!("{}: Failed to read metadata", src.display()))?
@@ -309,10 +346,10 @@ fn copy_entry_with_progress(
     if file_type.is_symlink() {
         copy_symlink(src, dest, copied_files, total_files, on_progress)
     } else if file_type.is_dir() {
-        copy_dir_with_progress(src, dest, copied_files, total_files, on_progress)
+        copy_dir_with_progress(src, dest, copied_files, total_files, cancel, on_progress)
             .with_context(|| format!("{}: Failed to copy directory", dest.display()))
     } else {
-        copy_file_with_progress(src, dest, copied_files, total_files, on_progress)
+        copy_file_with_progress(src, dest, copied_files, total_files, cancel, on_progress)
     }
 }
 
@@ -320,14 +357,22 @@ fn copy_dir_with_progress(
     src: &Path,
     dest: &Path,
     copied_files: &mut usize,
-    total_files: usize,
-    on_progress: &mut impl FnMut(CopyProgress),
+    total_files: &AtomicUsize,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(CopyProgress),
 ) -> Result<()> {
-    std::fs::create_dir_all(dest)?;
-    for entry in read_dir(src)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
+    std::fs::create_dir_all(dest)
+        .with_context(|| format!("{}: Failed to create directory", dest.display()))?;
+    for entry in
+        read_dir(src).with_context(|| format!("{}: Failed to read directory", src.display()))?
+    {
+        check_cancel(cancel)?;
+        let entry =
+            entry.with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
         let entry_path = entry.path();
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("{}: Failed to get file type", entry_path.display()))?;
         let dest_path = dest.join(entry.file_name());
         if file_type.is_symlink() {
             copy_symlink(
@@ -343,6 +388,7 @@ fn copy_dir_with_progress(
                 &dest_path,
                 copied_files,
                 total_files,
+                cancel,
                 on_progress,
             )?;
         } else {
@@ -351,6 +397,7 @@ fn copy_dir_with_progress(
                 &dest_path,
                 copied_files,
                 total_files,
+                cancel,
                 on_progress,
             )?;
         }
@@ -362,8 +409,8 @@ fn copy_symlink(
     src: &Path,
     dest: &Path,
     copied_files: &mut usize,
-    total_files: usize,
-    on_progress: &mut impl FnMut(CopyProgress),
+    total_files: &AtomicUsize,
+    on_progress: &mut dyn FnMut(CopyProgress),
 ) -> Result<()> {
     let target = std::fs::read_link(src)
         .with_context(|| format!("{}: Failed to read symlink", src.display()))?;
@@ -372,7 +419,7 @@ fn copy_symlink(
     *copied_files += 1;
     on_progress(CopyProgress {
         copied_files: *copied_files,
-        total_files,
+        total_files: load_total_files(total_files),
         current_bytes: 0,
         current_total_bytes: 0,
     });
@@ -383,91 +430,99 @@ fn copy_file_with_progress(
     src: &Path,
     dest: &Path,
     copied_files: &mut usize,
-    total_files: usize,
-    on_progress: &mut impl FnMut(CopyProgress),
+    total_files: &AtomicUsize,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(CopyProgress),
 ) -> Result<()> {
-    let mut src_file = std::fs::File::open(src)
+    let src_file = std::fs::File::open(src)
         .with_context(|| format!("{}: Failed to open file", src.display()))?;
     let total_bytes = src_file.metadata().map(|m| m.len()).unwrap_or(0);
-    let mut dest_file = std::fs::File::create(dest)
+    let dest_file = std::fs::File::create(dest)
         .with_context(|| format!("{}: Failed to create file", dest.display()))?;
+
+    let copied_files_at_start = *copied_files;
     on_progress(CopyProgress {
-        copied_files: *copied_files,
-        total_files,
+        copied_files: copied_files_at_start,
+        total_files: load_total_files(total_files),
         current_bytes: 0,
         current_total_bytes: total_bytes,
     });
-    let mut buf = vec![0u8; 64 * 1024];
-    let mut copied = 0u64;
-    loop {
-        let n = src_file
-            .read(&mut buf)
-            .with_context(|| format!("{}: Failed to read file", src.display()))?;
-        if n == 0 {
-            break;
-        }
-        dest_file
-            .write_all(&buf[..n])
-            .with_context(|| format!("{}: Failed to write file", dest.display()))?;
-        copied += n as u64;
-        on_progress(CopyProgress {
-            copied_files: *copied_files,
-            total_files,
-            current_bytes: copied,
-            current_total_bytes: total_bytes,
+
+    let mut copied = 0;
+    let mut writer = BufWriter::with_capacity(COPY_BUFFER_SIZE, dest_file);
+    {
+        let mut reader = ProgressReader::new(src_file, |n: u64| -> std::io::Result<()> {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Interrupted,
+                    "Copy canceled",
+                ));
+            }
+            copied += n;
+            on_progress(CopyProgress {
+                copied_files: copied_files_at_start,
+                total_files: load_total_files(total_files),
+                current_bytes: copied,
+                current_total_bytes: total_bytes,
+            });
+            Ok(())
         });
+        std::io::copy(&mut reader, &mut writer)
+            .with_context(|| format!("{}: Failed to copy file", dest.display()))?;
     }
+    writer
+        .flush()
+        .with_context(|| format!("{}: Failed to flush file", dest.display()))?;
+
     *copied_files += 1;
     on_progress(CopyProgress {
         copied_files: *copied_files,
-        total_files,
+        total_files: load_total_files(total_files),
         current_bytes: copied,
         current_total_bytes: total_bytes,
     });
     Ok(())
 }
 
-/// move_to で EXDEV フォールバック時に使う簡易コピー（進捗通知なし）。
-/// シンボリックリンクは辿らず、リンク自体を再作成する。
-fn copy_path_simple(src: &Path, dest: &Path) -> Result<()> {
-    let file_type = std::fs::symlink_metadata(src)
-        .with_context(|| format!("{}: Failed to read metadata", src.display()))?
-        .file_type();
-    if file_type.is_symlink() {
-        let target = std::fs::read_link(src)
-            .with_context(|| format!("{}: Failed to read symlink", src.display()))?;
-        symlink(&target, dest)
-            .with_context(|| format!("{}: Failed to create symlink", dest.display()))?;
-    } else if file_type.is_dir() {
-        copy_dir_simple(src, dest)
-            .with_context(|| format!("{}: Failed to copy directory", dest.display()))?;
-    } else {
-        std::fs::copy(src, dest)
-            .with_context(|| format!("{}: Failed to copy file", dest.display()))?;
-    }
-    Ok(())
+/// `Read` の薄いラッパー。読み込み毎に進捗コールバックを呼ぶ。
+/// `std::io::copy` と組み合わせて使う。
+/// コールバックが `Err` を返すと `read` がそれを伝播し、`io::copy` が中断される。
+struct ProgressReader<R: Read, F: FnMut(u64) -> std::io::Result<()>> {
+    inner: R,
+    on_bytes: F,
 }
 
-fn copy_dir_simple(src: &Path, dest: &Path) -> Result<()> {
-    std::fs::create_dir_all(dest)?;
-    for entry in read_dir(src)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let entry_path = entry.path();
-        let dest_path = dest.join(entry.file_name());
-        if file_type.is_symlink() {
-            let target = std::fs::read_link(&entry_path)
-                .with_context(|| format!("{}: Failed to read symlink", entry_path.display()))?;
-            symlink(&target, &dest_path)
-                .with_context(|| format!("{}: Failed to create symlink", dest_path.display()))?;
-        } else if file_type.is_dir() {
-            copy_dir_simple(&entry_path, &dest_path)?;
-        } else {
-            std::fs::copy(&entry_path, &dest_path)
-                .with_context(|| format!("{}: Failed to copy file", dest_path.display()))?;
-        }
+impl<R: Read, F: FnMut(u64) -> std::io::Result<()>> ProgressReader<R, F> {
+    fn new(inner: R, on_bytes: F) -> Self {
+        Self { inner, on_bytes }
     }
-    Ok(())
+}
+
+impl<R: Read, F: FnMut(u64) -> std::io::Result<()>> Read for ProgressReader<R, F> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        if n > 0 {
+            (self.on_bytes)(n as u64)?;
+        }
+        Ok(n)
+    }
+}
+
+/// move_to で EXDEV フォールバック時に使う簡易コピー（進捗通知なし、キャンセル不要）。
+/// 進捗通知を no-op にして `copy_entry_with_progress` に委譲することで、
+/// シンボリックリンク処理や再帰ロジックを共通化している。
+fn copy_path_simple(src: &Path, dest: &Path) -> Result<()> {
+    let total_files = AtomicUsize::new(TOTAL_FILES_UNKNOWN);
+    let cancel = AtomicBool::new(false);
+    let mut copied_files = 0;
+    copy_entry_with_progress(
+        src,
+        dest,
+        &mut copied_files,
+        &total_files,
+        &cancel,
+        &mut |_| {},
+    )
 }
 
 fn resolve_dest_path(src: &Path, path: &str, src_display: &str) -> Result<PathBuf> {

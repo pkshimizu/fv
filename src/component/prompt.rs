@@ -635,12 +635,21 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 }
 
 fn start_async_copy(ctx: &mut AppContext, files: Vec<VFile>, dest: String) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     let (tx, rx) = mpsc::channel();
     ctx.prompt.start_progress("Copying...".to_string(), rx);
 
     std::thread::spawn(move || {
-        let result = copy_files_with_progress(&files, &dest, |progress| {
-            let _ = tx.send(ProgressMessage::Update(format_copy_progress(&progress)));
+        let cancel = AtomicBool::new(false);
+        let result = copy_files_with_progress(&files, &dest, &cancel, |progress| {
+            if tx
+                .send(ProgressMessage::Update(format_copy_progress(&progress)))
+                .is_err()
+            {
+                // 受信側が消えた。コピーを早期中断する。
+                cancel.store(true, Ordering::Relaxed);
+            }
         });
         match result {
             Ok(()) => {
@@ -654,10 +663,14 @@ fn start_async_copy(ctx: &mut AppContext, files: Vec<VFile>, dest: String) {
 }
 
 fn format_copy_progress(progress: &CopyProgress) -> String {
+    let total = match progress.total_files {
+        Some(n) => n.to_string(),
+        None => "?".to_string(),
+    };
     format!(
         "Copying {}/{} files  {} / {}",
         progress.copied_files,
-        progress.total_files,
+        total,
         format_bytes(progress.current_bytes),
         format_bytes(progress.current_total_bytes),
     )
