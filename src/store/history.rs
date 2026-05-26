@@ -40,12 +40,10 @@ impl HistoryStore {
     fn save(&self) -> Result<()> {
         let json_path = &self.json_path;
         if let Some(parent) = json_path.parent() {
-            std::fs::create_dir_all(parent)
-                .context("Failed to create history config directory")?;
+            std::fs::create_dir_all(parent).context("Failed to create history config directory")?;
         }
-        let entries: Vec<&String> = self.entries.iter().collect();
         let content =
-            serde_json::to_string_pretty(&entries).context("Failed to serialize history")?;
+            serde_json::to_string_pretty(&self.entries).context("Failed to serialize history")?;
         let tmp_path = json_path.with_extension("json.tmp");
         std::fs::write(&tmp_path, content).context("Failed to write history temp file")?;
         std::fs::rename(&tmp_path, json_path).context("Failed to save history file")?;
@@ -62,9 +60,5 @@ impl HistoryStore {
             self.entries.pop_front();
         }
         self.save()
-    }
-
-    pub fn entries(&self) -> &VecDeque<String> {
-        &self.entries
     }
 }
