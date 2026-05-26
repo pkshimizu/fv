@@ -116,8 +116,6 @@ pub struct FilerState {
     progress_rx: Option<mpsc::Receiver<ProgressMessage>>,
     load_error: Option<String>,
     prev_dir: Option<VFile>,
-    back_stack: Vec<VFile>,
-    forward_stack: Vec<VFile>,
 }
 
 impl std::fmt::Debug for FilerState {
@@ -147,8 +145,6 @@ impl FilerState {
             progress_rx: None,
             load_error: None,
             prev_dir: None,
-            back_stack: Vec::new(),
-            forward_stack: Vec::new(),
         }
     }
 
@@ -189,39 +185,13 @@ impl FilerState {
     }
 
     pub fn change_to(&mut self, path: &str) {
-        self.push_history();
         self.start_async_load(Some(VFile::new(path)));
     }
 
     pub fn change_dir_in_parent_dir(&mut self) {
         if let Some(parent_dir) = self.current_dir.parent_dir() {
-            self.push_history();
             self.start_async_load(Some(parent_dir));
         }
-    }
-
-    pub fn navigate_back(&mut self) {
-        if let Some(dir) = self.back_stack.pop() {
-            self.forward_stack.push(self.current_dir.clone());
-            self.start_async_load(Some(dir));
-        }
-    }
-
-    pub fn navigate_forward(&mut self) {
-        if let Some(dir) = self.forward_stack.pop() {
-            self.back_stack.push(self.current_dir.clone());
-            self.start_async_load(Some(dir));
-        }
-    }
-
-    const MAX_HISTORY: usize = 100;
-
-    fn push_history(&mut self) {
-        if self.back_stack.len() >= Self::MAX_HISTORY {
-            self.back_stack.remove(0);
-        }
-        self.back_stack.push(self.current_dir.clone());
-        self.forward_stack.clear();
     }
 
     pub fn set_pending_select_name(&mut self, name: String) {

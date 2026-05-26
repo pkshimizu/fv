@@ -75,6 +75,10 @@ pub enum Action {
     SearchUpdate(String),
     /// シェルでコマンドを実行する（コマンド文字列, 作業ディレクトリ）
     ExecuteCommand(String, String),
+    /// ディレクトリ履歴を一つ戻る
+    NavigateBack,
+    /// ディレクトリ履歴を一つ進む
+    NavigateForward,
 }
 
 /// コンポーネントの共通インターフェース。

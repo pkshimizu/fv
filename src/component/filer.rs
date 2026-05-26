@@ -520,14 +520,8 @@ impl Component for FilerComponent {
                 self.state.change_dir_in_parent_dir();
                 Ok(Action::None)
             }
-            KeyCode::Char('<') => {
-                self.state.navigate_back();
-                Ok(Action::None)
-            }
-            KeyCode::Char('>') => {
-                self.state.navigate_forward();
-                Ok(Action::None)
-            }
+            KeyCode::Char('<') => Ok(Action::NavigateBack),
+            KeyCode::Char('>') => Ok(Action::NavigateForward),
             KeyCode::Char('q') => Ok(Action::Quit),
             KeyCode::Char('c') => Ok(self.prompt_copy()),
             KeyCode::Char('d') => Ok(self.prompt_delete()),

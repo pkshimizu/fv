@@ -8,6 +8,7 @@ const MAX_HISTORY: usize = 1000;
 pub struct HistoryStore {
     json_path: PathBuf,
     entries: VecDeque<String>,
+    cursor: usize,
 }
 
 impl HistoryStore {
@@ -17,6 +18,7 @@ impl HistoryStore {
         Ok(Self {
             json_path,
             entries: VecDeque::new(),
+            cursor: 0,
         })
     }
 
@@ -27,10 +29,12 @@ impl HistoryStore {
                 let entries: Vec<String> =
                     serde_json::from_str(&content).context("Failed to parse history file")?;
                 self.entries = VecDeque::from(entries);
+                self.cursor = self.entries.len();
                 Ok(())
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 self.entries.clear();
+                self.cursor = 0;
                 Ok(())
             }
             Err(e) => Err(e).context("Failed to read history file"),
@@ -52,13 +56,38 @@ impl HistoryStore {
 
     pub fn add(&mut self, path: &str) -> Result<()> {
         // 直前と同じパスは追加しない
-        if self.entries.back().is_some_and(|last| last == path) {
+        if self.cursor > 0 && self.entries.get(self.cursor - 1).is_some_and(|e| e == path) {
             return Ok(());
+        }
+        // カーソルより後ろの履歴を削除（ブラウザの「進む」履歴をクリア）
+        while self.entries.len() > self.cursor {
+            self.entries.pop_back();
         }
         self.entries.push_back(path.to_string());
         if self.entries.len() > MAX_HISTORY {
             self.entries.pop_front();
         }
+        self.cursor = self.entries.len();
         self.save()
+    }
+
+    /// 一つ前の履歴に戻る。戻り先のパスを返す。
+    pub fn back(&mut self) -> Option<&str> {
+        if self.cursor > 1 {
+            self.cursor -= 1;
+            self.entries.get(self.cursor - 1).map(|s| s.as_str())
+        } else {
+            None
+        }
+    }
+
+    /// 一つ先の履歴に進む。進み先のパスを返す。
+    pub fn forward(&mut self) -> Option<&str> {
+        if self.cursor < self.entries.len() {
+            self.cursor += 1;
+            self.entries.get(self.cursor - 1).map(|s| s.as_str())
+        } else {
+            None
+        }
     }
 }
