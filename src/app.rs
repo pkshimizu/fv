@@ -15,6 +15,7 @@ pub struct App {
     ctx: AppContext,
     store: RootStore,
     event_handler: EventHandler,
+    skip_history_add: bool,
 }
 
 impl App {
@@ -23,6 +24,7 @@ impl App {
             ctx: AppContext::new(config, picker),
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
+            skip_history_add: false,
         })
     }
 
@@ -200,6 +202,18 @@ impl App {
                 self.store.settings.set_startup_directory(*startup_dir)?;
                 self.ctx.side_panel = None;
             }
+            Action::NavigateBack => {
+                if let Some(path) = self.store.history.back().map(String::from) {
+                    self.ctx.filer.change_to(&path);
+                    self.skip_history_add = true;
+                }
+            }
+            Action::NavigateForward => {
+                if let Some(path) = self.store.history.forward().map(String::from) {
+                    self.ctx.filer.change_to(&path);
+                    self.skip_history_add = true;
+                }
+            }
         }
         Ok(())
     }
@@ -250,7 +264,9 @@ impl App {
             let current_dir_path = self.ctx.filer.current_dir_path();
             if current_dir_path != watching_dir_path {
                 self.event_handler.watch_directory(current_dir_path)?;
-                if let Err(e) = self.store.history.add(current_dir_path) {
+                if self.skip_history_add {
+                    self.skip_history_add = false;
+                } else if let Err(e) = self.store.history.add(current_dir_path) {
                     tracing::warn!("Failed to save history: {e}");
                 }
                 watching_dir_path = current_dir_path.to_string();
