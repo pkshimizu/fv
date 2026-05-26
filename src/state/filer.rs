@@ -214,7 +214,12 @@ impl FilerState {
         }
     }
 
+    const MAX_HISTORY: usize = 100;
+
     fn push_history(&mut self) {
+        if self.back_stack.len() >= Self::MAX_HISTORY {
+            self.back_stack.remove(0);
+        }
         self.back_stack.push(self.current_dir.clone());
         self.forward_stack.clear();
     }
