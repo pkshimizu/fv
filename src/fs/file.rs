@@ -2,7 +2,7 @@ use crate::fs::file_metadata::VFileMetadata;
 use anyhow::{Context, Result};
 use std::fs::{FileType, create_dir, read_dir, rename};
 use std::io::{Read, Write};
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{OpenOptionsExt, symlink};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -314,10 +314,48 @@ pub(crate) fn copy_files_with_progress(
             ctx.check_cancel()?;
             let src = Path::new(file.absolute_path());
             let dest_path = resolve_dest_path(src, dest, file.absolute_path())?;
+            ensure_dest_not_inside_src(src, &dest_path)?;
             copy_entry_with_progress(src, &dest_path, None, &mut ctx)?;
         }
         Ok(())
     })
+}
+
+/// `dest_path` が `src` 自身または `src` 配下に該当する場合エラーを返す。
+/// 該当時にコピーを続けると無限再帰でディスクを使い切るため、事前に検出する。
+fn ensure_dest_not_inside_src(src: &Path, dest_path: &Path) -> Result<()> {
+    // ディレクトリでなければ循環の可能性はない（symlink もリンク自体を再作成するため対象外）
+    let is_dir = std::fs::symlink_metadata(src)
+        .with_context(|| format!("{}: Failed to read metadata", src.display()))?
+        .file_type()
+        .is_dir();
+    if !is_dir {
+        return Ok(());
+    }
+    let src_canon = std::fs::canonicalize(src)
+        .with_context(|| format!("{}: Failed to canonicalize source", src.display()))?;
+    // dest_path はまだ存在しない可能性があるので親ディレクトリで canonicalize して結合する
+    let dest_parent = dest_path
+        .parent()
+        .with_context(|| format!("{}: Failed to get parent directory", dest_path.display()))?;
+    let dest_parent_canon = std::fs::canonicalize(dest_parent).with_context(|| {
+        format!(
+            "{}: Failed to canonicalize destination parent",
+            dest_parent.display()
+        )
+    })?;
+    let dest_name = dest_path
+        .file_name()
+        .with_context(|| format!("{}: Failed to get file name", dest_path.display()))?;
+    let dest_canon = dest_parent_canon.join(dest_name);
+    if dest_canon.starts_with(&src_canon) {
+        anyhow::bail!(
+            "{}: Cannot copy directory into itself or its subdirectory ({})",
+            src.display(),
+            dest_path.display()
+        );
+    }
+    Ok(())
 }
 
 fn count_files(files: &[VFile]) -> Result<usize> {
@@ -443,7 +481,15 @@ fn copy_file_streaming(
 ) -> Result<()> {
     let mut src_file = std::fs::File::open(src)
         .with_context(|| format!("{}: Failed to open file", src.display()))?;
-    let mut dest_file = std::fs::File::create(dest)
+    // O_NOFOLLOW を付け、resolve_dest_path との間で dest に symlink を差し込まれた場合に
+    // 任意のファイル（/etc/passwd など）を truncate する TOCTOU 攻撃を防ぐ。
+    // 通常コピーは regular file または非存在パスにしか書き込まないため副作用なし。
+    let mut dest_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(dest)
         .with_context(|| format!("{}: Failed to create file", dest.display()))?;
 
     let mut copied = 0u64;
