@@ -18,7 +18,7 @@ use std::path::Path;
 use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
-use crate::fs::VFile;
+use crate::fs::{CopyProgress, VFile, copy_files_with_progress};
 
 pub struct PromptComponent {
     mode: PromptMode,
@@ -47,8 +47,6 @@ impl PromptComponent {
 
     /// 非同期処理の進捗表示を開始する。
     /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
-    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
-    #[allow(dead_code)]
     pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
         self.mode = PromptMode::Progress { message };
         self.progress = Some(receiver);
@@ -557,9 +555,7 @@ fn execute_text_action(
 fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => {
-            for file in &files {
-                file.copy_to(value)?;
-            }
+            start_async_copy(ctx, files, value.to_string());
             Ok(())
         }
         FileAction::Move { files } => {
@@ -636,4 +632,48 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 
     ctx.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
     Ok(())
+}
+
+fn start_async_copy(ctx: &mut AppContext, files: Vec<VFile>, dest: String) {
+    let (tx, rx) = mpsc::channel();
+    ctx.prompt.start_progress("Copying...".to_string(), rx);
+
+    std::thread::spawn(move || {
+        let result = copy_files_with_progress(&files, &dest, |progress| {
+            let _ = tx.send(ProgressMessage::Update(format_copy_progress(&progress)));
+        });
+        match result {
+            Ok(()) => {
+                let _ = tx.send(ProgressMessage::Complete);
+            }
+            Err(e) => {
+                let _ = tx.send(ProgressMessage::Error(format!("{e:#}")));
+            }
+        }
+    });
+}
+
+fn format_copy_progress(progress: &CopyProgress) -> String {
+    format!(
+        "Copying {}/{} files  {} / {}",
+        progress.copied_files,
+        progress.total_files,
+        format_bytes(progress.current_bytes),
+        format_bytes(progress.current_total_bytes),
+    )
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = 1024 * KB;
+    const GB: u64 = 1024 * MB;
+    if bytes >= GB {
+        format!("{:.1} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.1} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.1} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{bytes} B")
+    }
 }
