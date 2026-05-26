@@ -1,11 +1,17 @@
 use crate::fs::VFile;
 
+/// 進捗データを表示用文字列に整形するトレイト。
+/// `ProgressMessage::Update` で構造化データを送り、描画直前に 1 回だけ整形することで、
+/// `try_recv` で吸い切られて捨てられるメッセージのフォーマットコストを避ける。
+pub trait ProgressFormatter: Send {
+    fn format(&self) -> String;
+}
+
 /// 非同期処理からの進捗メッセージ。
 /// mpsc チャネル経由で PromptComponent に送信される。
-#[derive(Debug)]
 pub enum ProgressMessage {
-    /// 進捗状況の更新（例: "Copying 3/10 files  1.5 MB / 5.0 MB"）
-    Update(String),
+    /// 進捗状況の更新。整形は受信側の描画直前に遅延される。
+    Update(Box<dyn ProgressFormatter + Send>),
     /// 処理が正常に完了した
     Complete,
     /// 処理がエラーで終了した

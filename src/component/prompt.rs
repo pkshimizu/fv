@@ -1,8 +1,8 @@
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, ProgressFormatter, ProgressMessage,
+    PromptMode, SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -18,7 +18,7 @@ use std::path::Path;
 use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
-use crate::fs::{CopyProgress, VFile, copy_files_with_progress};
+use crate::fs::{VFile, spawn_copy_files};
 
 pub struct PromptComponent {
     mode: PromptMode,
@@ -334,14 +334,16 @@ impl Component for PromptComponent {
     }
 
     fn tick(&mut self) {
-        // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する
+        // 溜まった Update メッセージは捨て、最後の 1 件だけ整形してモードに反映する。
+        // これにより `try_recv` で吸い切られて使われない進捗整形コストを避けられる。
         let Some(receiver) = self.progress.as_ref() else {
             return;
         };
+        let mut latest_update: Option<Box<dyn ProgressFormatter + Send>> = None;
         loop {
             match receiver.try_recv() {
-                Ok(ProgressMessage::Update(text)) => {
-                    self.mode = PromptMode::Progress { message: text };
+                Ok(ProgressMessage::Update(data)) => {
+                    latest_update = Some(data);
                 }
                 Ok(ProgressMessage::Complete) => {
                     self.mode = PromptMode::None;
@@ -353,7 +355,7 @@ impl Component for PromptComponent {
                     self.progress = None;
                     return;
                 }
-                Err(mpsc::TryRecvError::Empty) => return,
+                Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => {
                     self.mode = PromptMode::Error {
                         message: "Progress channel disconnected unexpectedly".to_string(),
@@ -362,6 +364,11 @@ impl Component for PromptComponent {
                     return;
                 }
             }
+        }
+        if let Some(data) = latest_update {
+            self.mode = PromptMode::Progress {
+                message: data.format(),
+            };
         }
     }
 }
@@ -555,7 +562,8 @@ fn execute_text_action(
 fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => {
-            start_async_copy(ctx, files, value.to_string());
+            let rx = spawn_copy_files(files, value.to_string());
+            ctx.prompt.start_progress("Copying...".to_string(), rx);
             Ok(())
         }
         FileAction::Move { files } => {
@@ -632,61 +640,4 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 
     ctx.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
     Ok(())
-}
-
-fn start_async_copy(ctx: &mut AppContext, files: Vec<VFile>, dest: String) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    let (tx, rx) = mpsc::channel();
-    ctx.prompt.start_progress("Copying...".to_string(), rx);
-
-    std::thread::spawn(move || {
-        let cancel = AtomicBool::new(false);
-        let result = copy_files_with_progress(&files, &dest, &cancel, |progress| {
-            if tx
-                .send(ProgressMessage::Update(format_copy_progress(&progress)))
-                .is_err()
-            {
-                // 受信側が消えた。コピーを早期中断する。
-                cancel.store(true, Ordering::Relaxed);
-            }
-        });
-        match result {
-            Ok(()) => {
-                let _ = tx.send(ProgressMessage::Complete);
-            }
-            Err(e) => {
-                let _ = tx.send(ProgressMessage::Error(format!("{e:#}")));
-            }
-        }
-    });
-}
-
-fn format_copy_progress(progress: &CopyProgress) -> String {
-    let total = match progress.total_files {
-        Some(n) => n.to_string(),
-        None => "?".to_string(),
-    };
-    format!(
-        "Copying {}/{} files  {} / {}",
-        progress.copied_files,
-        total,
-        format_bytes(progress.current_bytes),
-        format_bytes(progress.current_total_bytes),
-    )
-}
-
-fn format_bytes(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = 1024 * KB;
-    const GB: u64 = 1024 * MB;
-    if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{bytes} B")
-    }
 }
