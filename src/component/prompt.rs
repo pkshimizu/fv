@@ -19,10 +19,13 @@ use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
 use crate::fs::{VFile, spawn_copy_files};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct PromptComponent {
     mode: PromptMode,
     progress: Option<mpsc::Receiver<ProgressMessage>>,
+    progress_cancel: Option<Arc<AtomicBool>>,
 }
 
 impl PromptComponent {
@@ -30,11 +33,17 @@ impl PromptComponent {
         Self {
             mode: PromptMode::None,
             progress: None,
+            progress_cancel: None,
         }
     }
 
     pub fn is_active(&self) -> bool {
         self.mode.is_active()
+    }
+
+    /// 非同期処理の進捗を表示中かどうか。
+    pub fn has_active_progress(&self) -> bool {
+        matches!(self.mode, PromptMode::Progress { .. }) && self.progress_cancel.is_some()
     }
 
     pub fn set_mode(&mut self, mode: PromptMode) {
@@ -47,9 +56,28 @@ impl PromptComponent {
 
     /// 非同期処理の進捗表示を開始する。
     /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
-    pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
+    /// `cancel` を立てると、ワーカースレッドが次の中断ポイントで処理を中止する。
+    pub fn start_progress(
+        &mut self,
+        message: String,
+        receiver: mpsc::Receiver<ProgressMessage>,
+        cancel: Option<Arc<AtomicBool>>,
+    ) {
         self.mode = PromptMode::Progress { message };
         self.progress = Some(receiver);
+        self.progress_cancel = cancel;
+    }
+
+    /// 進行中の非同期処理にキャンセルを要求する。
+    /// ワーカースレッドが次の中断ポイントを検出した時点でコピーが停止し、
+    /// `ProgressMessage::Error("Copy canceled")` が UI に届く。
+    pub fn request_cancel(&mut self) {
+        if let Some(cancel) = &self.progress_cancel {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let PromptMode::Progress { message } = &mut self.mode {
+            *message = "Canceling...".to_string();
+        }
     }
 
     pub fn cancel(&mut self) -> Option<usize> {
@@ -339,7 +367,7 @@ impl Component for PromptComponent {
         let Some(receiver) = self.progress.as_ref() else {
             return;
         };
-        let mut latest_update: Option<Box<dyn ProgressFormatter + Send>> = None;
+        let mut latest_update: Option<Box<dyn ProgressFormatter>> = None;
         loop {
             match receiver.try_recv() {
                 Ok(ProgressMessage::Update(data)) => {
@@ -348,6 +376,7 @@ impl Component for PromptComponent {
                 Ok(ProgressMessage::Complete) => {
                     self.mode = PromptMode::None;
                     self.progress = None;
+                    self.progress_cancel = None;
                     return;
                 }
                 Ok(ProgressMessage::Error(err)) => {
@@ -355,6 +384,7 @@ impl Component for PromptComponent {
                         message: format!("{err:#}"),
                     };
                     self.progress = None;
+                    self.progress_cancel = None;
                     return;
                 }
                 Err(mpsc::TryRecvError::Empty) => break,
@@ -363,6 +393,7 @@ impl Component for PromptComponent {
                         message: "Progress channel disconnected unexpectedly".to_string(),
                     };
                     self.progress = None;
+                    self.progress_cancel = None;
                     return;
                 }
             }
@@ -564,8 +595,9 @@ fn execute_text_action(
 fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => {
-            let rx = spawn_copy_files(files, value.to_string());
-            ctx.prompt.start_progress("Copying...".to_string(), rx);
+            let handle = spawn_copy_files(files, value.to_string());
+            ctx.prompt
+                .start_progress("Copying...".to_string(), handle.rx, Some(handle.cancel));
             Ok(())
         }
         FileAction::Move { files } => {

@@ -16,6 +16,12 @@ const PROGRESS_NOTIFY_BYTES: u64 = 1024 * 1024;
 /// `AtomicUsize` のセンチネル値。総ファイル数がまだ確定していないことを表す。
 const TOTAL_FILES_UNKNOWN: usize = usize::MAX;
 
+/// 再帰的なディレクトリトラバーサルで許容する最大階層深さ。
+/// ハードリンクされたディレクトリ循環や、想定外に深いツリーで
+/// スタックオーバーフローを起こす前に `anyhow::bail!` で停止するための安全網。
+/// 通常のファイルシステムでは PATH_MAX (~4096) に近い深さでも安全。
+const MAX_DIR_DEPTH: usize = 4096;
+
 /// ファイルコピー処理の進捗。
 /// 全体のファイル数進捗と、現在コピー中のファイルのバイト進捗を表す。
 /// `total_files` はバックグラウンドで集計されるため、確定するまでは `None`。
@@ -285,40 +291,41 @@ impl VFile {
 /// ファイル群を進捗を通知しながらコピーする。
 /// `on_progress` は処理開始時、各ファイルの読み込みチャンク毎、各ファイルのコピー完了時に呼ばれる。
 /// シンボリックリンクは辿らず、リンク自体を再作成する。
-/// 総ファイル数はコピーをブロックせず別スレッドで集計し、確定するまで `CopyProgress::total_files` は `None` になる。
+/// `total_files` は呼び出し側が用意し、別スレッドで集計してこの atomic に書き込む想定（確定まで `TOTAL_FILES_UNKNOWN`）。
 /// `cancel` を `true` に設定するとコピー処理が中断され `Err` が返る。
 pub(crate) fn copy_files_with_progress(
     files: &[VFile],
     dest: &str,
     cancel: &AtomicBool,
+    total_files: &AtomicUsize,
     mut on_progress: impl FnMut(CopyProgress),
 ) -> Result<()> {
-    let total_files = AtomicUsize::new(TOTAL_FILES_UNKNOWN);
+    // 複数ファイルを同一の非ディレクトリパスへコピーすると、2 つ目以降が
+    // unique_path で別名にされたり上書きされたりして意図しない結果になる。
+    // ディレクトリ必須の前提を明示的に検証する。
+    if files.len() > 1 {
+        anyhow::ensure!(
+            Path::new(dest).is_dir(),
+            "{dest}: must be an existing directory when copying multiple files"
+        );
+    }
     let mut buf = vec![0u8; COPY_BUFFER_SIZE];
-    std::thread::scope(|s| -> Result<()> {
-        s.spawn(|| {
-            if let Ok(count) = count_files(files) {
-                total_files.store(count, Ordering::Release);
-            }
-        });
-
-        let mut ctx = CopyContext {
-            copied_files: 0,
-            total_files: &total_files,
-            cancel,
-            buf: &mut buf,
-            on_progress: &mut on_progress,
-        };
-        ctx.notify(0, 0);
-        for file in files {
-            ctx.check_cancel()?;
-            let src = Path::new(file.absolute_path());
-            let resolved_dest = resolve_dest_path(src, dest, file.absolute_path())?;
-            ensure_dest_not_inside_src(src, &resolved_dest)?;
-            copy_entry_with_progress(src, &resolved_dest, None, &mut ctx)?;
-        }
-        Ok(())
-    })
+    let mut ctx = CopyContext {
+        copied_files: 0,
+        total_files,
+        cancel,
+        buf: &mut buf,
+        on_progress: &mut on_progress,
+    };
+    ctx.notify(0, 0);
+    for file in files {
+        ctx.check_cancel()?;
+        let src = Path::new(file.absolute_path());
+        let resolved_dest = resolve_dest_path(src, dest, file.absolute_path())?;
+        ensure_dest_not_inside_src(src, &resolved_dest)?;
+        copy_entry_with_progress(src, &resolved_dest, None, 0, &mut ctx)?;
+    }
+    Ok(())
 }
 
 /// `dest_path` が `src` 自身または `src` 配下に該当する場合エラーを返す。
@@ -358,14 +365,14 @@ fn ensure_dest_not_inside_src(src: &Path, dest_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn count_files(files: &[VFile]) -> Result<usize> {
+pub(super) fn count_files(files: &[VFile]) -> Result<usize> {
     let mut total = 0;
     for f in files {
         let path = Path::new(f.absolute_path());
         let file_type = std::fs::symlink_metadata(path)
             .with_context(|| format!("{}: Failed to read metadata", path.display()))?
             .file_type();
-        total += count_entries(path, file_type)?;
+        total += count_entries(path, file_type, 0)?;
     }
     Ok(total)
 }
@@ -374,7 +381,15 @@ fn count_files(files: &[VFile]) -> Result<usize> {
 /// `file_type` は `path` 自身の型で、内側ループでは `DirEntry::file_type()` から得て渡すことで
 /// `symlink_metadata` の追加 syscall を避ける。
 /// FileType の is_dir / is_file / is_symlink は相互排他なので is_dir() のみで判定。
-fn count_entries(path: &Path, file_type: FileType) -> Result<usize> {
+/// `depth` が `MAX_DIR_DEPTH` を超えると bail し、循環や異常に深いツリーで暴走するのを防ぐ。
+fn count_entries(path: &Path, file_type: FileType, depth: usize) -> Result<usize> {
+    if depth > MAX_DIR_DEPTH {
+        anyhow::bail!(
+            "{}: directory nesting exceeds {} levels",
+            path.display(),
+            MAX_DIR_DEPTH
+        );
+    }
     if !file_type.is_dir() {
         return Ok(1);
     }
@@ -388,7 +403,7 @@ fn count_entries(path: &Path, file_type: FileType) -> Result<usize> {
         let entry_type = entry
             .file_type()
             .with_context(|| format!("{}: Failed to get file type", entry_path.display()))?;
-        count += count_entries(&entry_path, entry_type)?;
+        count += count_entries(&entry_path, entry_type, depth + 1)?;
     }
     Ok(count)
 }
@@ -397,10 +412,12 @@ fn count_entries(path: &Path, file_type: FileType) -> Result<usize> {
 /// トップレベルの呼び出しは `None` を渡し `symlink_metadata` で取得、
 /// `copy_dir_with_progress` からの再帰時は `DirEntry::file_type` で得た値を渡すことで
 /// 内側エントリでの `symlink_metadata` 重複呼び出しを避ける。
+/// `depth` は再帰深さで、`copy_dir_with_progress` で `MAX_DIR_DEPTH` を超えると bail する。
 fn copy_entry_with_progress(
     src: &Path,
     dest: &Path,
     file_type: Option<FileType>,
+    depth: usize,
     ctx: &mut CopyContext,
 ) -> Result<()> {
     let file_type = match file_type {
@@ -412,13 +429,25 @@ fn copy_entry_with_progress(
     if file_type.is_symlink() {
         copy_symlink(src, dest, ctx)
     } else if file_type.is_dir() {
-        copy_dir_with_progress(src, dest, ctx)
+        copy_dir_with_progress(src, dest, depth, ctx)
     } else {
         copy_file_with_progress(src, dest, ctx)
     }
 }
 
-fn copy_dir_with_progress(src: &Path, dest: &Path, ctx: &mut CopyContext) -> Result<()> {
+fn copy_dir_with_progress(
+    src: &Path,
+    dest: &Path,
+    depth: usize,
+    ctx: &mut CopyContext,
+) -> Result<()> {
+    if depth > MAX_DIR_DEPTH {
+        anyhow::bail!(
+            "{}: directory nesting exceeds {} levels",
+            src.display(),
+            MAX_DIR_DEPTH
+        );
+    }
     std::fs::create_dir_all(dest)
         .with_context(|| format!("{}: Failed to create directory", dest.display()))?;
     for entry in
@@ -432,7 +461,7 @@ fn copy_dir_with_progress(src: &Path, dest: &Path, ctx: &mut CopyContext) -> Res
             .file_type()
             .with_context(|| format!("{}: Failed to get file type", entry_path.display()))?;
         let dest_path = dest.join(entry.file_name());
-        copy_entry_with_progress(&entry_path, &dest_path, Some(file_type), ctx)?;
+        copy_entry_with_progress(&entry_path, &dest_path, Some(file_type), depth + 1, ctx)?;
     }
     Ok(())
 }
@@ -454,7 +483,7 @@ fn copy_file_with_progress(src: &Path, dest: &Path, ctx: &mut CopyContext) -> Re
     ctx.notify(0, total_bytes);
 
     // ファイル内バイト進捗の通知間隔より小さいファイルは中間進捗を出さないので、
-    // OS の高速コピー (fcopyfile / copy_file_range / sendfile) を活用できる std::fs::copy を使う。
+    // 軽量な io::copy 経路を使う（Linux なら内部で copy_file_range の fast path に乗る）。
     if total_bytes < PROGRESS_NOTIFY_BYTES {
         ctx.check_cancel()?;
         copy_file_fast(src, dest)?;
@@ -470,7 +499,20 @@ fn copy_file_fast(src: &Path, dest: &Path) -> Result<()> {
     // dest が事前に存在しなかった場合のみ、失敗時に書きかけの dest を削除する。
     // 既存ファイルへの上書きで失敗した場合は、削除すると元データを失うため敢えて残す。
     let mut guard = PartialDestGuard::new(dest);
-    std::fs::copy(src, dest).with_context(|| format!("{}: Failed to copy file", dest.display()))?;
+    let mut src_file = std::fs::File::open(src)
+        .with_context(|| format!("{}: Failed to open file", src.display()))?;
+    // streaming 経路と一貫させて O_NOFOLLOW を付け、TOCTOU 攻撃を防ぐ。
+    // std::fs::copy より少し遅いが、Linux では io::copy が copy_file_range に
+    // 特殊化されるため fast path 自体は維持される。
+    let mut dest_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(dest)
+        .with_context(|| format!("{}: Failed to create file", dest.display()))?;
+    std::io::copy(&mut src_file, &mut dest_file)
+        .with_context(|| format!("{}: Failed to copy file", dest.display()))?;
     guard.disarm();
     Ok(())
 }
@@ -509,11 +551,13 @@ fn copy_file_streaming(
             .write_all(&ctx.buf[..n])
             .with_context(|| format!("{}: Failed to write file", dest.display()))?;
         copied += n as u64;
-        if copied - last_notified >= PROGRESS_NOTIFY_BYTES {
+        if copied.saturating_sub(last_notified) >= PROGRESS_NOTIFY_BYTES {
             ctx.notify(copied, total_bytes);
             last_notified = copied;
         }
     }
+    // 生 `File` への `flush()` は no-op だが、将来 `BufWriter` を挟む変更が
+    // 入ってもエラー検知できるように残している。
     dest_file
         .flush()
         .with_context(|| format!("{}: Failed to flush file", dest.display()))?;
@@ -530,8 +574,13 @@ struct PartialDestGuard<'a> {
 
 impl<'a> PartialDestGuard<'a> {
     fn new(path: &'a Path) -> Self {
-        // try_exists がエラー時は保守的に「存在する」とみなして cleanup を抑止する
-        let pre_existed = path.try_exists().unwrap_or(true);
+        // symlink_metadata は symlink を辿らないため、dangling symlink も「存在する」と判定できる。
+        // 権限エラー等の予期せぬ失敗時は保守的に「存在する」とみなして cleanup を抑止する。
+        let pre_existed = match std::fs::symlink_metadata(path) {
+            Ok(_) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+            Err(_) => true,
+        };
         Self {
             path,
             armed: !pre_existed,
@@ -565,7 +614,7 @@ fn copy_path_simple(src: &Path, dest: &Path) -> Result<()> {
         buf: &mut buf,
         on_progress: &mut |_| {},
     };
-    copy_entry_with_progress(src, dest, None, &mut ctx)
+    copy_entry_with_progress(src, dest, None, 0, &mut ctx)
 }
 
 fn resolve_dest_path(src: &Path, path: &str, src_display: &str) -> Result<PathBuf> {

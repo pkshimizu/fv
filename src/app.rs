@@ -235,15 +235,22 @@ impl App {
             // イベントを取得して処理
             match self.event_handler.next_event()? {
                 InputEvent::Key(key) => {
-                    let action = if self.ctx.prompt.is_active() {
-                        self.ctx.prompt.handle_event(key)?
-                    } else if let Some(panel) = self.ctx.side_panel.as_mut() {
-                        panel.handle_event(key)?
+                    // 進捗表示中の Esc はワーカーへのキャンセル要求として扱う
+                    if key.code == crossterm::event::KeyCode::Esc
+                        && self.ctx.prompt.has_active_progress()
+                    {
+                        self.ctx.prompt.request_cancel();
                     } else {
-                        self.ctx.filer.handle_event(key)?
-                    };
-                    if let Err(e) = self.handle_action(action, terminal) {
-                        self.set_error(format!("{e}"));
+                        let action = if self.ctx.prompt.is_active() {
+                            self.ctx.prompt.handle_event(key)?
+                        } else if let Some(panel) = self.ctx.side_panel.as_mut() {
+                            panel.handle_event(key)?
+                        } else {
+                            self.ctx.filer.handle_event(key)?
+                        };
+                        if let Err(e) = self.handle_action(action, terminal) {
+                            self.set_error(format!("{e}"));
+                        }
                     }
                 }
                 InputEvent::FileChange => {
