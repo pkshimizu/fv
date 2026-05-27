@@ -1,7 +1,6 @@
 use crate::fs::VFile;
-use crate::fs::file::{CopyProgress, copy_files_with_progress, count_files};
-use crate::fs::format::format_bytes;
-use crate::state::{ProgressFormatter, ProgressMessage};
+use crate::fs::file::{copy_files_with_progress, count_files};
+use crate::state::ProgressMessage;
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
@@ -36,9 +35,16 @@ pub fn spawn_copy_files(files: Vec<VFile>, dest: String) -> CopyHandle {
     {
         let files = Arc::clone(&files);
         let total_files = Arc::clone(&total_files);
-        std::thread::spawn(move || {
-            if let Ok(count) = count_files(&files) {
+        std::thread::spawn(move || match count_files(&files) {
+            Ok(count) => {
+                debug_assert_ne!(
+                    count, TOTAL_FILES_UNKNOWN,
+                    "count_files returned the sentinel value"
+                );
                 total_files.store(count, Ordering::Release);
+            }
+            Err(e) => {
+                tracing::warn!("Failed to count files for copy progress: {e:#}");
             }
         });
     }
@@ -48,10 +54,7 @@ pub fn spawn_copy_files(files: Vec<VFile>, dest: String) -> CopyHandle {
     std::thread::spawn(move || {
         let result = panic::catch_unwind(AssertUnwindSafe(|| {
             copy_files_with_progress(&files, &dest, &worker_cancel, &worker_total, |progress| {
-                if tx
-                    .send(ProgressMessage::Update(Box::new(progress)))
-                    .is_err()
-                {
+                if tx.send(ProgressMessage::UpdateCopy(progress)).is_err() {
                     // 受信側が消えた。コピーを早期中断する。
                     worker_cancel.store(true, Ordering::Relaxed);
                 }
@@ -83,21 +86,5 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
         s.clone()
     } else {
         "<non-string panic payload>".to_string()
-    }
-}
-
-impl ProgressFormatter for CopyProgress {
-    fn format(&self) -> String {
-        let total = match self.total_files {
-            Some(n) => n.to_string(),
-            None => "?".to_string(),
-        };
-        format!(
-            "Copying {}/{} files  {} / {}",
-            self.copied_files,
-            total,
-            format_bytes(self.current_bytes),
-            format_bytes(self.current_total_bytes),
-        )
     }
 }

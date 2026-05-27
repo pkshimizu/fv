@@ -67,6 +67,8 @@ pub enum Action {
     ExecutePrompt(Box<PromptMode>),
     /// プロンプトをキャンセルする（Searchモードのカーソル復元含む）
     CancelPrompt,
+    /// 進行中の非同期処理にキャンセルを要求する
+    CancelProgress,
     /// 検索の次の結果に移動する
     SearchNext(String),
     /// 検索の前の結果に移動する

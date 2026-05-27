@@ -8,6 +8,7 @@ mod permissions;
 pub mod text_preview;
 
 pub use copy_task::spawn_copy_files;
+pub use file::CopyProgress;
 pub use file::VFile;
 pub use file_metadata::VFileMetadata;
 pub use file_time::VFileTime;

@@ -169,6 +169,9 @@ impl App {
                     self.ctx.filer.select_file_table(Some(idx));
                 }
             }
+            Action::CancelProgress => {
+                self.ctx.prompt.request_cancel();
+            }
             Action::SearchUpdate(value) => {
                 self.ctx.filer.select_matching_file(&value);
             }
@@ -235,22 +238,20 @@ impl App {
             // イベントを取得して処理
             match self.event_handler.next_event()? {
                 InputEvent::Key(key) => {
-                    // 進捗表示中の Esc はワーカーへのキャンセル要求として扱う
-                    if key.code == crossterm::event::KeyCode::Esc
-                        && self.ctx.prompt.has_active_progress()
-                    {
-                        self.ctx.prompt.request_cancel();
+                    // PromptComponent が「Progress 中の Esc」のような特殊キーを intercept できる場合は
+                    // そちらを優先する。Component 自身がどのキーを捕捉するか決めるので、
+                    // app 側に特殊処理を漏らさない。
+                    let action = if let Some(action) = self.ctx.prompt.intercept_event(key) {
+                        action
+                    } else if self.ctx.prompt.is_active() {
+                        self.ctx.prompt.handle_event(key)?
+                    } else if let Some(panel) = self.ctx.side_panel.as_mut() {
+                        panel.handle_event(key)?
                     } else {
-                        let action = if self.ctx.prompt.is_active() {
-                            self.ctx.prompt.handle_event(key)?
-                        } else if let Some(panel) = self.ctx.side_panel.as_mut() {
-                            panel.handle_event(key)?
-                        } else {
-                            self.ctx.filer.handle_event(key)?
-                        };
-                        if let Err(e) = self.handle_action(action, terminal) {
-                            self.set_error(format!("{e}"));
-                        }
+                        self.ctx.filer.handle_event(key)?
+                    };
+                    if let Err(e) = self.handle_action(action, terminal) {
+                        self.set_error(format!("{e}"));
                     }
                 }
                 InputEvent::FileChange => {

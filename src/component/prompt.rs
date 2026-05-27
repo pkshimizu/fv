@@ -1,8 +1,8 @@
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, ProgressFormatter, ProgressMessage,
-    PromptMode, SelectAction, SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
+    SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -41,9 +41,17 @@ impl PromptComponent {
         self.mode.is_active()
     }
 
-    /// 非同期処理の進捗を表示中かどうか。
-    pub fn has_active_progress(&self) -> bool {
-        matches!(self.mode, PromptMode::Progress { .. }) && self.progress_cancel.is_some()
+    /// `is_active()` が false の状態（Progress 表示中）でも一部のキーは捕捉したい。
+    /// 該当する場合は `Some(Action)` を返し、しない場合は `None` を返して通常のディスパッチに委ねる。
+    /// これにより「Progress 中の Esc」のような特殊ケースを Component 内に閉じ込められる。
+    pub fn intercept_event(&self, key: KeyEvent) -> Option<Action> {
+        if matches!(self.mode, PromptMode::Progress { .. })
+            && self.progress_cancel.is_some()
+            && key.code == KeyCode::Esc
+        {
+            return Some(Action::CancelProgress);
+        }
+        None
     }
 
     pub fn set_mode(&mut self, mode: PromptMode) {
@@ -367,11 +375,11 @@ impl Component for PromptComponent {
         let Some(receiver) = self.progress.as_ref() else {
             return;
         };
-        let mut latest_update: Option<Box<dyn ProgressFormatter>> = None;
+        let mut latest_update: Option<crate::fs::CopyProgress> = None;
         loop {
             match receiver.try_recv() {
-                Ok(ProgressMessage::Update(data)) => {
-                    latest_update = Some(data);
+                Ok(ProgressMessage::UpdateCopy(progress)) => {
+                    latest_update = Some(progress);
                 }
                 Ok(ProgressMessage::Complete) => {
                     self.mode = PromptMode::None;
