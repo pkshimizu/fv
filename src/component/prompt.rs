@@ -1,8 +1,9 @@
+use crate::app::async_task::AsyncTaskHandle;
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, Phase, ProgressMessage, PromptMode,
+    SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -15,6 +16,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use std::io::BufRead;
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
@@ -22,14 +24,14 @@ use crate::fs::VFile;
 
 pub struct PromptComponent {
     mode: PromptMode,
-    progress: Option<mpsc::Receiver<ProgressMessage>>,
+    handle: Option<AsyncTaskHandle>,
 }
 
 impl PromptComponent {
     pub fn new() -> Self {
         Self {
             mode: PromptMode::None,
-            progress: None,
+            handle: None,
         }
     }
 
@@ -45,13 +47,19 @@ impl PromptComponent {
         self.mode = PromptMode::Error { message };
     }
 
-    /// 非同期処理の進捗表示を開始する。
-    /// receiver から ProgressMessage を受信し、promptエリアに進捗を表示する。
-    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
-    #[allow(dead_code)]
-    pub fn start_progress(&mut self, message: String, receiver: mpsc::Receiver<ProgressMessage>) {
-        self.mode = PromptMode::Progress { message };
-        self.progress = Some(receiver);
+    /// Async Job の進捗表示を開始する。受信した Update メッセージを `tick()` が PromptMode::Progress に反映する。
+    pub fn start_async_job(&mut self, handle: AsyncTaskHandle, initial_phase: Phase) {
+        self.mode = PromptMode::Progress {
+            phase: initial_phase,
+            processed: 0,
+            total: None,
+        };
+        self.handle = Some(handle);
+    }
+
+    /// 現在 Async Job が実行中か。
+    pub fn is_job_running(&self) -> bool {
+        self.handle.is_some()
     }
 
     pub fn cancel(&mut self) -> Option<usize> {
@@ -252,6 +260,21 @@ impl PromptComponent {
         }
     }
 
+    /// Progress 中はキー入力のほとんどを無視するが、Esc を受け取ったら Cancel Token を立て、
+    /// 表示の phase を Cancelling に切り替える（worker は次の File-level Checkpoint で停止する）。
+    fn handle_progress_event(&mut self, key: KeyEvent) -> Result<Action> {
+        if key.code != KeyCode::Esc {
+            return Ok(Action::None);
+        }
+        if let Some(handle) = self.handle.as_ref() {
+            handle.cancel.store(true, Ordering::Release);
+        }
+        if let PromptMode::Progress { phase, .. } = &mut self.mode {
+            *phase = Phase::Cancelling;
+        }
+        Ok(Action::None)
+    }
+
     fn after_input_value_changed(&mut self) -> Action {
         self.mode.reset_candidates();
         if let PromptMode::Search { value, .. } = &self.mode {
@@ -297,7 +320,11 @@ impl PromptComponent {
             PromptMode::Error { message } => Paragraph::new(message.as_str())
                 .style(Style::default().fg(Color::Red))
                 .block(build_bordered_block("Error", BorderStyle::Error)),
-            PromptMode::Progress { message } => Paragraph::new(message.as_str())
+            PromptMode::Progress {
+                phase,
+                processed,
+                total,
+            } => Paragraph::new(format_progress(*phase, *processed, *total))
                 .block(build_bordered_block("Progress", BorderStyle::Active)),
         };
         frame.render_widget(widget, area);
@@ -326,7 +353,7 @@ impl Component for PromptComponent {
             PromptMode::Select { .. } => self.handle_select_event(event),
             PromptMode::Confirm { .. } => self.handle_confirm_event(event),
             PromptMode::Error { .. } => self.handle_error_event(event),
-            PromptMode::Progress { .. } => Ok(Action::None),
+            PromptMode::Progress { .. } => self.handle_progress_event(event),
             PromptMode::None => Ok(Action::None),
         }
     }
@@ -337,22 +364,44 @@ impl Component for PromptComponent {
 
     fn tick(&mut self) {
         // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する
-        let Some(receiver) = self.progress.as_ref() else {
+        let Some(handle) = self.handle.as_ref() else {
             return;
         };
         loop {
-            match receiver.try_recv() {
-                Ok(ProgressMessage::Update(text)) => {
-                    self.mode = PromptMode::Progress { message: text };
+            match handle.rx.try_recv() {
+                Ok(ProgressMessage::Update {
+                    phase,
+                    processed,
+                    total,
+                }) => {
+                    // Cancelling 中は phase を据え置く（処理済み・総量のみ反映）
+                    if let PromptMode::Progress {
+                        phase: ref mut current_phase,
+                        processed: ref mut current_processed,
+                        total: ref mut current_total,
+                    } = self.mode
+                    {
+                        if *current_phase != Phase::Cancelling {
+                            *current_phase = phase;
+                        }
+                        *current_processed = processed;
+                        *current_total = total;
+                    } else {
+                        self.mode = PromptMode::Progress {
+                            phase,
+                            processed,
+                            total,
+                        };
+                    }
                 }
                 Ok(ProgressMessage::Complete) => {
                     self.mode = PromptMode::None;
-                    self.progress = None;
+                    self.handle = None;
                     return;
                 }
                 Ok(ProgressMessage::Error(text)) => {
                     self.mode = PromptMode::Error { message: text };
-                    self.progress = None;
+                    self.handle = None;
                     return;
                 }
                 Err(mpsc::TryRecvError::Empty) => return,
@@ -360,11 +409,27 @@ impl Component for PromptComponent {
                     self.mode = PromptMode::Error {
                         message: "Progress channel disconnected unexpectedly".to_string(),
                     };
-                    self.progress = None;
+                    self.handle = None;
                     return;
                 }
             }
         }
+    }
+}
+
+fn format_progress(phase: Phase, processed: usize, total: Option<usize>) -> String {
+    let label = match phase {
+        Phase::Scanning => "Scanning",
+        Phase::Copying => "Copying",
+        Phase::Moving => "Moving",
+        Phase::Zipping => "Zipping",
+        Phase::Extracting => "Extracting",
+        Phase::Deleting => "Deleting",
+        Phase::Cancelling => "Cancelling",
+    };
+    match total {
+        Some(t) => format!("{label} {processed}/{t} files"),
+        None => format!("{label}... {processed} files"),
     }
 }
 
@@ -519,6 +584,24 @@ fn execute_confirm_action(action: ConfirmAction) -> Result<()> {
     }
 }
 
+/// Async Job を起動して PromptComponent に進捗ハンドルを渡す共通ヘルパ。
+/// 既に別の Async Job が走っていれば `PromptMode::Error` を表示して `Ok(())` を返す。
+fn start_file_job(
+    ctx: &mut AppContext,
+    job: crate::fs::async_job::FileJob,
+    initial_phase: Phase,
+) -> Result<()> {
+    if ctx.prompt.is_job_running() {
+        ctx.prompt.set_error("別の操作が実行中です".to_string());
+        return Ok(());
+    }
+    let handle = crate::app::async_task::spawn_async_task(move |cancel, on_progress| {
+        job.run(cancel, on_progress)
+    });
+    ctx.prompt.start_async_job(handle, initial_phase);
+    Ok(())
+}
+
 fn execute_text_action(
     ctx: &mut AppContext,
     store: &mut RootStore,
@@ -544,9 +627,15 @@ fn execute_text_action(
             let dest_path = std::path::Path::new(dir.absolute_path()).join(value);
             std::fs::create_dir_all(&dest_path)
                 .with_context(|| format!("{}: Failed to create directory", dest_path.display()))?;
-            let dest_str = dest_path.to_str().context("Invalid path")?;
-            file.extract_zip(dest_str)?;
-            Ok(())
+
+            start_file_job(
+                ctx,
+                crate::fs::async_job::FileJob::ZipExtract {
+                    file,
+                    dest: dest_path,
+                },
+                Phase::Extracting,
+            )
         }
         TextAction::Grep => execute_grep(ctx, store, value),
         // input_ok で Action::ExecuteCommand に変換されるため到達しない
@@ -636,4 +725,97 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 
     ctx.side_panel = Some(SidePanel::Grep(GrepComponent::new(rx)));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::async_task::AsyncTaskHandle;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::mpsc::{self, Sender};
+
+    fn make_handle() -> (PromptComponent, Sender<ProgressMessage>, Arc<AtomicBool>) {
+        let (tx, rx) = mpsc::channel::<ProgressMessage>();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let handle = AsyncTaskHandle {
+            rx,
+            cancel: cancel.clone(),
+        };
+        let mut prompt = PromptComponent::new();
+        prompt.start_async_job(handle, Phase::Extracting);
+        (prompt, tx, cancel)
+    }
+
+    #[test]
+    fn esc_during_progress_triggers_cancel_and_phase_switch() {
+        use std::sync::atomic::Ordering;
+        let (mut prompt, _tx, cancel) = make_handle();
+
+        let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+        let action = prompt.handle_event(esc).expect("handle_event ok");
+
+        // App は Action として何も伝搬を要求されない（Prompt 内部で吸収）
+        assert!(matches!(action, Action::None));
+        // cancel が立つ
+        assert!(cancel.load(Ordering::Acquire));
+        // mode の phase が Cancelling に切り替わる（processed/total は据え置き）
+        match prompt.mode {
+            PromptMode::Progress { phase, .. } => assert_eq!(phase, Phase::Cancelling),
+            other => panic!("expected Progress mode after Esc, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn tick_with_complete_clears_handle_and_returns_to_none_mode() {
+        let (mut prompt, tx, _cancel) = make_handle();
+        tx.send(ProgressMessage::Complete).unwrap();
+
+        prompt.tick();
+
+        assert!(matches!(prompt.mode, PromptMode::None));
+        assert!(!prompt.is_job_running());
+    }
+
+    #[test]
+    fn tick_with_error_switches_to_error_mode_with_message() {
+        let (mut prompt, tx, _cancel) = make_handle();
+        tx.send(ProgressMessage::Error("disk full".into())).unwrap();
+
+        prompt.tick();
+
+        match &prompt.mode {
+            PromptMode::Error { message } => assert_eq!(message, "disk full"),
+            other => panic!("expected Error mode, got {other:?}"),
+        }
+        assert!(!prompt.is_job_running());
+    }
+
+    #[test]
+    fn tick_reflects_received_update_into_progress_mode() {
+        let (mut prompt, tx, _cancel) = make_handle();
+        tx.send(ProgressMessage::Update {
+            phase: Phase::Extracting,
+            processed: 7,
+            total: Some(50),
+        })
+        .unwrap();
+
+        prompt.tick();
+
+        match prompt.mode {
+            PromptMode::Progress {
+                phase,
+                processed,
+                total,
+            } => {
+                assert_eq!(phase, Phase::Extracting);
+                assert_eq!(processed, 7);
+                assert_eq!(total, Some(50));
+            }
+            other => panic!("expected Progress mode, got {other:?}"),
+        }
+        assert!(prompt.is_job_running());
+    }
 }

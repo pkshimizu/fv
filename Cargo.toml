@@ -27,3 +27,6 @@ zip = "8.6.0"
 rodio = "0.20.1"
 ratatui-image = { version = "11", default-features = false, features = ["crossterm", "image-defaults"] }
 image = "0.25"
+
+[dev-dependencies]
+tempfile = "3.10"

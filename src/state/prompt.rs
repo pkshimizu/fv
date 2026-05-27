@@ -1,13 +1,30 @@
 use crate::fs::VFile;
 
+/// Async Job の現在フェーズ。
+/// PromptComponent の進捗表示で `Copying 7/1234 files` のような表示文字列を組み立てる際に使う。
+/// Scanning / Copying / Moving / Zipping / Deleting は後続スライス (#222-#225) で利用される。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum Phase {
+    Scanning,
+    Copying,
+    Moving,
+    Zipping,
+    Extracting,
+    Deleting,
+    Cancelling,
+}
+
 /// 非同期処理からの進捗メッセージ。
 /// mpsc チャネル経由で PromptComponent に送信される。
 #[derive(Debug)]
 pub enum ProgressMessage {
-    /// 進捗状況の更新（例: "Deleting... 3/10 files"）
-    /// 現在は未使用だが、将来の非同期処理（ファイルコピー、ZIP作成等）で使用予定。
-    #[allow(dead_code)]
-    Update(String),
+    /// 進捗状況の更新。`total` が `None` の場合は Scan Phase など総量未確定状態を表す。
+    Update {
+        phase: Phase,
+        processed: usize,
+        total: Option<usize>,
+    },
     /// 処理が正常に完了した
     Complete,
     /// 処理がエラーで終了した
@@ -81,7 +98,9 @@ pub enum PromptMode {
         message: String,
     },
     Progress {
-        message: String,
+        phase: Phase,
+        processed: usize,
+        total: Option<usize>,
     },
     Search {
         title: String,
@@ -93,7 +112,7 @@ pub enum PromptMode {
 
 impl PromptMode {
     pub fn is_active(&self) -> bool {
-        !matches!(self, PromptMode::None | PromptMode::Progress { .. })
+        !matches!(self, PromptMode::None)
     }
 
     /// テキスト入力モードの場合、カーソル位置と入力値を返す
@@ -116,5 +135,24 @@ impl PromptMode {
             candidates.clear();
             *candidate_index = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn progress_mode_is_active_so_filer_is_locked_during_async_job() {
+        let progress = PromptMode::Progress {
+            phase: Phase::Extracting,
+            processed: 0,
+            total: Some(10),
+        };
+        assert!(
+            progress.is_active(),
+            "Progress should be active so Filer ignores key events (Filer Lock)"
+        );
+        assert!(!PromptMode::None.is_active());
     }
 }
