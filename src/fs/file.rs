@@ -14,7 +14,8 @@ const COPY_BUFFER_SIZE: usize = 256 * 1024;
 const PROGRESS_NOTIFY_BYTES: u64 = 1024 * 1024;
 
 /// `AtomicUsize` のセンチネル値。総ファイル数がまだ確定していないことを表す。
-const TOTAL_FILES_UNKNOWN: usize = usize::MAX;
+/// `copy_task.rs` も atomic 初期化時に同じ値を使うため `pub(super)` で共有する。
+pub(super) const TOTAL_FILES_UNKNOWN: usize = usize::MAX;
 
 /// 再帰的なディレクトリトラバーサルで許容する最大階層深さ。
 /// ハードリンクされたディレクトリ循環や、想定外に深いツリーで
@@ -33,15 +34,15 @@ pub struct CopyProgress {
     pub current_total_bytes: u64,
 }
 
-impl CopyProgress {
-    /// UI 表示用の文字列に整形する。
-    /// 受信側 (`PromptComponent::tick`) で描画直前に呼ばれる。
-    pub fn format(&self) -> String {
+impl std::fmt::Display for CopyProgress {
+    /// UI 表示用の整形。受信側 (`PromptComponent::tick`) で描画直前に呼ばれる。
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let total = match self.total_files {
             Some(n) => n.to_string(),
             None => "?".to_string(),
         };
-        format!(
+        write!(
+            f,
             "Copying {}/{} files  {} / {}",
             self.copied_files,
             total,
@@ -58,14 +59,14 @@ fn load_total_files(total: &AtomicUsize) -> Option<usize> {
 
 /// コピー処理中に持ち回る状態とコールバックをまとめた構造体。
 /// 引数の数を抑え、進捗通知やキャンセル判定のロジックを集約する。
-/// `buf` はストリーミングコピー用のバッファ。空 `Vec` で渡し、`ensure_streaming_buf`
-/// で初回使用時に遅延確保 + 1 回のコピー操作全体で再利用される。
+/// `buf` はストリーミングコピー用のバッファ。空 `Vec` で生成し、`copy_file_streaming`
+/// 突入時に遅延確保 + 1 回のコピー操作全体で再利用される。
 /// 小ファイル経路 (`copy_file_fast`) しか走らない場合はバッファを確保しない。
 struct CopyContext<'a> {
     copied_files: usize,
     total_files: &'a AtomicUsize,
     cancel: &'a AtomicBool,
-    buf: &'a mut Vec<u8>,
+    buf: Vec<u8>,
     on_progress: &'a mut dyn FnMut(CopyProgress),
 }
 
@@ -332,13 +333,12 @@ pub(crate) fn copy_files_with_progress(
             "{dest}: must be an existing directory when copying multiple files"
         );
     }
-    // ストリーミング経路（>= 1 MiB）が走ったときだけ確保する。
-    let mut buf: Vec<u8> = Vec::new();
+    // バッファはストリーミング経路（>= 1 MiB）に入って初めて遅延確保される。
     let mut ctx = CopyContext {
         copied_files: 0,
         total_files,
         cancel,
-        buf: &mut buf,
+        buf: Vec::new(),
         on_progress: &mut on_progress,
     };
     ctx.notify(0, 0);
@@ -390,15 +390,13 @@ fn ensure_dest_not_inside_src(src: &Path, dest_path: &Path) -> Result<()> {
 }
 
 pub(super) fn count_files(files: &[VFile]) -> Result<usize> {
-    let mut total = 0;
-    for f in files {
+    files.iter().try_fold(0usize, |acc, f| {
         let path = Path::new(f.absolute_path());
         let file_type = std::fs::symlink_metadata(path)
             .with_context(|| format!("{}: Failed to read metadata", path.display()))?
             .file_type();
-        total += count_entries(path, file_type, 0)?;
-    }
-    Ok(total)
+        Ok(acc + count_entries(path, file_type, 0)?)
+    })
 }
 
 /// `path` 配下のファイル/symlink 数を再帰的に数える。
@@ -432,9 +430,7 @@ fn count_entries(path: &Path, file_type: FileType, depth: usize) -> Result<usize
     Ok(count)
 }
 
-/// `file_type` を `Some` で受け取った場合は再フェッチせずそれを使う。
-/// トップレベルの呼び出しは `None` を渡し `symlink_metadata` で取得、
-/// トップレベルのコピーエントリポイント。`symlink_metadata` で `src` の型を確認して
+/// トップレベルのコピーエントリポイント。`symlink_metadata` で `src` の型を取得して
 /// `copy_entry_with_known_type` に委譲する。
 fn copy_entry(src: &Path, dest: &Path, depth: usize, ctx: &mut CopyContext) -> Result<()> {
     let file_type = std::fs::symlink_metadata(src)
@@ -613,7 +609,13 @@ impl<'a> PartialDestGuard<'a> {
         let pre_existed = match std::fs::symlink_metadata(path) {
             Ok(_) => true,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-            Err(_) => true,
+            Err(e) => {
+                tracing::debug!(
+                    "PartialDestGuard: stat failed for {}, suppressing cleanup: {e}",
+                    path.display()
+                );
+                true
+            }
         };
         Self {
             path,
@@ -640,18 +642,16 @@ impl Drop for PartialDestGuard<'_> {
 }
 
 /// move_to で EXDEV フォールバック時に使う簡易コピー（進捗通知なし、キャンセル不要）。
-/// 進捗通知を no-op にして `copy_entry_with_progress` に委譲することで、
+/// 進捗通知を no-op にして `copy_entry` に委譲することで、
 /// シンボリックリンク処理や再帰ロジックを共通化している。
 fn copy_path_simple(src: &Path, dest: &Path) -> Result<()> {
     let total_files = AtomicUsize::new(TOTAL_FILES_UNKNOWN);
     let cancel = AtomicBool::new(false);
-    // 小ファイル経路では buf を使わないので空のまま渡す（必要になったら遅延確保される）
-    let mut buf: Vec<u8> = Vec::new();
     let mut ctx = CopyContext {
         copied_files: 0,
         total_files: &total_files,
         cancel: &cancel,
-        buf: &mut buf,
+        buf: Vec::new(),
         on_progress: &mut |_| {},
     };
     copy_entry(src, dest, 0, &mut ctx)

@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
+use crate::fs::{CopyProgress, VFile, spawn_copy_files};
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, ProgressMessage, PromptMode, SelectAction,
     SidePanel, SortKey, TextAction,
@@ -15,12 +16,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use std::io::BufRead;
 use std::path::Path;
-use std::sync::mpsc;
-use unicode_width::UnicodeWidthChar;
-
-use crate::fs::{VFile, spawn_copy_files};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use unicode_width::UnicodeWidthChar;
 
 pub struct PromptComponent {
     mode: PromptMode,
@@ -375,7 +374,7 @@ impl Component for PromptComponent {
         let Some(receiver) = self.progress.as_ref() else {
             return;
         };
-        let mut latest_update: Option<crate::fs::CopyProgress> = None;
+        let mut latest_update: Option<CopyProgress> = None;
         loop {
             match receiver.try_recv() {
                 Ok(ProgressMessage::UpdateCopy(progress)) => {
@@ -408,7 +407,7 @@ impl Component for PromptComponent {
         }
         if let Some(data) = latest_update {
             self.mode = PromptMode::Progress {
-                message: data.format(),
+                message: data.to_string(),
             };
         }
     }

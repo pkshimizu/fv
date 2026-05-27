@@ -1,16 +1,11 @@
 use crate::fs::VFile;
-use crate::fs::file::{copy_files_with_progress, count_files};
+use crate::fs::file::{TOTAL_FILES_UNKNOWN, copy_files_with_progress, count_files};
 use crate::state::ProgressMessage;
 use std::any::Any;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
-
-/// 総ファイル数がまだ確定していないことを表すセンチネル値。
-/// `copy_files_with_progress` 側の定数と同じ意味で重複定義しているが、
-/// 公開する atomic の生成タイミングをここで一元管理する目的で再宣言している。
-const TOTAL_FILES_UNKNOWN: usize = usize::MAX;
 
 /// 非同期コピー処理のハンドル。
 /// `rx` で進捗・完了・エラーを受信し、`cancel` を `true` に設定すれば外部からコピーを中断できる。
@@ -85,6 +80,11 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
     } else if let Some(s) = payload.downcast_ref::<String>() {
         s.clone()
     } else {
-        "<non-string panic payload>".to_string()
+        // panic_any(value) で文字列以外のペイロードが投げられたケース。
+        // TypeId の情報を含めることで開発者がパニック型を追跡できるようにする。
+        format!(
+            "<non-string panic payload: type_id={:?}>",
+            payload.type_id()
+        )
     }
 }
