@@ -89,6 +89,13 @@ pub trait Component {
     /// キーイベントを処理し、アプリ全体に影響するアクションを返す。
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action>;
 
+    /// `is_active()` が false の状態（例: Prompt の Progress 表示中）でも一部のキーを
+    /// コンポーネント側で先取りしたい場合に `Some(Action)` を返す。デフォルトは何もしない。
+    /// app 側のキー振り分けより前に呼ばれ、戻り値が `Some` の場合はそのアクションが即時実行される。
+    fn intercept_event(&mut self, _event: KeyEvent) -> Option<Action> {
+        None
+    }
+
     /// コンポーネントを描画する。
     /// デフォルトは空実装。描画に追加のコンテキストが必要なコンポーネントは
     /// 独自の描画メソッド（例: render_with_store）を使用する。

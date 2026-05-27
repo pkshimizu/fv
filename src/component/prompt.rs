@@ -40,19 +40,6 @@ impl PromptComponent {
         self.mode.is_active()
     }
 
-    /// `is_active()` が false の状態（Progress 表示中）でも一部のキーは捕捉したい。
-    /// 該当する場合は `Some(Action)` を返し、しない場合は `None` を返して通常のディスパッチに委ねる。
-    /// これにより「Progress 中の Esc」のような特殊ケースを Component 内に閉じ込められる。
-    pub fn intercept_event(&self, key: KeyEvent) -> Option<Action> {
-        if matches!(self.mode, PromptMode::Progress { .. })
-            && self.progress_cancel.is_some()
-            && key.code == KeyCode::Esc
-        {
-            return Some(Action::CancelProgress);
-        }
-        None
-    }
-
     pub fn set_mode(&mut self, mode: PromptMode) {
         self.mode = mode;
     }
@@ -78,8 +65,10 @@ impl PromptComponent {
     /// 進行中の非同期処理にキャンセルを要求する。
     /// ワーカースレッドが次の中断ポイントを検出した時点でコピーが停止し、
     /// `ProgressMessage::Error("Copy canceled")` が UI に届く。
+    /// `take()` で `progress_cancel` を消費することで、二重 Esc 押下による `Action::CancelProgress`
+    /// の連発を防ぐ（`intercept_event` が次回以降は `None` を返す）。
     pub fn request_cancel(&mut self) {
-        if let Some(cancel) = &self.progress_cancel {
+        if let Some(cancel) = self.progress_cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }
         if let PromptMode::Progress { message } = &mut self.mode {
@@ -364,6 +353,19 @@ impl Component for PromptComponent {
         }
     }
 
+    /// `is_active()` が false の状態（Progress 表示中）でも一部のキーは捕捉したい。
+    /// 該当する場合は `Some(Action)` を返し、しない場合は `None` を返して通常のディスパッチに委ねる。
+    /// これにより「Progress 中の Esc」のような特殊ケースを Component 内に閉じ込められる。
+    fn intercept_event(&mut self, key: KeyEvent) -> Option<Action> {
+        if matches!(self.mode, PromptMode::Progress { .. })
+            && self.progress_cancel.is_some()
+            && key.code == KeyCode::Esc
+        {
+            return Some(Action::CancelProgress);
+        }
+        None
+    }
+
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         self.render_prompt(frame, area);
     }
@@ -602,9 +604,9 @@ fn execute_text_action(
 fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => {
-            let handle = spawn_copy_files(files, value.to_string());
+            let (rx, cancel) = spawn_copy_files(files, value.to_string()).into_parts();
             ctx.prompt
-                .start_progress("Copying...".to_string(), handle.rx, Some(handle.cancel));
+                .start_progress("Copying...".to_string(), rx, Some(cancel));
             Ok(())
         }
         FileAction::Move { files } => {

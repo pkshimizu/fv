@@ -9,9 +9,16 @@ use std::sync::mpsc;
 
 /// 非同期コピー処理のハンドル。
 /// `rx` で進捗・完了・エラーを受信し、`cancel` を `true` に設定すれば外部からコピーを中断できる。
+/// `into_parts()` で `(Receiver, Arc<AtomicBool>)` に分解できる。
 pub struct CopyHandle {
-    pub rx: mpsc::Receiver<ProgressMessage>,
-    pub cancel: Arc<AtomicBool>,
+    rx: mpsc::Receiver<ProgressMessage>,
+    cancel: Arc<AtomicBool>,
+}
+
+impl CopyHandle {
+    pub fn into_parts(self) -> (mpsc::Receiver<ProgressMessage>, Arc<AtomicBool>) {
+        (self.rx, self.cancel)
+    }
 }
 
 /// バックグラウンドスレッドで `files` を `dest` へ非同期コピーし、
@@ -23,19 +30,24 @@ pub fn spawn_copy_files(files: Vec<VFile>, dest: String) -> CopyHandle {
     let (tx, rx) = mpsc::channel();
     let cancel = Arc::new(AtomicBool::new(false));
     let total_files = Arc::new(AtomicUsize::new(TOTAL_FILES_UNKNOWN));
-    let files = Arc::new(files);
+
+    // count スレッドは `files` を読むだけなので `Vec::clone` で参照を渡す。
+    // `VFile` は軽量 (String + Option<VFileMetadata>) なので `Arc<Vec<_>>` の二重間接化より素直。
+    let files_for_count = files.clone();
 
     // バックグラウンドの detached スレッドで総ファイル数を集計する。
     // ここでの失敗は UI 上「分母が ? のまま」になるだけで、コピー本体には影響しない。
     {
-        let files = Arc::clone(&files);
         let total_files = Arc::clone(&total_files);
-        std::thread::spawn(move || match count_files(&files) {
+        std::thread::spawn(move || match count_files(&files_for_count) {
             Ok(count) => {
                 debug_assert_ne!(
                     count, TOTAL_FILES_UNKNOWN,
                     "count_files returned the sentinel value"
                 );
+                // Release で書き、worker 側の Acquire load とペアリング。
+                // 現状は単一 atomic だけだが、将来 count スレッドが他フィールドを準備してから
+                // signal するように拡張される場合に正しい順序保証となる。
                 total_files.store(count, Ordering::Release);
             }
             Err(e) => {
@@ -51,6 +63,7 @@ pub fn spawn_copy_files(files: Vec<VFile>, dest: String) -> CopyHandle {
             copy_files_with_progress(&files, &dest, &worker_cancel, &worker_total, |progress| {
                 if tx.send(ProgressMessage::UpdateCopy(progress)).is_err() {
                     // 受信側が消えた。コピーを早期中断する。
+                    // cancel フラグは単独のシグナルなので Relaxed で十分。
                     worker_cancel.store(true, Ordering::Relaxed);
                 }
             })
