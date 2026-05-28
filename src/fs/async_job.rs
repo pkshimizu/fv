@@ -223,8 +223,8 @@ fn walk_count_for_delete(
         if cancel.load(Ordering::Relaxed) {
             return Ok(CollectStatus::Cancelled);
         }
-        let entry = entry
-            .with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
+        let entry =
+            entry.with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
         let entry_src = entry.path();
         let file_type = entry
             .file_type()
@@ -245,10 +245,7 @@ fn walk_count_for_delete(
 /// Scan Phase の batch 通知ヘルパ。
 /// `count == 0` での発火 (空入力でカウント前の状態) を抑止しつつ、
 /// `SCAN_NOTIFY_BATCH` の倍数到達時に `(Scanning, count, None)` を発火する。
-fn notify_scan_progress(
-    count: usize,
-    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
-) {
+fn notify_scan_progress(count: usize, on_progress: &mut dyn FnMut(Phase, usize, Option<usize>)) {
     if count > 0 && count.is_multiple_of(SCAN_NOTIFY_BATCH) {
         on_progress(Phase::Scanning, count, None);
     }
@@ -1992,9 +1989,8 @@ mod tests {
     fn delete_returns_err_when_source_is_missing() {
         // Scan Phase の metadata() で stat 失敗 → Err 早期返却 (ファイル扱いに握りつぶさない)
         let tmp = TempDir::new().unwrap();
-        let mut delete_fn = |_: &Path| -> Result<()> {
-            panic!("delete_fn must not be called when scan fails")
-        };
+        let mut delete_fn =
+            |_: &Path| -> Result<()> { panic!("delete_fn must not be called when scan fails") };
         let result = run_delete_with(
             &[vfile(&tmp.path().join("no-such.txt"))],
             &AtomicBool::new(false),
@@ -2062,8 +2058,14 @@ mod tests {
 
         // 1 件削除済み、残り 2 件は元の場所に残る (Partial Result on filesystem)
         assert!(!a.exists(), "first file should be deleted");
-        assert!(b.exists(), "second file should remain (cancel before delete)");
-        assert!(c.exists(), "third file should remain (cancel before delete)");
+        assert!(
+            b.exists(),
+            "second file should remain (cancel before delete)"
+        );
+        assert!(
+            c.exists(),
+            "third file should remain (cancel before delete)"
+        );
     }
 
     #[test]
