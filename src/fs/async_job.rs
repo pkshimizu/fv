@@ -1,7 +1,7 @@
 use crate::fs::VFile;
-use crate::fs::file::unique_path;
 use crate::state::Phase;
 use anyhow::{Context, Result};
+use std::collections::HashSet;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,6 +9,41 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// Scan Phase 中、ファイル発見ごとに `on_progress` を呼ばずに、この件数ごとにバッチで通知する。
 /// `&mut dyn FnMut` の vtable hop と `spawn_async_job` 側の `Instant::now()` 呼出を削減する目的。
 const SCAN_NOTIFY_BATCH: usize = 256;
+
+/// `unique_path` の suffix 探索上限 (`fs::file::unique_path` と揃える)。
+const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
+
+/// Copy/Move の Scan Phase で扱う「src ファイルパス → 衝突回避済み宛先 top-level パス」のペア。
+/// タプルだと `.0/.1` でアクセスする箇所が意図不明になりやすいため struct 化している。
+#[derive(Debug, Clone)]
+struct TopLevelPair {
+    src: PathBuf,
+    dst: PathBuf,
+}
+
+/// `std::fs::rename` の戻り Err がクロスファイルシステムを示すか判定する。
+/// `std::io::ErrorKind::CrossesDevices` で表現できる場合はそれを優先し、Unix 上の古い API でも
+/// `libc::EXDEV` (`raw_os_error`) で fallback する。
+fn is_cross_device_error(e: &std::io::Error) -> bool {
+    if e.kind() == std::io::ErrorKind::CrossesDevices {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        e.raw_os_error() == Some(libc::EXDEV)
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+/// `dest` ディレクトリを必ず存在させる。Copy/Move 入口で共通的に呼び、ユーザが存在しない path を
+/// 指定した場合でも先頭で確保する。
+fn ensure_dest_dir(dest: &Path) -> Result<()> {
+    std::fs::create_dir_all(dest)
+        .with_context(|| format!("{}: Failed to create destination directory", dest.display()))
+}
 
 /// Async Job として実行される重いファイル操作。
 /// UI とは結合せず、進捗はクロージャ経由で通知する。
@@ -46,15 +81,21 @@ impl FileJob {
 
 /// Move Job 本体。
 /// 同一 FS では `rename` 一発で済むため Scan Phase を経由せず top-level 件数で進捗を出す。
-/// `std::fs::rename` が `libc::EXDEV` で失敗した場合は、全 root を Scan + Copy + Remove の
+/// `std::fs::rename` がクロスファイルシステムで失敗した場合は、全 root を Scan + Copy + Remove の
 /// フォールバックパスに切り替える (UI 上は `Scanning... N files` → `Moving k/N files` の遷移)。
 ///
 /// # Partial Result
-/// - 同一 FS 高速パス中の cancel: 既に rename 済みの root は dest に残り、未処理は src に残る
+/// Move における Partial Result は「src から消え、dest に存在する root」の集合と定義する。
+/// 中途半端な状態 (src/dest 重複や、コピー途中) は **未完了 root** とみなし、
+/// ユーザに伝わるべき "完了済み" には含めない。
+///
+/// 各タイミングごとの実ディスク状態:
+/// - 同一 FS 高速パス中の cancel: 既に rename 済みの root は dest に、未処理 root は src に残る (= 完了 + 未完了)
+/// - 同一 FS 高速パス中の rename Err (probe 以降): 既に rename 済みの root は dest に残る (エラー文言に明記)
 /// - EXDEV フォールバック中の cancel:
-///   - Scan 中: 何も変えない
-///   - Copy 中: dest にコピー済み、src にはまだ全エントリ残存 (src/dest の重複状態)
-///   - Remove 中: dest には全エントリ、src には未削除の root が残存
+///   - Scan 中: 何も変えない (完了 root 無し)
+///   - Copy 中: dest にコピー済み + src に全 root → "完了" root はゼロ。Copy 完了せず src/dest 重複の生データが残る
+///   - Remove 中: dest には全 root のコピーが揃い、src からは既に削除された root が消える (完了済み = src 消去された root)
 fn run_move(
     files: &[VFile],
     dest: &Path,
@@ -67,38 +108,49 @@ fn run_move(
     if cancel.load(Ordering::Relaxed) {
         return Ok(());
     }
+    // `run_copy` と同じく、入口で dest 自体を確保する (rename も create_dir_all 同等の効果は無いため)。
+    ensure_dest_dir(dest)?;
     let pairs = resolve_top_level_pairs(files, dest)?;
 
-    // Probe: 先頭 root に rename を試す。同一 FS なら成功、クロス FS なら EXDEV エラー。
-    let (first_src, first_dest) = &pairs[0];
-    match std::fs::rename(first_src, first_dest) {
+    // 副作用つき probe: 先頭 root への rename を 1 回だけ試し、成功なら同一 FS 高速パスに乗り、
+    // CrossesDevices ならフォールバックパスへ。先頭 root はこの時点で本処理を 1 件分消費しているため、
+    // 後続ループは `skip(1)` する。
+    let first = &pairs[0];
+    match std::fs::rename(&first.src, &first.dst) {
         Ok(()) => {
-            // 同一 FS 高速パス: 残りの root も rename で処理。
             let total = pairs.len();
             on_progress(Phase::Moving, 0, Some(total));
             on_progress(Phase::Moving, 1, Some(total));
-            for (i, (src, dst)) in pairs.iter().enumerate().skip(1) {
+            for (i, pair) in pairs.iter().enumerate().skip(1) {
                 if cancel.load(Ordering::Relaxed) {
                     return Ok(());
                 }
-                std::fs::rename(src, dst)
-                    .with_context(|| format!("{}: Failed to rename", dst.display()))?;
+                std::fs::rename(&pair.src, &pair.dst).with_context(|| {
+                    format!(
+                        "{} -> {}: Failed to rename (other roots may have been moved already)",
+                        pair.src.display(),
+                        pair.dst.display()
+                    )
+                })?;
                 on_progress(Phase::Moving, i + 1, Some(total));
             }
             Ok(())
         }
-        Err(e) if e.raw_os_error() == Some(libc::EXDEV) => {
+        Err(e) if is_cross_device_error(&e) => {
             move_via_copy_and_remove(&pairs, cancel, on_progress)
         }
-        Err(e) => Err(anyhow::Error::from(e)
-            .context(format!("{}: Failed to rename", first_dest.display()))),
+        Err(e) => Err(anyhow::Error::from(e).context(format!(
+            "{} -> {}: Failed to rename",
+            first.src.display(),
+            first.dst.display()
+        ))),
     }
 }
 
 /// EXDEV フォールバック: 事前解決済みペア列を Scan + Copy + Remove で移動する。
-/// 進捗 phase は Scan 中 `Scanning`、Copy 以降 `Moving`。
+/// 進捗 phase は Scan 中 `Scanning`、Copy 以降 `Moving` (Remove ステップ中は最終 `(Moving, N, Some(N))` を保持)。
 fn move_via_copy_and_remove(
-    pairs: &[(PathBuf, PathBuf)],
+    pairs: &[TopLevelPair],
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<()> {
@@ -108,13 +160,8 @@ fn move_via_copy_and_remove(
     };
     let total = plan.files.len();
     on_progress(Phase::Moving, 0, Some(total));
-    // 各 dest 自体の存在は保証しないが、parent ディレクトリは pairs の top_dest の親 = dest なので
-    // 呼び出し側 (Move) では未保証。EXDEV 時は cross-FS の dest なので create_dir_all で確保する。
-    // pairs[0] の親をひとつ create_dir_all しておく (全 pairs は同じ dest 配下なので 1 回で十分)。
-    if let Some(parent) = pairs[0].1.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("{}: Failed to create directory", parent.display()))?;
-    }
+    // `run_copy` は冒頭で `ensure_dest_dir` するが、`run_move` の入口でも既に行っているため
+    // ここでは plan.directories のみを `create_dir` で順次作成する。
     for dir in &plan.directories {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
@@ -126,21 +173,38 @@ fn move_via_copy_and_remove(
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
         }
-        copy_entry(entry)?;
+        if let Err(e) = copy_entry(entry) {
+            // Copy 途中で cancel が立っていた場合は Err でなく cancel として畳む
+            if cancel.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+            return Err(e);
+        }
         on_progress(Phase::Moving, i + 1, Some(total));
     }
-    // 全 Copy 完了後に各 root の src を削除する (Partial Result の意味づけは Cancel 時のみ)。
-    for (src, _) in pairs {
+    // 全 Copy 完了後に各 root の src を削除する。
+    // `Path::is_dir()` は symlink を follow するため、dir-symlink を root に持つケースでリンク先の
+    // ディレクトリを誤って `remove_dir_all` 経由で削除しに行ってしまう (現代の `remove_dir_all` は
+    // `O_NOFOLLOW` で防御するが、防御深度として呼び出し側でも symlink_metadata で判定を分離する)。
+    for pair in pairs {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
         }
-        if src.is_dir() {
-            std::fs::remove_dir_all(src)
-                .with_context(|| format!("{}: Failed to remove source", src.display()))?;
+        let meta = std::fs::symlink_metadata(&pair.src).with_context(|| {
+            format!("{}: Failed to stat source for removal", pair.src.display())
+        })?;
+        let file_type = meta.file_type();
+        let result = if file_type.is_symlink() || !file_type.is_dir() {
+            std::fs::remove_file(&pair.src)
         } else {
-            std::fs::remove_file(src)
-                .with_context(|| format!("{}: Failed to remove source", src.display()))?;
-        }
+            std::fs::remove_dir_all(&pair.src)
+        };
+        result.with_context(|| {
+            format!(
+                "{}: Failed to remove move source (destination already populated)",
+                pair.src.display()
+            )
+        })?;
     }
     Ok(())
 }
@@ -171,10 +235,9 @@ fn run_copy(
     // Operation Phase 開始を Phase 切り替え直後の `(Copying, 0, Some(total))` で通知。
     // mkdir ループに入る前に出すことで「ディレクトリ作成中は UI が Scanning のまま」を回避する。
     on_progress(Phase::Copying, 0, Some(total));
-    // ユーザ指定の dest 自体が存在しない可能性に備え一度だけ create_dir_all。
+    // ユーザ指定の dest 自体が存在しない可能性に備え一度だけ確保。
     // それ以降の plan.directories は pre-order により親が常に作成済みなので create_dir で十分。
-    std::fs::create_dir_all(dest)
-        .with_context(|| format!("{}: Failed to create directory", dest.display()))?;
+    ensure_dest_dir(dest)?;
     for dir in &plan.directories {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
@@ -186,7 +249,13 @@ fn run_copy(
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
         }
-        copy_entry(entry)?;
+        if let Err(e) = copy_entry(entry) {
+            // Copy 途中で cancel が立っていた場合は Err でなく cancel として畳む
+            if cancel.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+            return Err(e);
+        }
         on_progress(Phase::Copying, i + 1, Some(total));
     }
     Ok(())
@@ -254,45 +323,84 @@ enum CollectStatus {
 /// - `Ok(None)`: Scan 中に Cancel Token がセットされ早期中断。Partial Result は無し
 /// - `Err`: 走査中の I/O エラー (`read_dir` 失敗、`unique_path` 失敗など)
 ///
-/// 各 root の top-level 名は `fs::file::unique_path` で衝突回避し、`dest/<name>` がすでに
-/// 存在すれば `<name>_1`, `<name>_2`, ... に振り替える (`fs::file::copy_to` と同じ規約)。
+/// 各 root の top-level 名は `pick_unique_top_dest` で衝突回避し、`dest/<name>` がすでに
+/// 存在するか、**同一 batch 内で既に他 root に予約されている** 場合は `<name>_1`, `<name>_2`, ... に
+/// 振り替える (`fs::file::copy_to` と同じ規約 + multi-root batch での内部衝突回避)。
 fn scan_copy_plan(
     roots: &[VFile],
     dest: &Path,
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<Option<CopyPlan>> {
-    // top-level の宛先名を `unique_path` で衝突回避してから内部のペア用 scan に委譲する。
     let pairs = resolve_top_level_pairs(roots, dest)?;
     scan_pairs_into_plan(&pairs, cancel, on_progress)
 }
 
-/// 各 root の絶対パスと、`unique_path` で衝突回避した宛先トップレベルパスのペア列を返す。
-/// Copy / Move の Scan Phase 共通の前処理。
-fn resolve_top_level_pairs(roots: &[VFile], dest: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
-    roots
-        .iter()
-        .map(|root| {
-            let src = Path::new(root.absolute_path());
-            let name = src
-                .file_name()
-                .with_context(|| format!("{}: source has no file name", src.display()))?;
-            let top_dest = unique_path(&dest.join(name))?;
-            Ok((src.to_path_buf(), top_dest))
-        })
-        .collect()
+/// 各 root の絶対パスと、衝突回避した宛先トップレベルパスのペア列を返す。
+/// Copy / Move の Scan Phase 共通の前処理。同一 batch 内で複数 root が同名 (`a/foo.txt`, `b/foo.txt`)
+/// だった場合も `claimed` set で 1 件ずつ予約しながら回避するため、後続 root が前 root の宛先を
+/// 上書きすることはない。
+fn resolve_top_level_pairs(roots: &[VFile], dest: &Path) -> Result<Vec<TopLevelPair>> {
+    let mut claimed: HashSet<PathBuf> = HashSet::new();
+    let mut pairs = Vec::with_capacity(roots.len());
+    for root in roots {
+        let src = Path::new(root.absolute_path());
+        let name = src
+            .file_name()
+            .with_context(|| format!("{}: source has no file name", src.display()))?;
+        let top_dest = pick_unique_top_dest(&dest.join(name), &claimed)
+            .with_context(|| format!("{}: Failed to resolve unique destination", src.display()))?;
+        claimed.insert(top_dest.clone());
+        pairs.push(TopLevelPair {
+            src: src.to_path_buf(),
+            dst: top_dest,
+        });
+    }
+    Ok(pairs)
 }
 
-/// 事前解決済みの (src, top_dest) ペア列を走査して `CopyPlan` を組み立てる Scan Phase。
+/// 衝突回避済みの宛先パスを返す。
+/// `initial` が `claimed` に予約済みでなく、かつディスクにも存在しなければそれを採用する。
+/// それ以外は `initial` の stem に `_1`, `_2`, ... を付けて未予約 + 未存在な候補を探す。
+/// `fs::file::unique_path` と同じ規約だが、batch 内の同名 root を `claimed` で内部回避する点が異なる。
+fn pick_unique_top_dest(initial: &Path, claimed: &HashSet<PathBuf>) -> Result<PathBuf> {
+    if !claimed.contains(initial) && !initial.exists() {
+        return Ok(initial.to_path_buf());
+    }
+    let parent = initial
+        .parent()
+        .with_context(|| format!("{}: no parent directory", initial.display()))?;
+    let stem = initial
+        .file_stem()
+        .with_context(|| format!("{}: no file stem", initial.display()))?
+        .to_string_lossy()
+        .into_owned();
+    let ext = initial
+        .extension()
+        .map(|e| e.to_string_lossy().into_owned());
+    for i in 1..=MAX_UNIQUE_PATH_SUFFIX {
+        let name = match &ext {
+            Some(e) => format!("{stem}_{i}.{e}"),
+            None => format!("{stem}_{i}"),
+        };
+        let candidate = parent.join(&name);
+        if !claimed.contains(&candidate) && !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    anyhow::bail!("{}: Failed to make unique path", initial.display())
+}
+
+/// 事前解決済みの `TopLevelPair` 列を走査して `CopyPlan` を組み立てる Scan Phase。
 /// Copy/Move の EXDEV フォールバックで共通利用する。
 fn scan_pairs_into_plan(
-    pairs: &[(PathBuf, PathBuf)],
+    pairs: &[TopLevelPair],
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<Option<CopyPlan>> {
     let mut plan = CopyPlan::default();
     on_progress(Phase::Scanning, 0, None);
-    for (src, top_dest) in pairs {
+    for pair in pairs {
         if cancel.load(Ordering::Relaxed) {
             return Ok(None);
         }
@@ -300,17 +408,18 @@ fn scan_pairs_into_plan(
         // ユーザがコマンドで明示的に指定した対象なので、dir-symlink ならその内容をコピー。
         // `Path::is_dir()` ではなく `metadata()?` を使うことで、stat 失敗を「通常ファイル扱い」に
         // 握りつぶさず Scan Phase で早期 Err として顕在化する。
-        let metadata = src
+        let metadata = pair
+            .src
             .metadata()
-            .with_context(|| format!("{}: Failed to stat source", src.display()))?;
+            .with_context(|| format!("{}: Failed to stat source", pair.src.display()))?;
         let status = if metadata.is_dir() {
-            collect_directory_into_plan(src, top_dest, &mut plan, cancel, on_progress)?
+            collect_directory_into_plan(&pair.src, &pair.dst, &mut plan, cancel, on_progress)?
         } else {
             enqueue_entry(
                 &mut plan,
                 CopyEntry::File {
-                    src: src.clone(),
-                    dst: top_dest.clone(),
+                    src: pair.src.clone(),
+                    dst: pair.dst.clone(),
                 },
                 on_progress,
             );
@@ -922,7 +1031,10 @@ mod tests {
         let dest_root = tmp.path().join("out").join("foo");
         std::fs::create_dir_all(dest_root.parent().unwrap()).unwrap();
 
-        let pairs = vec![(src_root.clone(), dest_root.clone())];
+        let pairs = vec![TopLevelPair {
+            src: src_root.clone(),
+            dst: dest_root.clone(),
+        }];
         let mut events: Vec<(Phase, usize, Option<usize>)> = Vec::new();
         move_via_copy_and_remove(&pairs, &AtomicBool::new(false), &mut |p, n, t| {
             events.push((p, n, t))
@@ -965,7 +1077,10 @@ mod tests {
         let dest_root = tmp.path().join("out").join("foo");
         std::fs::create_dir_all(dest_root.parent().unwrap()).unwrap();
 
-        let pairs = vec![(src_root.clone(), dest_root.clone())];
+        let pairs = vec![TopLevelPair {
+            src: src_root.clone(),
+            dst: dest_root.clone(),
+        }];
         let cancel = Arc::new(AtomicBool::new(false));
         let cancel_for_closure = cancel.clone();
         move_via_copy_and_remove(&pairs, &cancel, &mut |p, n, _| {
@@ -987,6 +1102,79 @@ mod tests {
             copied_count, 1,
             "exactly one file should be copied as partial result, got {copied_count}"
         );
+    }
+
+    #[test]
+    fn move_avoids_collision_among_multiple_same_name_roots() {
+        // a/foo.txt と b/foo.txt を同じ dest に Move する。
+        // 同一 batch 内の衝突を `claimed` set で避け、両方を独立に dest 配下に置く。
+        let tmp = TempDir::new().unwrap();
+        let src_a = tmp.path().join("a").join("foo.txt");
+        let src_b = tmp.path().join("b").join("foo.txt");
+        write_file(&src_a, b"AAA");
+        write_file(&src_b, b"BBB");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Move {
+            files: vec![vfile(&src_a), vfile(&src_b)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Move should succeed");
+
+        // 両 src が移動済み
+        assert!(!src_a.exists());
+        assert!(!src_b.exists());
+        // 両方の内容が dest 配下に独立して残っている (foo.txt と foo_1.txt)
+        let entries: Vec<_> = std::fs::read_dir(&dest)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name())
+            .collect();
+        assert_eq!(
+            entries.len(),
+            2,
+            "both files should be moved with unique names, got {entries:?}"
+        );
+        let names: std::collections::HashSet<String> = entries
+            .iter()
+            .map(|n| n.to_string_lossy().into_owned())
+            .collect();
+        assert!(names.contains("foo.txt"));
+        assert!(names.contains("foo_1.txt"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn move_via_copy_and_remove_handles_top_level_dir_symlink_safely() {
+        // src/link -> real/ の dir-symlink を top-level に渡し、EXDEV フォールバックで
+        // src 側削除時に `remove_dir_all` がリンク先 real/ を消さないことを検証する。
+        let tmp = TempDir::new().unwrap();
+        let real_dir = tmp.path().join("real");
+        write_file(&real_dir.join("inside.txt"), b"content");
+        let symlink_root = tmp.path().join("link");
+        std::os::unix::fs::symlink(&real_dir, &symlink_root).unwrap();
+        let dest_root = tmp.path().join("out").join("link");
+        std::fs::create_dir_all(dest_root.parent().unwrap()).unwrap();
+
+        let pairs = vec![TopLevelPair {
+            src: symlink_root.clone(),
+            dst: dest_root.clone(),
+        }];
+        move_via_copy_and_remove(&pairs, &AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("EXDEV fallback should handle dir-symlink at top level");
+
+        // symlink のリンク自体は削除されている
+        assert!(
+            std::fs::symlink_metadata(&symlink_root).is_err(),
+            "top-level dir-symlink should be removed"
+        );
+        // リンク先の real ディレクトリは無傷
+        assert!(real_dir.is_dir(), "linked target directory must NOT be removed");
+        assert_eq!(read_to_string(&real_dir.join("inside.txt")), "content");
+        // dest 側にはリンク先の内容がコピーされている
+        assert_eq!(read_to_string(&dest_root.join("inside.txt")), "content");
     }
 
     #[test]
