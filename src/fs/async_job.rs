@@ -153,7 +153,13 @@ fn run_delete_with(
             return Ok(());
         }
         let path = Path::new(file.absolute_path());
-        delete_fn(path)?;
+        delete_fn(path).with_context(|| {
+            format!(
+                "{}: Failed to trash (remaining {} files not processed)",
+                path.display(),
+                total - i - 1
+            )
+        })?;
         on_progress(Phase::Deleting, i + 1, Some(total));
     }
     Ok(())
@@ -161,6 +167,11 @@ fn run_delete_with(
 
 /// 削除対象のファイル数を再帰的にカウントし、`(Scanning, k, None)` を batch で発火する。
 /// トップレベル symlink はカウント 1 として扱う (trash::delete に follow を任せる)。
+///
+/// `metadata()` (symlink follow) ではなく `symlink_metadata()` を使う。`metadata()` だと
+/// 例えば `~/Documents -> /` のような dir-symlink が選ばれていた場合、follow 先の巨大ツリーを
+/// 不意に再帰列挙してしまうため。Operation Phase は `trash::delete` 1 回しか呼ばないので
+/// Scan で follow する利益はない。
 fn scan_delete_count(
     roots: &[VFile],
     cancel: &AtomicBool,
@@ -173,26 +184,33 @@ fn scan_delete_count(
             return Ok(CollectStatus::Cancelled);
         }
         let src = Path::new(root.absolute_path());
-        // 既存 Copy/Move/Zip と同じく metadata (symlink follow) で top-level 判定する。
         // stat 失敗を「ファイル扱い」に握りつぶさず Scan で早期 Err として顕在化する。
         let metadata = src
-            .metadata()
+            .symlink_metadata()
             .with_context(|| format!("{}: Failed to stat source", src.display()))?;
-        if metadata.is_dir() {
+        let file_type = metadata.file_type();
+        if file_type.is_dir() && !file_type.is_symlink() {
             match walk_count_for_delete(src, &mut count, cancel, on_progress)? {
                 CollectStatus::Completed => {}
                 CollectStatus::Cancelled => return Ok(CollectStatus::Cancelled),
             }
         } else {
             count += 1;
-            if count.is_multiple_of(SCAN_NOTIFY_BATCH) {
-                on_progress(Phase::Scanning, count, None);
-            }
+            notify_scan_progress(count, on_progress);
         }
     }
+    // Scan Phase 最後に端数件数を必ず通知 (SCAN_NOTIFY_BATCH の倍数で終わらないケースの取りこぼし対策)
+    on_progress(Phase::Scanning, count, None);
     Ok(CollectStatus::Completed)
 }
 
+/// `src` ディレクトリ配下を再帰的に列挙し、ファイル数を `count` に加算する。
+///
+/// - 再帰中の symlink は follow せず、`count += 1` で 1 エントリとして数える
+///   (`trash::delete` は top-level しか触らないため、内部 symlink の follow は無意味かつ
+///   任意領域脱出リスクになりうる)
+/// - `read_dir` / `DirEntry::file_type` の I/O Err は `with_context` で対象パスを含めて伝播する
+/// - 各エントリ処理前に cancel をチェックする File-level Checkpoint
 fn walk_count_for_delete(
     src: &Path,
     count: &mut usize,
@@ -202,7 +220,6 @@ fn walk_count_for_delete(
     for entry in std::fs::read_dir(src)
         .with_context(|| format!("{}: Failed to read directory", src.display()))?
     {
-        // File-level Checkpoint: 各エントリ処理の前に cancel をチェック
         if cancel.load(Ordering::Relaxed) {
             return Ok(CollectStatus::Cancelled);
         }
@@ -212,7 +229,6 @@ fn walk_count_for_delete(
         let file_type = entry
             .file_type()
             .with_context(|| format!("{}: Failed to read file type", entry_src.display()))?;
-        // 再帰内 symlink は count 1 で済ます (trash::delete に follow 判断を任せるためカウントだけ)
         if file_type.is_dir() && !file_type.is_symlink() {
             match walk_count_for_delete(&entry_src, count, cancel, on_progress)? {
                 CollectStatus::Completed => {}
@@ -220,12 +236,22 @@ fn walk_count_for_delete(
             }
         } else {
             *count += 1;
-            if count.is_multiple_of(SCAN_NOTIFY_BATCH) {
-                on_progress(Phase::Scanning, *count, None);
-            }
+            notify_scan_progress(*count, on_progress);
         }
     }
     Ok(CollectStatus::Completed)
+}
+
+/// Scan Phase の batch 通知ヘルパ。
+/// `count == 0` での発火 (空入力でカウント前の状態) を抑止しつつ、
+/// `SCAN_NOTIFY_BATCH` の倍数到達時に `(Scanning, count, None)` を発火する。
+fn notify_scan_progress(
+    count: usize,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) {
+    if count > 0 && count.is_multiple_of(SCAN_NOTIFY_BATCH) {
+        on_progress(Phase::Scanning, count, None);
+    }
 }
 
 /// Zip 作成 Job 本体。Scan Phase → Operation Phase の二相で動く。
@@ -2082,6 +2108,44 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn delete_does_not_recurse_into_top_level_dir_symlink() {
+        // top-level が dir-symlink の場合、Scan Phase で follow して中身を再帰列挙しない。
+        // (リンク先の任意領域の Scan による暴走防止)
+        use std::os::unix::fs::symlink;
+        let tmp = TempDir::new().unwrap();
+        let real_dir = tmp.path().join("real");
+        std::fs::create_dir(&real_dir).unwrap();
+        write_file(&real_dir.join("inside.txt"), b"x");
+        let link = tmp.path().join("link");
+        symlink(&real_dir, &link).unwrap();
+
+        let mut max_scan: usize = 0;
+        let mut delete_fn = |_path: &Path| -> Result<()> {
+            // symlink の trash::delete 相当: リンクのみ削除 (実体は触らない)
+            std::fs::remove_file(_path)?;
+            Ok(())
+        };
+        run_delete_with(
+            &[vfile(&link)],
+            &AtomicBool::new(false),
+            &mut |p, n, _| {
+                if p == Phase::Scanning {
+                    max_scan = max_scan.max(n);
+                }
+            },
+            &mut delete_fn,
+        )
+        .expect("Delete should succeed");
+
+        // Scan は symlink を 1 件として数えるだけ
+        assert_eq!(max_scan, 1);
+        // リンクは消え、リンク先の中身は無傷
+        assert!(!link.exists());
+        assert!(real_dir.join("inside.txt").exists());
+    }
+
     #[test]
     fn delete_treats_directory_as_single_top_level_item() {
         // trash::delete は atomic per-item で dir を 1 エントリとして trash に入れるため、
@@ -2135,31 +2199,6 @@ mod tests {
 
         assert_eq!(called, vec![a.clone(), b.clone(), c.clone()]);
         assert!(!a.exists() && !b.exists() && !c.exists());
-    }
-
-    #[test]
-    fn delete_invokes_delete_fn_for_each_top_level_file() {
-        // delete_fn が src で 1 回呼ばれること (DI 経路でユーザ trash を汚染しない)
-        let tmp = TempDir::new().unwrap();
-        let src = tmp.path().join("hello.txt");
-        write_file(&src, b"hello");
-
-        let mut called: Vec<PathBuf> = Vec::new();
-        let mut delete_fn = |path: &Path| -> Result<()> {
-            called.push(path.to_path_buf());
-            std::fs::remove_file(path)?;
-            Ok(())
-        };
-        run_delete_with(
-            &[vfile(&src)],
-            &AtomicBool::new(false),
-            &mut |_, _, _| {},
-            &mut delete_fn,
-        )
-        .expect("Delete should succeed");
-
-        assert_eq!(called, vec![src.clone()]);
-        assert!(!src.exists(), "src should be deleted");
     }
 
     #[test]
