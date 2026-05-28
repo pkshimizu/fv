@@ -101,8 +101,15 @@ impl FileJob {
 /// Zip 作成 Job 本体。Scan Phase → Operation Phase の二相で動く。
 ///
 /// # Partial Result の例外
-/// Cancel またはエラーで途中終了した場合、書きかけの zip ファイルは自動削除する。
-/// 壊れた `.zip` を残さない方針 (ADR-0001 Partial Result の Zip 例外)。
+/// Operation Phase 中の Cancel またはエラーで途中終了した場合、書きかけの zip ファイルは
+/// `ZipPathGuard` の Drop で自動削除する (壊れた `.zip` を残さない方針 - ADR-0001 Zip 例外)。
+/// Scan Phase 中の Err は zip ファイル自体まだ作っていないので cleanup 不要。
+///
+/// # 旧 `fs::file::create_zip` からの挙動互換
+/// - top-level `name` が既存なら `name_1`, `name_2`, ... に振り替える
+/// - 再帰内の symlink エントリは zip に含めない (リンク先 follow による任意領域漏洩を回避)
+/// - top-level の VFile が dir-symlink の場合は `metadata()` で follow しその内容を zip 化する
+///   (`copy_to` と同じ「ユーザが明示的に指定した対象は follow」規約)
 fn run_zip_create(
     dir: &VFile,
     name: &str,
@@ -110,13 +117,15 @@ fn run_zip_create(
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<()> {
-    if name.is_empty() {
-        return Ok(());
-    }
-    if cancel.load(Ordering::Relaxed) {
-        return Ok(());
-    }
-    // Scan Phase: zip に詰めるエントリを集める
+    // UI 層でも `anyhow::ensure!` で同等検証している前提だが、API 直接呼出に対する防御深度。
+    anyhow::ensure!(
+        !name.is_empty()
+            && Path::new(name)
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_))),
+        "{name}: Invalid zip name"
+    );
+    // Scan Phase: zip に詰めるエントリを集める (内部で cancel チェック)
     let Some(plan) = scan_zip_plan(files, cancel, on_progress)? else {
         return Ok(());
     };
@@ -126,27 +135,45 @@ fn run_zip_create(
         &std::collections::HashSet::new(),
     )?;
 
-    // Operation Phase: zip 書き出し。cancel / Err 時は書きかけファイルを削除する。
-    let result = write_zip_plan(&plan, &zip_path, cancel, on_progress);
+    // Operation Phase: zip 書き出し。ファイル open に成功した直後から `ZipPathGuard` で
+    // cleanup 範囲を限定する (open 失敗時に他プロセスのファイルを誤って削除しないため)。
+    write_zip_plan(&plan, &zip_path, cancel, on_progress)?;
+    Ok(())
+}
 
-    match result {
-        Ok(WriteOutcome::Completed) => Ok(()),
-        Ok(WriteOutcome::Cancelled) => {
-            // 書きかけ zip は壊れているので削除 (Partial Result の Zip 例外)
-            let _ = std::fs::remove_file(&zip_path);
-            Ok(())
-        }
-        Err(e) => {
-            let _ = std::fs::remove_file(&zip_path);
-            Err(e)
-        }
+/// 書きかけ zip を Drop 時に削除する RAII ガード。
+/// Cancel / Err 経路で `let _ = remove_file()` を散らさず、cleanup を関数末尾で集約する。
+/// `arm` で守備、通常完走時に `disarm` で解除。Drop 時の remove 失敗は `tracing::warn!` に残す
+/// (`NotFound` は完走後に自分が削除済みのケースなので無視)。
+struct ZipPathGuard<'a> {
+    path: &'a Path,
+    armed: bool,
+}
+
+impl<'a> ZipPathGuard<'a> {
+    fn arm(path: &'a Path) -> Self {
+        Self { path, armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
     }
 }
 
-/// `write_zip_plan` の終了状態。Cancel と Completed を区別して呼び出し側で cleanup 判定する。
-enum WriteOutcome {
-    Completed,
-    Cancelled,
+impl Drop for ZipPathGuard<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        if let Err(e) = std::fs::remove_file(self.path)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!(
+                "failed to remove partial zip {}: {e}",
+                self.path.display()
+            );
+        }
+    }
 }
 
 /// Scan Phase の結果。
@@ -234,16 +261,30 @@ fn collect_zip_directory(
 }
 
 /// `prefix` からの相対パスを zip エントリ名 (`/` 区切り) に整形する。
+/// `path` が `prefix` 配下にない場合や、エントリ名が空文字列になる場合は Err を返す
+/// (`Component::Normal` 以外をフィルタする性質上、ルート path 等で空文字に縮退する経路を防ぐ)。
 fn relative_zip_name(path: &Path, prefix: &Path) -> Result<String> {
-    let relative = path.strip_prefix(prefix).unwrap_or(path);
-    Ok(relative
+    let relative = path.strip_prefix(prefix).with_context(|| {
+        format!(
+            "{} is not under zip prefix {}",
+            path.display(),
+            prefix.display()
+        )
+    })?;
+    let name = relative
         .components()
         .filter_map(|c| match c {
             std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
             _ => None,
         })
         .collect::<Vec<_>>()
-        .join("/"))
+        .join("/");
+    anyhow::ensure!(
+        !name.is_empty(),
+        "{}: produced empty zip entry name",
+        path.display()
+    );
+    Ok(name)
 }
 
 fn enqueue_zip_file(
@@ -264,13 +305,19 @@ fn write_zip_plan(
     zip_path: &Path,
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
-) -> Result<WriteOutcome> {
+) -> Result<CollectStatus> {
+    // `OpenOptions::create_new(true)` で atomic に新規作成。open 失敗時は cleanup 対象外
+    // (他プロセスのファイルを誤って消さないため、ガードはここから arm する)。
     let zip_file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(zip_path)
         .with_context(|| format!("{}: Failed to create zip file", zip_path.display()))?;
-    let mut writer = zip::ZipWriter::new(zip_file);
+    let mut guard = ZipPathGuard::arm(zip_path);
+
+    // central directory write の syscall 数を減らすため zip 出力側を BufWriter で包む
+    let buffered = std::io::BufWriter::with_capacity(256 * 1024, zip_file);
+    let mut writer = zip::ZipWriter::new(buffered);
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
@@ -279,35 +326,42 @@ fn write_zip_plan(
 
     for dir_name in &plan.directories {
         if cancel.load(Ordering::Relaxed) {
-            return Ok(WriteOutcome::Cancelled);
+            return Ok(CollectStatus::Cancelled);
         }
-        writer
-            .add_directory(dir_name, options)
-            .with_context(|| format!("Failed to add directory {dir_name} to zip"))?;
+        writer.add_directory(dir_name, options).with_context(|| {
+            format!(
+                "{}: Failed to add directory {dir_name} to zip",
+                zip_path.display()
+            )
+        })?;
     }
     for (i, entry) in plan.files.iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
-            return Ok(WriteOutcome::Cancelled);
+            return Ok(CollectStatus::Cancelled);
         }
-        writer
-            .start_file(&entry.name, options)
-            .with_context(|| format!("Failed to add {} to zip", entry.name))?;
-        let mut f = std::fs::File::open(&entry.src)
+        writer.start_file(&entry.name, options).with_context(|| {
+            format!("{}: Failed to add {} to zip", zip_path.display(), entry.name)
+        })?;
+        let f = std::fs::File::open(&entry.src)
             .with_context(|| format!("{}: Failed to open source", entry.src.display()))?;
-        if let Err(e) = std::io::copy(&mut f, &mut writer)
-            .with_context(|| format!("{}: Failed to write to zip", entry.src.display()))
-        {
-            if cancel.load(Ordering::Relaxed) {
-                return Ok(WriteOutcome::Cancelled);
-            }
-            return Err(e);
-        }
+        // 大量小ファイル時に read syscall 回数を削減するため BufReader で包む。
+        // `std::io::copy` 失敗は I/O 由来の本物のエラー (例: disk full) として扱い `?` で伝播。
+        // cancel タイミングはループ先頭で検知される。
+        let mut reader = std::io::BufReader::with_capacity(64 * 1024, f);
+        std::io::copy(&mut reader, &mut writer)
+            .with_context(|| format!("{}: Failed to write to zip", entry.src.display()))?;
         on_progress(Phase::Zipping, i + 1, Some(total));
     }
-    writer
+    // ZipWriter::finish() は内部の BufWriter を返す。BufWriter::into_inner() で flush を強制し、
+    // 残ったバッファ未書出を Err に昇格させる (Drop 時の握り潰しを避ける)。
+    let buffered = writer
         .finish()
         .with_context(|| format!("{}: Failed to finalize zip", zip_path.display()))?;
-    Ok(WriteOutcome::Completed)
+    buffered.into_inner().map_err(|e| {
+        anyhow::anyhow!("{}: Failed to flush zip writer: {}", zip_path.display(), e)
+    })?;
+    guard.disarm();
+    Ok(CollectStatus::Completed)
 }
 
 /// Move Job 本体。
@@ -1753,6 +1807,28 @@ mod tests {
             by_name.get("b.txt").map(|v| v.as_slice()),
             Some(b"beta" as &[u8])
         );
+    }
+
+    #[test]
+    fn zip_create_rejects_name_with_path_traversal_components() {
+        // 旧 fs::file::create_zip の Component::Normal 検証に相当 (Unzip 経路と対称形)。
+        // `..` や絶対パスで dir の外に書き出すのを防ぐ防御深度のテスト。
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("hello.txt");
+        write_file(&src, b"hello");
+
+        for bad in ["", "../escape.zip", "sub/foo.zip"] {
+            let job = FileJob::ZipCreate {
+                dir: vfile(tmp.path()),
+                name: bad.to_string(),
+                files: vec![vfile(&src)],
+            };
+            let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
+            assert!(
+                result.is_err(),
+                "name {bad:?} should be rejected by Component::Normal validation"
+            );
+        }
     }
 
     #[test]
