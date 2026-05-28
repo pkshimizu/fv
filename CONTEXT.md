@@ -4,6 +4,24 @@
 
 ## Language
 
+### Selection
+
+**Cursor File**:
+The file currently highlighted in the Filer (returned by `FilerState::selected_file()`). Single-file operations such as Rename, Unzip, and Jump act on this one file.
+_Avoid_: selected file, current file, focused file.
+
+**Checked Paths**:
+The set of paths the user has explicitly marked with the spacebar in the Filer (`FilerState::checked_paths`). Forms a multi-selection that persists across cursor movement.
+_Avoid_: selected paths, marked files, tagged paths.
+
+**Operation Targets**:
+The actual files an action operates on, resolved by the rule "Checked Paths if non-empty, otherwise the Cursor File alone". Copy, Move, Delete, Zip create, and Yank all read targets through this rule.
+_Avoid_: targets, selection (both ambiguous between Cursor File and Checked Paths).
+
+**Yank**:
+Read-only copy of the Operation Targets' absolute paths into the system clipboard, bound to `y`. Multiple paths are joined with `\n` and no trailing newline. Does not modify the filesystem or clear Checked Paths, so a `y` immediately followed by `c` / `m` can chain yank-then-copy/move on the same set.
+_Avoid_: copy (overloaded with the Copy file action), clipboard write, pull to clipboard.
+
 ### Async File Operations
 
 **Async Job**:
@@ -39,7 +57,23 @@ _Avoid_: modal block, input freeze.
 The set of fully-completed files an Async Job leaves behind when cancelled or aborted by error. Always retained on disk. **Exception**: the in-progress zip file produced by a cancelled Zip create is removed (matching the existing error-path behaviour of `create_zip`).
 _Avoid_: leftover, residue, half-state.
 
-### Example dialogue
+### Example dialogues
+
+#### On Selection
+
+> **Dev**: User pressed `y` while three files are checked. What ends up in the clipboard?
+>
+> **Domain**: All three. Yank reads the **Operation Targets**, and Checked Paths win when they're non-empty. The Cursor File is ignored in that case.
+>
+> **Dev**: And the Checked Paths stay checked after yank?
+>
+> **Domain**: Yes. Yank is read-only, so we don't touch them. That way the user can yank, then immediately press `c` to copy the same set without re-checking.
+>
+> **Dev**: Empty Checked Paths, cursor on `foo.txt` — same key?
+>
+> **Domain**: Operation Targets falls through to just `foo.txt`. Single line in the clipboard, no trailing newline.
+
+#### On Async File Operations
 
 > **Dev**: User hit Esc halfway through copying a directory. Do we delete what's already there?
 >
