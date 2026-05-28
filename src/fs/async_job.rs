@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 #[derive(Debug)]
 pub enum FileJob {
     ZipExtract { file: VFile, dest: PathBuf },
+    Copy { files: Vec<VFile>, dest: PathBuf },
 }
 
 impl FileJob {
@@ -22,11 +23,104 @@ impl FileJob {
         cancel: &AtomicBool,
         on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
     ) -> Result<()> {
-        // 単一バリアントだが後続スライス #222-#225 で variant が追加されるため意図的に match
         match self {
             FileJob::ZipExtract { file, dest } => run_zip_extract(&file, &dest, cancel, on_progress),
+            FileJob::Copy { files, dest } => run_copy(&files, &dest, cancel, on_progress),
         }
     }
+}
+
+fn run_copy(
+    files: &[VFile],
+    dest: &Path,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) -> Result<()> {
+    let Some(plan) = scan_copy_plan(files, dest, cancel, on_progress)? else {
+        // Scan Phase 中に cancel された場合は Partial Result なしで早期 return
+        return Ok(());
+    };
+    for dir in &plan.directories {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("{}: Failed to create directory", dir.display()))?;
+    }
+    let total = plan.files.len();
+    on_progress(Phase::Copying, 0, Some(total));
+    // 必要な親ディレクトリは plan.directories で既に作成済みなので、ここでは std::fs::copy のみ。
+    for (i, (src, dst)) in plan.files.iter().enumerate() {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        std::fs::copy(src, dst)
+            .with_context(|| format!("{}: Failed to copy file", dst.display()))?;
+        on_progress(Phase::Copying, i + 1, Some(total));
+    }
+    Ok(())
+}
+
+/// Scan Phase の結果。
+/// `directories`: 作成すべき宛先ディレクトリ列 (深さ順)。
+/// `files`: コピーすべき (src, dest) ペア列。
+#[derive(Debug, Default)]
+struct CopyPlan {
+    directories: Vec<PathBuf>,
+    files: Vec<(PathBuf, PathBuf)>,
+}
+
+/// Scan Phase 中に cancel された場合は Ok(None) を返す。
+fn scan_copy_plan(
+    roots: &[VFile],
+    dest: &Path,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) -> Result<Option<CopyPlan>> {
+    let mut plan = CopyPlan::default();
+    on_progress(Phase::Scanning, 0, None);
+    for root in roots {
+        let src = Path::new(root.absolute_path());
+        let name = src
+            .file_name()
+            .with_context(|| format!("{}: No file name", src.display()))?;
+        // 既存 fs::file::copy_to と同じ衝突回避規約: top-level の宛先名が既に存在すれば
+        // `foo_1`, `foo_2`, ... の suffix を付けて未使用名を探す。
+        let top_dest = crate::fs::file::unique_path(&dest.join(name))?;
+        if !collect_into_plan(src, &top_dest, &mut plan, cancel, on_progress)? {
+            return Ok(None);
+        }
+    }
+    Ok(Some(plan))
+}
+
+/// 再帰列挙。`Ok(true)` は最後まで列挙、`Ok(false)` は cancel による早期中断。
+fn collect_into_plan(
+    src: &Path,
+    dst: &Path,
+    plan: &mut CopyPlan,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) -> Result<bool> {
+    if cancel.load(Ordering::Relaxed) {
+        return Ok(false);
+    }
+    if src.is_dir() {
+        plan.directories.push(dst.to_path_buf());
+        for entry in std::fs::read_dir(src)
+            .with_context(|| format!("{}: Failed to read directory", src.display()))?
+        {
+            let entry = entry.with_context(|| {
+                format!("{}: Failed to read directory entry", src.display())
+            })?;
+            let entry_path = entry.path();
+            let entry_dst = dst.join(entry.file_name());
+            if !collect_into_plan(&entry_path, &entry_dst, plan, cancel, on_progress)? {
+                return Ok(false);
+            }
+        }
+    } else {
+        plan.files.push((src.to_path_buf(), dst.to_path_buf()));
+        on_progress(Phase::Scanning, plan.files.len(), None);
+    }
+    Ok(true)
 }
 
 fn run_zip_extract(
@@ -221,5 +315,220 @@ mod tests {
             read_to_string(&dest.join("nested").join("inner.txt")),
             "inside nested"
         );
+    }
+
+    fn write_file(path: &std::path::Path, contents: &[u8]) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        File::create(path).unwrap().write_all(contents).unwrap();
+    }
+
+    #[test]
+    fn copy_avoids_collision_by_appending_numeric_suffix() {
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"alpha");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+        // dest/foo がすでに存在 → コピーは衝突を回避して dest/foo_1 に置く
+        std::fs::create_dir(dest.join("foo")).unwrap();
+        write_file(&dest.join("foo").join("existing.txt"), b"existing");
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy should succeed");
+
+        // 既存ディレクトリは無傷
+        assert_eq!(
+            read_to_string(&dest.join("foo").join("existing.txt")),
+            "existing"
+        );
+        // コピーは foo_1 に置かれる
+        assert_eq!(
+            read_to_string(&dest.join("foo_1").join("a.txt")),
+            "alpha"
+        );
+    }
+
+    #[test]
+    fn copy_returns_err_when_source_file_is_missing() {
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&tmp.path().join("no-such.txt"))],
+            dest,
+        };
+        let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn copy_keeps_partial_result_when_cancelled_during_operation() {
+        use std::sync::Arc;
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"a");
+        write_file(&src_root.join("b.txt"), b"b");
+        write_file(&src_root.join("c.txt"), b"c");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_for_closure = cancel.clone();
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        // Operation Phase で 1 ファイルコピー完了の進捗を受けた直後に cancel をセット
+        job.run(&cancel, &mut |p, n, _| {
+            if p == Phase::Copying && n == 1 {
+                cancel_for_closure.store(true, Ordering::Relaxed);
+            }
+        })
+        .expect("cancel should produce Ok early return");
+
+        // 1 ファイルだけはコピー済み (Partial Result)
+        let copied = std::fs::read_dir(dest.join("foo"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .count();
+        assert_eq!(
+            copied, 1,
+            "exactly one file should remain as partial result, found {copied}"
+        );
+    }
+
+    #[test]
+    fn copy_stops_during_scan_when_cancel_is_preset() {
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"a");
+        write_file(&src_root.join("b.txt"), b"b");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        // 事前 cancel
+        let result = job.run(&AtomicBool::new(true), &mut |_, _, _| {});
+        assert!(result.is_ok(), "cancel should produce Ok early return");
+
+        // どのファイルもコピーされていない (Partial Result すらない)
+        assert!(!dest.join("foo").exists());
+    }
+
+    #[test]
+    fn copy_emits_copying_progress_per_file_copied() {
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"a");
+        write_file(&src_root.join("b.txt"), b"b");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let mut events: Vec<(Phase, usize, Option<usize>)> = Vec::new();
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest,
+        };
+        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
+            .expect("Copy should succeed");
+
+        let copying: Vec<_> = events
+            .iter()
+            .filter(|(p, _, _)| *p == Phase::Copying)
+            .copied()
+            .collect();
+        // Operation Phase 開始時 0/N と各ファイルコピー後の処理済み数
+        assert_eq!(
+            copying,
+            vec![
+                (Phase::Copying, 0, Some(2)),
+                (Phase::Copying, 1, Some(2)),
+                (Phase::Copying, 2, Some(2)),
+            ]
+        );
+    }
+
+    #[test]
+    fn copy_emits_scanning_progress_per_file_discovered() {
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"a");
+        write_file(&src_root.join("b.txt"), b"b");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let mut events: Vec<(Phase, usize, Option<usize>)> = Vec::new();
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest,
+        };
+        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
+            .expect("Copy should succeed");
+
+        let scanning: Vec<_> = events
+            .iter()
+            .filter(|(p, _, _)| *p == Phase::Scanning)
+            .copied()
+            .collect();
+        // Scan Phase 開始時の 0 と、各ファイル発見ごとの増分通知
+        assert_eq!(
+            scanning,
+            vec![
+                (Phase::Scanning, 0, None),
+                (Phase::Scanning, 1, None),
+                (Phase::Scanning, 2, None),
+            ]
+        );
+    }
+
+    #[test]
+    fn copy_reproduces_directory_hierarchy_recursively() {
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"alpha");
+        write_file(&src_root.join("bar").join("b.txt"), b"beta");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy should succeed");
+
+        assert_eq!(read_to_string(&dest.join("foo").join("a.txt")), "alpha");
+        assert_eq!(
+            read_to_string(&dest.join("foo").join("bar").join("b.txt")),
+            "beta"
+        );
+    }
+
+    #[test]
+    fn copy_places_single_file_into_destination_directory() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("hello.txt");
+        write_file(&src, b"hello fv");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy should succeed");
+
+        assert_eq!(read_to_string(&dest.join("hello.txt")), "hello fv");
     }
 }

@@ -251,7 +251,7 @@ fn resolve_dest_path(src: &Path, path: &str, src_display: &str) -> Result<PathBu
 
 const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
 
-fn unique_path(path: &Path) -> Result<PathBuf> {
+pub(super) fn unique_path(path: &Path) -> Result<PathBuf> {
     if !path.exists() {
         return Ok(path.to_path_buf());
     }
