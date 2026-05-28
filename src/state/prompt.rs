@@ -14,7 +14,6 @@ pub enum Phase {
     #[allow(dead_code)] // 後続スライス #224 (Zip 作成) で利用
     Zipping,
     Extracting,
-    #[allow(dead_code)] // 後続スライス #225 (Delete) で利用
     Deleting,
     Cancelling,
 }

@@ -123,9 +123,10 @@ fn run_delete(
     run_delete_with(files, cancel, on_progress, &mut trash_delete)
 }
 
-/// 本番経路で使う `trash::delete` のラッパ。
+/// 本番経路で使う `trash::delete` のラッパ。`path` を含む context はここで終わらせて、
+/// 上位 (`run_delete_with`) では「delete 操作の責務」レベル (進捗 hint) のみ被せる役割分担にする。
 fn trash_delete(path: &Path) -> Result<()> {
-    trash::delete(path).with_context(|| format!("{}: Failed to trash", path.display()))
+    trash::delete(path).with_context(|| format!("{}: Failed to move to trash", path.display()))
 }
 
 /// `delete_fn` 注入版。テストでは `std::fs::remove_*` 系を渡して
@@ -153,13 +154,9 @@ fn run_delete_with(
             return Ok(());
         }
         let path = Path::new(file.absolute_path());
-        delete_fn(path).with_context(|| {
-            format!(
-                "{}: Failed to trash (remaining {} files not processed)",
-                path.display(),
-                total - i - 1
-            )
-        })?;
+        let remaining = total - i - 1;
+        delete_fn(path)
+            .with_context(|| format!("Delete aborted ({remaining} files remaining)"))?;
         on_progress(Phase::Deleting, i + 1, Some(total));
     }
     Ok(())
@@ -199,8 +196,12 @@ fn scan_delete_count(
             notify_scan_progress(count, on_progress);
         }
     }
-    // Scan Phase 最後に端数件数を必ず通知 (SCAN_NOTIFY_BATCH の倍数で終わらないケースの取りこぼし対策)
-    on_progress(Phase::Scanning, count, None);
+    // Scan Phase の最後で端数件数を通知 (バッチ境界で終わらない場合の取りこぼし対策)。
+    // ちょうど SCAN_NOTIFY_BATCH の倍数で終わったときは notify_scan_progress で発火済みなのでスキップ。
+    // count == 0 のときは 180 行目の入口 emit と同値になるのでスキップ。
+    if count > 0 && !count.is_multiple_of(SCAN_NOTIFY_BATCH) {
+        on_progress(Phase::Scanning, count, None);
+    }
     Ok(CollectStatus::Completed)
 }
 
@@ -2021,7 +2022,16 @@ mod tests {
             &mut |_, _, _| {},
             &mut delete_fn,
         );
-        assert!(result.is_err(), "Err should propagate on delete_fn failure");
+        let err = result.expect_err("Err should propagate on delete_fn failure");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("0 files remaining"),
+            "Err context should include the remaining-count hint: {msg}"
+        );
+        assert!(
+            msg.contains("simulated permission denied"),
+            "Err chain should preserve the original cause: {msg}"
+        );
         // 1 件目は完了、2 件目で abort
         assert!(!a.exists(), "first file deleted before error");
         assert!(b.exists(), "second file remains (delete_fn failed)");
