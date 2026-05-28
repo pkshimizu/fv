@@ -18,7 +18,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use std::fmt::Write as _;
 use std::io::BufRead;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
@@ -679,9 +679,14 @@ fn execute_text_action(
 fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) -> Result<()> {
     match action {
         FileAction::Copy { files } => {
-            for file in &files {
-                file.copy_to(value)?;
-            }
+            start_file_job(
+                ctx,
+                FileJob::Copy {
+                    files,
+                    dest: PathBuf::from(value),
+                },
+                Phase::Scanning,
+            );
             Ok(())
         }
         FileAction::Move { files } => {
