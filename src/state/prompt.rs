@@ -2,17 +2,35 @@ use crate::fs::VFile;
 
 /// Async Job の現在フェーズ。
 /// PromptComponent の進捗表示で `Copying 7/1234 files` のような表示文字列を組み立てる際に使う。
-/// Scanning / Copying / Moving / Zipping / Deleting は後続スライス (#222-#225) で利用される。
+/// `Cancelling` は worker からは emit されず、Esc 受信時に PromptComponent が上書きする。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum Phase {
+    #[allow(dead_code)] // 後続スライス #222 (Copy) で利用
     Scanning,
+    #[allow(dead_code)] // 後続スライス #222 で利用
     Copying,
+    #[allow(dead_code)] // 後続スライス #223 (Move) で利用
     Moving,
+    #[allow(dead_code)] // 後続スライス #224 (Zip 作成) で利用
     Zipping,
     Extracting,
+    #[allow(dead_code)] // 後続スライス #225 (Delete) で利用
     Deleting,
     Cancelling,
+}
+
+impl std::fmt::Display for Phase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Phase::Scanning => "Scanning",
+            Phase::Copying => "Copying",
+            Phase::Moving => "Moving",
+            Phase::Zipping => "Zipping",
+            Phase::Extracting => "Extracting",
+            Phase::Deleting => "Deleting",
+            Phase::Cancelling => "Cancelling",
+        })
+    }
 }
 
 /// 非同期処理からの進捗メッセージ。

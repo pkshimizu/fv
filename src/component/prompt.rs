@@ -1,6 +1,8 @@
-use crate::app::async_task::AsyncTaskHandle;
+use crate::app::async_job::{AsyncJobHandle, spawn_async_job};
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, GrepComponent};
+use crate::fs::VFile;
+use crate::fs::async_job::FileJob;
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, Phase, ProgressMessage, PromptMode,
     SelectAction, SidePanel, SortKey, TextAction,
@@ -14,17 +16,20 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use std::fmt::Write as _;
 use std::io::BufRead;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use unicode_width::UnicodeWidthChar;
 
-use crate::fs::VFile;
-
 pub struct PromptComponent {
     mode: PromptMode,
-    handle: Option<AsyncTaskHandle>,
+    handle: Option<AsyncJobHandle>,
+    /// PromptMode::Progress 表示用の文字列バッファ。
+    /// 毎フレーム `format!` で再確保しないよう、進捗状態が変わったタイミングのみ
+    /// `clear() + write!` で詰め替える。
+    progress_buf: String,
 }
 
 impl PromptComponent {
@@ -32,6 +37,7 @@ impl PromptComponent {
         Self {
             mode: PromptMode::None,
             handle: None,
+            progress_buf: String::new(),
         }
     }
 
@@ -41,25 +47,95 @@ impl PromptComponent {
 
     pub fn set_mode(&mut self, mode: PromptMode) {
         self.mode = mode;
+        self.refresh_progress_text();
     }
 
     pub fn set_error(&mut self, message: String) {
         self.mode = PromptMode::Error { message };
+        self.refresh_progress_text();
     }
 
     /// Async Job の進捗表示を開始する。受信した Update メッセージを `tick()` が PromptMode::Progress に反映する。
-    pub fn start_async_job(&mut self, handle: AsyncTaskHandle, initial_phase: Phase) {
+    pub fn start_async_job(&mut self, handle: AsyncJobHandle, initial_phase: Phase) {
         self.mode = PromptMode::Progress {
             phase: initial_phase,
             processed: 0,
             total: None,
         };
         self.handle = Some(handle);
+        self.refresh_progress_text();
     }
 
     /// 現在 Async Job が実行中か。
     pub fn is_job_running(&self) -> bool {
         self.handle.is_some()
+    }
+
+    /// Async Job からの Update を PromptMode::Progress に反映する。
+    /// `Cancelling` phase は sticky で、worker からの後続 phase で上書きされない。
+    fn apply_progress(&mut self, phase: Phase, processed: usize, total: Option<usize>) {
+        match &mut self.mode {
+            PromptMode::Progress {
+                phase: cur_phase,
+                processed: cur_processed,
+                total: cur_total,
+            } => {
+                if *cur_phase != Phase::Cancelling {
+                    *cur_phase = phase;
+                }
+                *cur_processed = processed;
+                *cur_total = total;
+            }
+            _ => {
+                self.mode = PromptMode::Progress {
+                    phase,
+                    processed,
+                    total,
+                };
+            }
+        }
+        self.refresh_progress_text();
+    }
+
+    /// Esc 受信時の処理: Cancel Token を立て、表示フェーズを Cancelling に切り替える。
+    /// worker は次の File-level Checkpoint で停止する。
+    fn request_cancel(&mut self) {
+        if let Some(handle) = self.handle.as_ref() {
+            handle.cancel.store(true, Ordering::Relaxed);
+        }
+        if let PromptMode::Progress { phase, .. } = &mut self.mode {
+            *phase = Phase::Cancelling;
+        }
+        self.refresh_progress_text();
+    }
+
+    /// Async Job が終端メッセージで終わったとき、ハンドルを解放して新しい mode に遷移する。
+    fn clear_job(&mut self, new_mode: PromptMode) {
+        self.handle = None;
+        self.mode = new_mode;
+        self.refresh_progress_text();
+    }
+
+    /// 現在の `PromptMode::Progress` の値に基づいて `progress_buf` を更新する。
+    /// 他のモードのときはバッファをクリアする。
+    fn refresh_progress_text(&mut self) {
+        self.progress_buf.clear();
+        let (phase, processed, total) = match &self.mode {
+            PromptMode::Progress {
+                phase,
+                processed,
+                total,
+            } => (*phase, *processed, *total),
+            _ => return,
+        };
+        let result = match total {
+            Some(t) => write!(self.progress_buf, "{phase} {processed}/{t} files"),
+            None => write!(self.progress_buf, "{phase}... {processed} files"),
+        };
+        // write! で String への書き込みは失敗しない。万一に備え warn だけ残す
+        if let Err(e) = result {
+            tracing::warn!("failed to format progress text: {e}");
+        }
     }
 
     pub fn cancel(&mut self) -> Option<usize> {
@@ -266,12 +342,7 @@ impl PromptComponent {
         if key.code != KeyCode::Esc {
             return Ok(Action::None);
         }
-        if let Some(handle) = self.handle.as_ref() {
-            handle.cancel.store(true, Ordering::Release);
-        }
-        if let PromptMode::Progress { phase, .. } = &mut self.mode {
-            *phase = Phase::Cancelling;
-        }
+        self.request_cancel();
         Ok(Action::None)
     }
 
@@ -320,11 +391,7 @@ impl PromptComponent {
             PromptMode::Error { message } => Paragraph::new(message.as_str())
                 .style(Style::default().fg(Color::Red))
                 .block(build_bordered_block("Error", BorderStyle::Error)),
-            PromptMode::Progress {
-                phase,
-                processed,
-                total,
-            } => Paragraph::new(format_progress(*phase, *processed, *total))
+            PromptMode::Progress { .. } => Paragraph::new(self.progress_buf.as_str())
                 .block(build_bordered_block("Progress", BorderStyle::Active)),
         };
         frame.render_widget(widget, area);
@@ -363,73 +430,40 @@ impl Component for PromptComponent {
     }
 
     fn tick(&mut self) {
-        // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する
-        let Some(handle) = self.handle.as_ref() else {
-            return;
-        };
+        // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する。
+        // 各 try_recv は短いスコープに閉じて self.handle の借用を即座に解放し、
+        // その後の self.apply_progress / self.clear_job (mutable self) と共存させる。
         loop {
-            match handle.rx.try_recv() {
+            let result = match self.handle.as_ref() {
+                Some(h) => h.rx.try_recv(),
+                None => return,
+            };
+            match result {
                 Ok(ProgressMessage::Update {
                     phase,
                     processed,
                     total,
-                }) => {
-                    // Cancelling 中は phase を据え置く（処理済み・総量のみ反映）
-                    if let PromptMode::Progress {
-                        phase: ref mut current_phase,
-                        processed: ref mut current_processed,
-                        total: ref mut current_total,
-                    } = self.mode
-                    {
-                        if *current_phase != Phase::Cancelling {
-                            *current_phase = phase;
-                        }
-                        *current_processed = processed;
-                        *current_total = total;
-                    } else {
-                        self.mode = PromptMode::Progress {
-                            phase,
-                            processed,
-                            total,
-                        };
-                    }
-                }
+                }) => self.apply_progress(phase, processed, total),
                 Ok(ProgressMessage::Complete) => {
-                    self.mode = PromptMode::None;
-                    self.handle = None;
+                    self.clear_job(PromptMode::None);
                     return;
                 }
                 Ok(ProgressMessage::Error(text)) => {
-                    self.mode = PromptMode::Error { message: text };
-                    self.handle = None;
+                    self.clear_job(PromptMode::Error { message: text });
                     return;
                 }
                 Err(mpsc::TryRecvError::Empty) => return,
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    self.mode = PromptMode::Error {
+                    tracing::error!(
+                        "async job progress channel disconnected before terminal message"
+                    );
+                    self.clear_job(PromptMode::Error {
                         message: "Progress channel disconnected unexpectedly".to_string(),
-                    };
-                    self.handle = None;
+                    });
                     return;
                 }
             }
         }
-    }
-}
-
-fn format_progress(phase: Phase, processed: usize, total: Option<usize>) -> String {
-    let label = match phase {
-        Phase::Scanning => "Scanning",
-        Phase::Copying => "Copying",
-        Phase::Moving => "Moving",
-        Phase::Zipping => "Zipping",
-        Phase::Extracting => "Extracting",
-        Phase::Deleting => "Deleting",
-        Phase::Cancelling => "Cancelling",
-    };
-    match total {
-        Some(t) => format!("{label} {processed}/{t} files"),
-        None => format!("{label}... {processed} files"),
     }
 }
 
@@ -585,21 +619,19 @@ fn execute_confirm_action(action: ConfirmAction) -> Result<()> {
 }
 
 /// Async Job を起動して PromptComponent に進捗ハンドルを渡す共通ヘルパ。
-/// 既に別の Async Job が走っていれば `PromptMode::Error` を表示して `Ok(())` を返す。
-fn start_file_job(
-    ctx: &mut AppContext,
-    job: crate::fs::async_job::FileJob,
-    initial_phase: Phase,
-) -> Result<()> {
+/// 既に別の Async Job が走っていれば `PromptMode::Error` を表示する (Filer Lock により
+/// 通常は到達しないパスだが、不変条件破壊の早期検知のため tracing にも残す)。
+fn start_file_job(ctx: &mut AppContext, job: FileJob, initial_phase: Phase) {
     if ctx.prompt.is_job_running() {
-        ctx.prompt.set_error("別の操作が実行中です".to_string());
-        return Ok(());
+        tracing::warn!(
+            "start_file_job called while another async job is running (Filer Lock invariant?)"
+        );
+        ctx.prompt
+            .set_error("Another async job is already running".to_string());
+        return;
     }
-    let handle = crate::app::async_task::spawn_async_task(move |cancel, on_progress| {
-        job.run(cancel, on_progress)
-    });
+    let handle = spawn_async_job(move |cancel, on_progress| job.run(cancel, on_progress));
     ctx.prompt.start_async_job(handle, initial_phase);
-    Ok(())
 }
 
 fn execute_text_action(
@@ -630,12 +662,13 @@ fn execute_text_action(
 
             start_file_job(
                 ctx,
-                crate::fs::async_job::FileJob::ZipExtract {
+                FileJob::ZipExtract {
                     file,
                     dest: dest_path,
                 },
                 Phase::Extracting,
-            )
+            );
+            Ok(())
         }
         TextAction::Grep => execute_grep(ctx, store, value),
         // input_ok で Action::ExecuteCommand に変換されるため到達しない
@@ -730,38 +763,48 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::async_task::AsyncTaskHandle;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::sync::mpsc::{self, Sender};
 
-    fn make_handle() -> (PromptComponent, Sender<ProgressMessage>, Arc<AtomicBool>) {
+    /// Async Job 実行中状態の PromptComponent を立ち上げるテストフィクスチャ。
+    /// `worker_tx` から ProgressMessage を投入し、`tick()` でその反映を観察できる。
+    struct ProgressFixture {
+        prompt: PromptComponent,
+        worker_tx: Sender<ProgressMessage>,
+        cancel: Arc<AtomicBool>,
+    }
+
+    fn prompt_with_running_job(initial_phase: Phase) -> ProgressFixture {
         let (tx, rx) = mpsc::channel::<ProgressMessage>();
         let cancel = Arc::new(AtomicBool::new(false));
-        let handle = AsyncTaskHandle {
+        let handle = AsyncJobHandle {
             rx,
             cancel: cancel.clone(),
         };
         let mut prompt = PromptComponent::new();
-        prompt.start_async_job(handle, Phase::Extracting);
-        (prompt, tx, cancel)
+        prompt.start_async_job(handle, initial_phase);
+        ProgressFixture {
+            prompt,
+            worker_tx: tx,
+            cancel,
+        }
     }
 
     #[test]
     fn esc_during_progress_triggers_cancel_and_phase_switch() {
-        use std::sync::atomic::Ordering;
-        let (mut prompt, _tx, cancel) = make_handle();
+        let mut fx = prompt_with_running_job(Phase::Extracting);
 
         let esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
-        let action = prompt.handle_event(esc).expect("handle_event ok");
+        let action = fx.prompt.handle_event(esc).expect("handle_event ok");
 
         // App は Action として何も伝搬を要求されない（Prompt 内部で吸収）
         assert!(matches!(action, Action::None));
         // cancel が立つ
-        assert!(cancel.load(Ordering::Acquire));
+        assert!(fx.cancel.load(Ordering::Relaxed));
         // mode の phase が Cancelling に切り替わる（processed/total は据え置き）
-        match prompt.mode {
+        match fx.prompt.mode {
             PromptMode::Progress { phase, .. } => assert_eq!(phase, Phase::Cancelling),
             other => panic!("expected Progress mode after Esc, got {other:?}"),
         }
@@ -769,42 +812,45 @@ mod tests {
 
     #[test]
     fn tick_with_complete_clears_handle_and_returns_to_none_mode() {
-        let (mut prompt, tx, _cancel) = make_handle();
-        tx.send(ProgressMessage::Complete).unwrap();
+        let mut fx = prompt_with_running_job(Phase::Extracting);
+        fx.worker_tx.send(ProgressMessage::Complete).unwrap();
 
-        prompt.tick();
+        fx.prompt.tick();
 
-        assert!(matches!(prompt.mode, PromptMode::None));
-        assert!(!prompt.is_job_running());
+        assert!(matches!(fx.prompt.mode, PromptMode::None));
+        assert!(!fx.prompt.is_job_running());
     }
 
     #[test]
     fn tick_with_error_switches_to_error_mode_with_message() {
-        let (mut prompt, tx, _cancel) = make_handle();
-        tx.send(ProgressMessage::Error("disk full".into())).unwrap();
+        let mut fx = prompt_with_running_job(Phase::Extracting);
+        fx.worker_tx
+            .send(ProgressMessage::Error("disk full".into()))
+            .unwrap();
 
-        prompt.tick();
+        fx.prompt.tick();
 
-        match &prompt.mode {
+        match &fx.prompt.mode {
             PromptMode::Error { message } => assert_eq!(message, "disk full"),
             other => panic!("expected Error mode, got {other:?}"),
         }
-        assert!(!prompt.is_job_running());
+        assert!(!fx.prompt.is_job_running());
     }
 
     #[test]
     fn tick_reflects_received_update_into_progress_mode() {
-        let (mut prompt, tx, _cancel) = make_handle();
-        tx.send(ProgressMessage::Update {
-            phase: Phase::Extracting,
-            processed: 7,
-            total: Some(50),
-        })
-        .unwrap();
+        let mut fx = prompt_with_running_job(Phase::Extracting);
+        fx.worker_tx
+            .send(ProgressMessage::Update {
+                phase: Phase::Extracting,
+                processed: 7,
+                total: Some(50),
+            })
+            .unwrap();
 
-        prompt.tick();
+        fx.prompt.tick();
 
-        match prompt.mode {
+        match fx.prompt.mode {
             PromptMode::Progress {
                 phase,
                 processed,
@@ -816,6 +862,6 @@ mod tests {
             }
             other => panic!("expected Progress mode, got {other:?}"),
         }
-        assert!(prompt.is_job_running());
+        assert!(fx.prompt.is_job_running());
     }
 }

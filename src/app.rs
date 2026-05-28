@@ -1,4 +1,4 @@
-pub mod async_task;
+pub mod async_job;
 
 use ratatui::DefaultTerminal;
 
