@@ -155,8 +155,7 @@ fn run_delete_with(
         }
         let path = Path::new(file.absolute_path());
         let remaining = total - i - 1;
-        delete_fn(path)
-            .with_context(|| format!("Delete aborted ({remaining} files remaining)"))?;
+        delete_fn(path).with_context(|| format!("Delete aborted ({remaining} files remaining)"))?;
         on_progress(Phase::Deleting, i + 1, Some(total));
     }
     Ok(())

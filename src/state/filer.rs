@@ -276,10 +276,10 @@ impl FilerState {
             } else {
                 (start + len - step) % len
             };
-            if let Some(name) = self.current_dir_files[i].file_name() {
-                if name.to_lowercase().contains(&query_lower) {
-                    return Some(i);
-                }
+            if let Some(name) = self.current_dir_files[i].file_name()
+                && name.to_lowercase().contains(&query_lower)
+            {
+                return Some(i);
             }
         }
         None
@@ -340,12 +340,11 @@ impl FilerState {
                 let Ok(entry) = entry else { continue };
 
                 // ドットファイルフィルタ（VFile構築前に判定して高速化）
-                if !show_dot_file {
-                    if let Some(name) = entry.file_name().to_str() {
-                        if !FilerFilter::is_visible_name(name) {
-                            continue;
-                        }
-                    }
+                if !show_dot_file
+                    && let Some(name) = entry.file_name().to_str()
+                    && !FilerFilter::is_visible_name(name)
+                {
+                    continue;
                 }
 
                 let Some(path_str) = entry.path().to_str().map(String::from) else {

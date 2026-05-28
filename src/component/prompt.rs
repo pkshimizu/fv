@@ -191,14 +191,14 @@ impl PromptComponent {
         match &mut self.mode {
             PromptMode::Text { value, cursor, .. }
             | PromptMode::File { value, cursor, .. }
-            | PromptMode::Search { value, cursor, .. } => {
-                if *cursor > 0 {
-                    *cursor -= 1;
-                    let byte_pos = char_to_byte_pos(value, *cursor);
-                    let next_byte_pos =
-                        byte_pos + value[byte_pos..].chars().next().map_or(0, |c| c.len_utf8());
-                    value.replace_range(byte_pos..next_byte_pos, "");
-                }
+            | PromptMode::Search { value, cursor, .. }
+                if *cursor > 0 =>
+            {
+                *cursor -= 1;
+                let byte_pos = char_to_byte_pos(value, *cursor);
+                let next_byte_pos =
+                    byte_pos + value[byte_pos..].chars().next().map_or(0, |c| c.len_utf8());
+                value.replace_range(byte_pos..next_byte_pos, "");
             }
             _ => {}
         }

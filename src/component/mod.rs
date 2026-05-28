@@ -38,9 +38,6 @@ pub enum Action {
     None,
     /// アプリケーションを終了する
     Quit,
-    /// エラーメッセージを表示する
-    #[allow(dead_code)]
-    Error(String),
     /// 外部シェルを起動する
     LaunchShell,
     /// サイドパネルを閉じる
@@ -48,7 +45,7 @@ pub enum Action {
     /// プロンプトモードを設定する
     SetPromptMode(Box<PromptMode>),
     /// サイドパネルを表示する
-    ShowSidePanel(SidePanel),
+    ShowSidePanel(Box<SidePanel>),
     /// ブックマークを追加する
     AddBookmark(String),
     /// ファイルを外部アプリケーションで開く

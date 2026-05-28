@@ -133,9 +133,6 @@ impl App {
         match action {
             Action::None => {}
             Action::Quit => self.ctx.quit(),
-            Action::Error(message) => {
-                self.set_error(message);
-            }
             Action::LaunchShell => {
                 if let Err(e) =
                     Self::launch_external_shell(&self.ctx, terminal, &self.event_handler)
@@ -185,7 +182,7 @@ impl App {
             }
             Action::ShowSidePanel(panel) => {
                 if self.ctx.side_panel.is_none() {
-                    self.ctx.side_panel = Some(panel);
+                    self.ctx.side_panel = Some(*panel);
                 }
             }
             Action::OpenFile(path) => {

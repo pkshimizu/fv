@@ -45,12 +45,11 @@ impl EventHandler {
                     thread::sleep(tick_rate);
                     continue;
                 }
-                if event::poll(tick_rate).unwrap_or(false) {
-                    if let Ok(Event::Key(event)) = event::read() {
-                        if key_tx.send(AppEvent::Key(event)).is_err() {
-                            break;
-                        }
-                    }
+                if event::poll(tick_rate).unwrap_or(false)
+                    && let Ok(Event::Key(event)) = event::read()
+                    && key_tx.send(AppEvent::Key(event)).is_err()
+                {
+                    break;
                 }
             }
         });
