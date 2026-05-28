@@ -648,7 +648,27 @@ fn execute_text_action(
             ctx.filer.set_pending_select_name(value.to_string());
             Ok(())
         }
-        TextAction::Zip { dir, files } => dir.create_zip(value, &files),
+        TextAction::Zip { dir, files } => {
+            // 旧 fs::file::create_zip と同じ name 検証 (Unzip 経路と対称形)。
+            // 絶対パスや `..` を含む name で `dir` の外に zip を書き出すのを防ぐ。
+            anyhow::ensure!(
+                !value.is_empty()
+                    && std::path::Path::new(value)
+                        .components()
+                        .all(|c| matches!(c, std::path::Component::Normal(_))),
+                "{value}: Invalid zip name"
+            );
+            start_file_job(
+                ctx,
+                FileJob::ZipCreate {
+                    dir,
+                    name: value.to_string(),
+                    files,
+                },
+                Phase::Scanning,
+            );
+            Ok(())
+        }
         TextAction::Unzip { file, dir } => {
             anyhow::ensure!(
                 std::path::Path::new(value)
