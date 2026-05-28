@@ -168,10 +168,7 @@ impl Drop for ZipPathGuard<'_> {
         if let Err(e) = std::fs::remove_file(self.path)
             && e.kind() != std::io::ErrorKind::NotFound
         {
-            tracing::warn!(
-                "failed to remove partial zip {}: {e}",
-                self.path.display()
-            );
+            tracing::warn!("failed to remove partial zip {}: {e}", self.path.display());
         }
     }
 }
@@ -340,7 +337,11 @@ fn write_zip_plan(
             return Ok(CollectStatus::Cancelled);
         }
         writer.start_file(&entry.name, options).with_context(|| {
-            format!("{}: Failed to add {} to zip", zip_path.display(), entry.name)
+            format!(
+                "{}: Failed to add {} to zip",
+                zip_path.display(),
+                entry.name
+            )
         })?;
         let f = std::fs::File::open(&entry.src)
             .with_context(|| format!("{}: Failed to open source", entry.src.display()))?;
