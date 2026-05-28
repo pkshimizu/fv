@@ -50,10 +50,23 @@ fn ensure_dest_dir(dest: &Path) -> Result<()> {
 /// `Phase::Cancelling` は worker からは emit せず、UI 側で Esc 受信時に上書きされる。
 #[derive(Debug)]
 pub enum FileJob {
-    ZipExtract { file: VFile, dest: PathBuf },
-    Copy { files: Vec<VFile>, dest: PathBuf },
-    Move { files: Vec<VFile>, dest: PathBuf },
-    ZipCreate { dir: VFile, name: String, files: Vec<VFile> },
+    ZipExtract {
+        file: VFile,
+        dest: PathBuf,
+    },
+    Copy {
+        files: Vec<VFile>,
+        dest: PathBuf,
+    },
+    Move {
+        files: Vec<VFile>,
+        dest: PathBuf,
+    },
+    ZipCreate {
+        dir: VFile,
+        name: String,
+        files: Vec<VFile>,
+    },
 }
 
 impl FileJob {
@@ -73,7 +86,9 @@ impl FileJob {
         on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
     ) -> Result<()> {
         match self {
-            FileJob::ZipExtract { file, dest } => run_zip_extract(&file, &dest, cancel, on_progress),
+            FileJob::ZipExtract { file, dest } => {
+                run_zip_extract(&file, &dest, cancel, on_progress)
+            }
             FileJob::Copy { files, dest } => run_copy(&files, &dest, cancel, on_progress),
             FileJob::Move { files, dest } => run_move(&files, &dest, cancel, on_progress),
             FileJob::ZipCreate { dir, name, files } => {
@@ -195,8 +210,8 @@ fn collect_zip_directory(
         if cancel.load(Ordering::Relaxed) {
             return Ok(CollectStatus::Cancelled);
         }
-        let entry = entry
-            .with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
+        let entry =
+            entry.with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
         let entry_src = entry.path();
         let file_type = entry
             .file_type()
@@ -670,8 +685,8 @@ fn collect_directory_into_plan(
         if cancel.load(Ordering::Relaxed) {
             return Ok(CollectStatus::Cancelled);
         }
-        let entry = entry
-            .with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
+        let entry =
+            entry.with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
         let entry_src = entry.path();
         let file_type = entry
             .file_type()
@@ -957,10 +972,7 @@ mod tests {
             "existing"
         );
         // コピーは foo_1 に置かれる
-        assert_eq!(
-            read_to_string(&dest.join("foo_1").join("a.txt")),
-            "alpha"
-        );
+        assert_eq!(read_to_string(&dest.join("foo_1").join("a.txt")), "alpha");
     }
 
     #[test]
@@ -1028,8 +1040,10 @@ mod tests {
             dest: dest.clone(),
         };
         // 事前 cancel
-        job.run(&AtomicBool::new(true), &mut |p, n, t| events.push((p, n, t)))
-            .expect("cancel should produce Ok early return");
+        job.run(&AtomicBool::new(true), &mut |p, n, t| {
+            events.push((p, n, t))
+        })
+        .expect("cancel should produce Ok early return");
 
         // Scan Phase 開始時の (Scanning, 0, None) のみ通知され、Operation Phase へ進まない
         assert_eq!(events, vec![(Phase::Scanning, 0, None)]);
@@ -1051,8 +1065,10 @@ mod tests {
             files: vec![vfile(&src_root)],
             dest,
         };
-        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
-            .expect("Copy should succeed");
+        job.run(&AtomicBool::new(false), &mut |p, n, t| {
+            events.push((p, n, t))
+        })
+        .expect("Copy should succeed");
 
         let copying: Vec<_> = events
             .iter()
@@ -1086,8 +1102,10 @@ mod tests {
             files: vec![vfile(&src_root)],
             dest,
         };
-        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
-            .expect("Copy should succeed");
+        job.run(&AtomicBool::new(false), &mut |p, n, t| {
+            events.push((p, n, t))
+        })
+        .expect("Copy should succeed");
 
         let scanning: Vec<_> = events
             .iter()
@@ -1148,7 +1166,10 @@ mod tests {
         let src_root = tmp.path().join("src");
         write_file(&src_root.join("inside").join("safe.txt"), b"safe");
         let outside = tmp.path().join("outside");
-        write_file(&outside.join("secret.txt"), b"should-not-be-recursively-copied");
+        write_file(
+            &outside.join("secret.txt"),
+            b"should-not-be-recursively-copied",
+        );
         std::os::unix::fs::symlink(&outside, src_root.join("escape")).unwrap();
 
         let dest = tmp.path().join("out");
@@ -1259,12 +1280,12 @@ mod tests {
 
         // dest にファイル群がコピーされている
         assert_eq!(read_to_string(&dest_root.join("a.txt")), "alpha");
-        assert_eq!(
-            read_to_string(&dest_root.join("bar").join("b.txt")),
-            "beta"
-        );
+        assert_eq!(read_to_string(&dest_root.join("bar").join("b.txt")), "beta");
         // src は削除されている
-        assert!(!src_root.exists(), "src must be removed after move fallback");
+        assert!(
+            !src_root.exists(),
+            "src must be removed after move fallback"
+        );
 
         // 進捗: Scanning 始まり → Moving に遷移
         assert!(
@@ -1387,7 +1408,10 @@ mod tests {
             "top-level dir-symlink should be removed"
         );
         // リンク先の real ディレクトリは無傷
-        assert!(real_dir.is_dir(), "linked target directory must NOT be removed");
+        assert!(
+            real_dir.is_dir(),
+            "linked target directory must NOT be removed"
+        );
         assert_eq!(read_to_string(&real_dir.join("inside.txt")), "content");
         // dest 側にはリンク先の内容がコピーされている
         assert_eq!(read_to_string(&dest_root.join("inside.txt")), "content");
@@ -1454,8 +1478,10 @@ mod tests {
             files: vec![vfile(&a), vfile(&b), vfile(&c)],
             dest,
         };
-        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
-            .expect("Move should succeed");
+        job.run(&AtomicBool::new(false), &mut |p, n, t| {
+            events.push((p, n, t))
+        })
+        .expect("Move should succeed");
 
         // 同一 FS パスでは Scan Phase をスキップし、Moving の top-level 件数のみ通知
         let moving: Vec<_> = events
@@ -1502,7 +1528,10 @@ mod tests {
             "beta"
         );
         // src からはディレクトリごと消えている
-        assert!(!src_root.exists(), "src directory should be gone after move");
+        assert!(
+            !src_root.exists(),
+            "src directory should be gone after move"
+        );
     }
 
     fn read_zip_entries(zip_path: &std::path::Path) -> Vec<(String, Vec<u8>)> {
@@ -1550,7 +1579,9 @@ mod tests {
         assert!(names.contains("foo/a.txt"));
         // link 自体も outside/secret.txt も zip に含まれない
         assert!(
-            !names.iter().any(|n| n.contains("link") || n.contains("secret")),
+            !names
+                .iter()
+                .any(|n| n.contains("link") || n.contains("secret")),
             "symlink and its target must not appear in zip: {names:?}"
         );
     }
@@ -1576,7 +1607,11 @@ mod tests {
         assert_eq!(read_to_string(&existing_zip), "existing");
         // 新規 zip は out_1.zip に置かれる
         let new_zip = tmp.path().join("out_1.zip");
-        assert!(new_zip.exists(), "new zip should be created at {}", new_zip.display());
+        assert!(
+            new_zip.exists(),
+            "new zip should be created at {}",
+            new_zip.display()
+        );
         let entries = read_zip_entries(&new_zip);
         assert_eq!(entries[0].0, "hello.txt");
         assert_eq!(entries[0].1, b"new");
@@ -1629,8 +1664,10 @@ mod tests {
             name: "out.zip".to_string(),
             files: vec![vfile(&a), vfile(&b)],
         };
-        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
-            .expect("ZipCreate should succeed");
+        job.run(&AtomicBool::new(false), &mut |p, n, t| {
+            events.push((p, n, t))
+        })
+        .expect("ZipCreate should succeed");
 
         // Scanning 初期 0 通知のあと Zipping 0/2, 1/2, 2/2 と進む
         let scanning_first = events
@@ -1671,13 +1708,19 @@ mod tests {
         let entries = read_zip_entries(&tmp.path().join("tree.zip"));
         let names: std::collections::HashSet<String> =
             entries.iter().map(|(n, _)| n.clone()).collect();
-        assert!(names.contains("foo/a.txt"), "missing foo/a.txt in {names:?}");
+        assert!(
+            names.contains("foo/a.txt"),
+            "missing foo/a.txt in {names:?}"
+        );
         assert!(
             names.contains("foo/bar/b.txt"),
             "missing foo/bar/b.txt in {names:?}"
         );
         let by_name: std::collections::HashMap<_, _> = entries.into_iter().collect();
-        assert_eq!(by_name.get("foo/a.txt").map(|v| v.as_slice()), Some(b"alpha" as &[u8]));
+        assert_eq!(
+            by_name.get("foo/a.txt").map(|v| v.as_slice()),
+            Some(b"alpha" as &[u8])
+        );
         assert_eq!(
             by_name.get("foo/bar/b.txt").map(|v| v.as_slice()),
             Some(b"beta" as &[u8])
@@ -1702,8 +1745,14 @@ mod tests {
 
         let entries = read_zip_entries(&tmp.path().join("multi.zip"));
         let by_name: std::collections::HashMap<_, _> = entries.into_iter().collect();
-        assert_eq!(by_name.get("a.txt").map(|v| v.as_slice()), Some(b"alpha" as &[u8]));
-        assert_eq!(by_name.get("b.txt").map(|v| v.as_slice()), Some(b"beta" as &[u8]));
+        assert_eq!(
+            by_name.get("a.txt").map(|v| v.as_slice()),
+            Some(b"alpha" as &[u8])
+        );
+        assert_eq!(
+            by_name.get("b.txt").map(|v| v.as_slice()),
+            Some(b"beta" as &[u8])
+        );
     }
 
     #[test]
@@ -1722,7 +1771,11 @@ mod tests {
             .expect("ZipCreate should succeed");
 
         let zip_path = dir.join("out.zip");
-        assert!(zip_path.exists(), "zip file should be created at {}", zip_path.display());
+        assert!(
+            zip_path.exists(),
+            "zip file should be created at {}",
+            zip_path.display()
+        );
         let entries = read_zip_entries(&zip_path);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].0, "hello.txt");
@@ -1779,7 +1832,12 @@ mod tests {
         );
         // 自己ループ展開が起きていない
         assert!(
-            !dest.join("src").join("loop").join("loop").join("loop").exists()
+            !dest
+                .join("src")
+                .join("loop")
+                .join("loop")
+                .join("loop")
+                .exists()
                 || loop_meta.file_type().is_symlink(),
             "self-loop should not produce nested loop directories"
         );

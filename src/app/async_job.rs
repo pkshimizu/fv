@@ -86,10 +86,7 @@ where
         let _ = err_tx.send(ProgressMessage::Error(format!(
             "failed to spawn async job thread: {e}"
         )));
-        return AsyncJobHandle {
-            rx: err_rx,
-            cancel,
-        };
+        return AsyncJobHandle { rx: err_rx, cancel };
     }
 
     AsyncJobHandle { rx, cancel }
