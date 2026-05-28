@@ -83,17 +83,37 @@ fn run_copy(
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
         }
-        std::fs::copy(&entry.src, &entry.dst)
-            .with_context(|| format!("{}: Failed to copy file", entry.dst.display()))?;
+        copy_entry(entry)?;
         on_progress(Phase::Copying, i + 1, Some(total));
     }
     Ok(())
 }
 
+/// 1 件分の `CopyEntry` を宛先に書き出す。
+/// 通常ファイル/file-symlink は `std::fs::copy` でリンク先のデータをコピーするが、
+/// symlink (特に dir-symlink) は `std::os::unix::fs::symlink` でリンク自体を再生成する。
+/// これにより macOS の `.app` バンドル等に含まれる `Resources -> Versions/A/Resources` のような
+/// dir-symlink を含むツリーを `cp -R` と同等に正しくコピーできる。
+fn copy_entry(entry: &CopyEntry) -> Result<()> {
+    match entry {
+        CopyEntry::File { src, dst } => {
+            std::fs::copy(src, dst)
+                .with_context(|| format!("{}: Failed to copy file", dst.display()))?;
+            Ok(())
+        }
+        #[cfg(unix)]
+        CopyEntry::Symlink { dst, target } => {
+            std::os::unix::fs::symlink(target, dst)
+                .with_context(|| format!("{}: Failed to create symlink", dst.display()))?;
+            Ok(())
+        }
+    }
+}
+
 /// Scan Phase が組み立てる Copy の実行計画。
 /// `directories`: 作成すべき宛先ディレクトリ列 (親が子に先行する DFS pre-order)。
 ///     単一ファイル root では何も追加されず空のまま (mkdir は `run_copy` 冒頭の `create_dir_all(dest)` で十分)。
-/// `files`: コピーすべき src/dst ペア列。各 dst の親は `directories` に含まれるか
+/// `files`: コピーすべきエントリ列 (通常ファイル + symlink)。各 dst の親は `directories` に含まれるか
 ///     `dest` 自体のため、Operation Phase ではディレクトリ作成不要。
 #[derive(Debug, Default)]
 struct CopyPlan {
@@ -101,11 +121,22 @@ struct CopyPlan {
     files: Vec<CopyEntry>,
 }
 
-/// Scan Phase で 1 エントリ分の (src, dst) 対応を保持する。
+/// Scan Phase で 1 エントリ分の処理計画を保持する。
+/// 通常ファイル/file-symlink は `File` バリアントで `std::fs::copy` 経由のデータコピー、
+/// それ以外の symlink (主に dir-symlink) は `Symlink` バリアントで再生成する。
 #[derive(Debug)]
-struct CopyEntry {
-    src: PathBuf,
-    dst: PathBuf,
+enum CopyEntry {
+    File {
+        src: PathBuf,
+        dst: PathBuf,
+    },
+    #[cfg(unix)]
+    Symlink {
+        dst: PathBuf,
+        /// `std::fs::read_link` が返した値をそのまま保持 (相対パスは相対のまま再生成され、
+        /// macOS の `.app` バンドルのような相対 symlink 構造を壊さない)。
+        target: PathBuf,
+    },
 }
 
 /// Scan Phase の中断/完走を表す。
@@ -150,7 +181,16 @@ fn scan_copy_plan(
         let status = if metadata.is_dir() {
             collect_directory_into_plan(src, &top_dest, &mut plan, cancel, on_progress)?
         } else {
-            enqueue_file(&mut plan, src.to_path_buf(), top_dest, on_progress);
+            // top-level は `metadata()?` で symlink follow 済みなので、ここに来た時点で
+            // 通常ファイル (もしくは file-symlink の follow 結果) として扱う。
+            enqueue_entry(
+                &mut plan,
+                CopyEntry::File {
+                    src: src.to_path_buf(),
+                    dst: top_dest,
+                },
+                on_progress,
+            );
             CollectStatus::Completed
         };
         match status {
@@ -194,11 +234,37 @@ fn collect_directory_into_plan(
                 CollectStatus::Completed => {}
                 CollectStatus::Cancelled => return Ok(CollectStatus::Cancelled),
             }
+        } else if cfg!(unix) && file_type.is_symlink() {
+            // symlink (file-symlink / dir-symlink いずれも) はリンク自体を再生成する。
+            // dir-symlink を `std::fs::copy` でたどると "Is a directory" でエラーになるため、
+            // また file-symlink でもリンク先データを書き出すと bundle 構造が壊れるため、
+            // 一律 `read_link` で target を取得して `std::os::unix::fs::symlink` で再生成する。
+            #[cfg(unix)]
+            {
+                let target = std::fs::read_link(&entry_src).with_context(|| {
+                    format!("{}: Failed to read symlink target", entry_src.display())
+                })?;
+                enqueue_entry(
+                    plan,
+                    CopyEntry::Symlink {
+                        dst: entry_dst,
+                        target,
+                    },
+                    on_progress,
+                );
+            }
         } else {
-            // 通常ファイル・symlink・特殊ファイルはすべて plan.files に積む。
-            // symlink はリンク先データを std::fs::copy が読み出してコピーする
-            // (dir-symlink は std::fs::copy が "Is a directory" でエラーになる - 既存挙動)。
-            enqueue_file(plan, entry_src, entry_dst, on_progress);
+            // 通常ファイル・特殊ファイルは std::fs::copy で内容コピーする。
+            // (cfg(not(unix)) では symlink もこの分岐に落ちる。Windows での symlink 再生成は
+            // 別 API のため未対応で、既存挙動 - リンク先データのコピー試行 - を維持する。)
+            enqueue_entry(
+                plan,
+                CopyEntry::File {
+                    src: entry_src,
+                    dst: entry_dst,
+                },
+                on_progress,
+            );
         }
     }
     Ok(CollectStatus::Completed)
@@ -206,8 +272,12 @@ fn collect_directory_into_plan(
 
 /// plan.files に 1 件積み、SCAN_NOTIFY_BATCH 件ごとに Scanning 進捗を通知するヘルパ。
 /// ファイル発見ごとの per-iteration callback コストを抑える。
-fn enqueue_file(plan: &mut CopyPlan, src: PathBuf, dst: PathBuf, on_progress: &mut dyn FnMut(Phase, usize, Option<usize>)) {
-    plan.files.push(CopyEntry { src, dst });
+fn enqueue_entry(
+    plan: &mut CopyPlan,
+    entry: CopyEntry,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) {
+    plan.files.push(entry);
     let count = plan.files.len();
     if count % SCAN_NOTIFY_BATCH == 0 {
         on_progress(Phase::Scanning, count, None);
@@ -622,15 +692,15 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn copy_does_not_recurse_into_nested_directory_symlinks() {
-        // src/inside/safe.txt (通常ファイル) と src/escape -> ../outside (dir-symlink) を用意し、
-        // 再帰内では dir-symlink (escape) をたどらず outside/ 配下が dest に取り込まれないことを検証。
-        // (top-level の dir-symlink は意図的にたどる仕様だが、本テストは再帰内の dir-symlink を対象とする)
+    fn copy_preserves_directory_symlinks_inside_tree_instead_of_following_them() {
+        // src/escape -> ../outside (dir-symlink) と src/inside/safe.txt を用意し、
+        // 再帰内で escape はリンク自体を再生成して outside 配下を取り込まないことを検証する。
+        // (macOS .app バンドルの Resources -> Versions/A/Resources 等で必要な挙動)
         let tmp = TempDir::new().unwrap();
         let src_root = tmp.path().join("src");
         write_file(&src_root.join("inside").join("safe.txt"), b"safe");
         let outside = tmp.path().join("outside");
-        write_file(&outside.join("secret.txt"), b"should-not-be-copied");
+        write_file(&outside.join("secret.txt"), b"should-not-be-recursively-copied");
         std::os::unix::fs::symlink(&outside, src_root.join("escape")).unwrap();
 
         let dest = tmp.path().join("out");
@@ -640,26 +710,75 @@ mod tests {
             files: vec![vfile(&src_root)],
             dest: dest.clone(),
         };
-        // dir-symlink への std::fs::copy が "Is a directory" Err になり Job が Err 終了する可能性があるが、
-        // 本テストは「outside の中身が escape 経由で取り込まれていないこと」のみ検証する。
-        let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
-        let _ = result;
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy with dir-symlink should succeed by recreating link");
 
-        assert!(
-            !dest.join("src").join("escape").join("secret.txt").exists(),
-            "dir-symlink should not be followed during recursive Scan Phase"
+        // 通常ファイルはコピーされる
+        assert_eq!(
+            read_to_string(&dest.join("src").join("inside").join("safe.txt")),
+            "safe"
         );
+
+        // escape は symlink として再生成されており、target が outside のまま保持されている
+        let escape = dest.join("src").join("escape");
+        let escape_meta = std::fs::symlink_metadata(&escape).expect("escape entry must exist");
         assert!(
-            !dest.join("src").join("escape").is_dir(),
-            "escape entry must not be a copied directory"
+            escape_meta.file_type().is_symlink(),
+            "dir-symlink should be preserved as symlink, not recreated as a directory"
+        );
+        assert_eq!(
+            std::fs::read_link(&escape).unwrap(),
+            outside,
+            "symlink target should be preserved as-is"
+        );
+
+        // outside/secret.txt が dest 直下に独立コピーされていない (recurse 不在の証拠)
+        assert!(
+            !dest.join("src").join("secret.txt").exists(),
+            "outside/secret.txt should not be independently copied to dest"
         );
     }
 
     #[cfg(unix)]
     #[test]
+    fn copy_preserves_file_symlinks_inside_tree() {
+        // src/target.txt (通常ファイル) と src/alias -> target.txt (file-symlink) を用意し、
+        // alias がリンクとして再生成されることを検証する (data を二重コピーしない)。
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("src");
+        write_file(&src_root.join("target.txt"), b"original");
+        std::os::unix::fs::symlink("target.txt", src_root.join("alias")).unwrap();
+
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy with file-symlink should succeed");
+
+        let alias = dest.join("src").join("alias");
+        let alias_meta = std::fs::symlink_metadata(&alias).expect("alias must exist");
+        assert!(
+            alias_meta.file_type().is_symlink(),
+            "file-symlink should be preserved as symlink"
+        );
+        assert_eq!(
+            std::fs::read_link(&alias).unwrap(),
+            std::path::PathBuf::from("target.txt"),
+            "relative symlink target should be preserved verbatim"
+        );
+        // symlink follow すれば alias の内容は target.txt のデータ
+        assert_eq!(read_to_string(&alias), "original");
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn copy_does_not_infinitely_recurse_on_symlink_loop() {
-        // src/loop -> src の自己ループ。Scan が再帰せず有限時間で return することを検証する
-        // (loop エントリは plan.files に積まれ、std::fs::copy が dir なので Err になる)。
+        // src/loop -> src の自己ループ。Scan が再帰せず有限時間で return することを検証する。
+        // 新仕様: loop は symlink として再生成され、再帰には入らない。
         let tmp = TempDir::new().unwrap();
         let src_root = tmp.path().join("src");
         std::fs::create_dir(&src_root).unwrap();
@@ -672,15 +791,21 @@ mod tests {
             files: vec![vfile(&src_root)],
             dest: dest.clone(),
         };
-        // 結果の Ok/Err は問わない (dir-symlink への std::fs::copy は Err になり得る) が、
-        // 「return する」(無限ループ・スタックオーバーフロー しない) ことが本質。
-        let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
-        let _ = result;
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("self-loop symlink should be preserved without infinite recursion");
 
-        // 自己ループ展開によるネストが dest に生まれていないこと
+        // loop は symlink として保持され、再帰展開されていないこと
+        let dest_loop = dest.join("src").join("loop");
+        let loop_meta = std::fs::symlink_metadata(&dest_loop).expect("loop link must exist");
         assert!(
-            !dest.join("src").join("loop").join("loop").exists(),
-            "self-loop symlink should not produce nested loop/loop/... directories"
+            loop_meta.file_type().is_symlink(),
+            "self-loop symlink should be preserved"
+        );
+        // 自己ループ展開が起きていない
+        assert!(
+            !dest.join("src").join("loop").join("loop").join("loop").exists()
+                || loop_meta.file_type().is_symlink(),
+            "self-loop should not produce nested loop directories"
         );
     }
 }
