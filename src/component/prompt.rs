@@ -586,7 +586,7 @@ pub fn execute_prompt_action(
         }
     );
     match input {
-        PromptMode::Confirm { action, .. } => execute_confirm_action(action),
+        PromptMode::Confirm { action, .. } => execute_confirm_action(ctx, action),
         PromptMode::Text { action, value, .. } => {
             execute_text_action(ctx, store, *action, value.as_str())
         }
@@ -607,12 +607,10 @@ pub fn execute_prompt_action(
     Ok(())
 }
 
-fn execute_confirm_action(action: ConfirmAction) -> Result<()> {
+fn execute_confirm_action(ctx: &mut AppContext, action: ConfirmAction) -> Result<()> {
     match action {
         ConfirmAction::Delete { files } => {
-            for file in &files {
-                file.delete()?;
-            }
+            start_file_job(ctx, FileJob::Delete { files }, Phase::Scanning);
             Ok(())
         }
     }
