@@ -648,7 +648,18 @@ fn execute_text_action(
             ctx.filer.set_pending_select_name(value.to_string());
             Ok(())
         }
-        TextAction::Zip { dir, files } => dir.create_zip(value, &files),
+        TextAction::Zip { dir, files } => {
+            start_file_job(
+                ctx,
+                FileJob::ZipCreate {
+                    dir,
+                    name: value.to_string(),
+                    files,
+                },
+                Phase::Scanning,
+            );
+            Ok(())
+        }
         TextAction::Unzip { file, dir } => {
             anyhow::ensure!(
                 std::path::Path::new(value)
