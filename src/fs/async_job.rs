@@ -1,9 +1,14 @@
 use crate::fs::VFile;
+use crate::fs::file::unique_path;
 use crate::state::Phase;
 use anyhow::{Context, Result};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Scan Phase 中、ファイル発見ごとに `on_progress` を呼ばずに、この件数ごとにバッチで通知する。
+/// `&mut dyn FnMut` の vtable hop と `spawn_async_job` 側の `Instant::now()` 呼出を削減する目的。
+const SCAN_NOTIFY_BATCH: usize = 256;
 
 /// Async Job として実行される重いファイル操作。
 /// UI とは結合せず、進捗はクロージャ経由で通知する。
@@ -17,7 +22,14 @@ pub enum FileJob {
 impl FileJob {
     /// Job を実行する。
     /// `cancel` を File-level Checkpoint で監視し、true ならファイル境界で早期 return。
-    /// `on_progress` には `(phase, processed, total)` を渡す。`total` は Scan Phase 中 `None`。
+    ///
+    /// # 進捗通知プロトコル
+    /// - Phase 切り替え直後に必ず `(new_phase, 0, total)` を 1 回 emit する
+    ///   (Scan Phase 開始時は `(Scanning, 0, None)`、Operation Phase 開始時は `(Copying|Extracting|..., 0, Some(N))`)
+    /// - Scan Phase 中: ファイル発見ごとではなく `SCAN_NOTIFY_BATCH` 件ごとに `(Scanning, k, None)` を emit する
+    /// - Operation Phase 中: 1 ファイル完了ごとに `(Copying|..., k, Some(N))`
+    /// - `total` が `Some(N)` の場合、Cancel されない限り processed は最終的に `N` に達する
+    /// - Cancel された場合は File-level Checkpoint で emit が止まるため、processed < total のまま戻る
     pub fn run(
         self,
         cancel: &AtomicBool,
@@ -30,6 +42,18 @@ impl FileJob {
     }
 }
 
+/// Copy Job 本体。Scan Phase → Operation Phase の二相で動く。
+///
+/// # Partial Result
+/// Cancel された場合、Operation Phase で `std::fs::copy` 完了済みの個別ファイルは
+/// ディスクに残る。それを内包する祖先ディレクトリも残る (空ディレクトリとして残り得る)。
+/// Scan Phase 中の cancel では Partial Result は残らない (mkdir も発火していないため)。
+///
+/// # Symlink
+/// top-level の VFile が dir-symlink の場合はリンクをたどってその内容をコピーする
+/// (既存 `fs::file::copy_to` と同じ挙動)。再帰内ではリンクをたどらず、symlink エントリは
+/// `std::fs::copy` で「リンク先データを書き出すファイル」として扱う。これにより
+/// 入れ子の symlink ループや任意領域への脱出を防ぐ。
 fn run_copy(
     files: &[VFile],
     dest: &Path,
@@ -40,34 +64,64 @@ fn run_copy(
         // Scan Phase 中に cancel された場合は Partial Result なしで早期 return
         return Ok(());
     };
-    for dir in &plan.directories {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("{}: Failed to create directory", dir.display()))?;
-    }
     let total = plan.files.len();
+    // Operation Phase 開始を Phase 切り替え直後の `(Copying, 0, Some(total))` で通知。
+    // mkdir ループに入る前に出すことで「ディレクトリ作成中は UI が Scanning のまま」を回避する。
     on_progress(Phase::Copying, 0, Some(total));
-    // 必要な親ディレクトリは plan.directories で既に作成済みなので、ここでは std::fs::copy のみ。
-    for (i, (src, dst)) in plan.files.iter().enumerate() {
+    // ユーザ指定の dest 自体が存在しない可能性に備え一度だけ create_dir_all。
+    // それ以降の plan.directories は pre-order により親が常に作成済みなので create_dir で十分。
+    std::fs::create_dir_all(dest)
+        .with_context(|| format!("{}: Failed to create directory", dest.display()))?;
+    for dir in &plan.directories {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
         }
-        std::fs::copy(src, dst)
-            .with_context(|| format!("{}: Failed to copy file", dst.display()))?;
+        std::fs::create_dir(dir)
+            .with_context(|| format!("{}: Failed to create directory", dir.display()))?;
+    }
+    for (i, entry) in plan.files.iter().enumerate() {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        std::fs::copy(&entry.src, &entry.dst)
+            .with_context(|| format!("{}: Failed to copy file", entry.dst.display()))?;
         on_progress(Phase::Copying, i + 1, Some(total));
     }
     Ok(())
 }
 
-/// Scan Phase の結果。
-/// `directories`: 作成すべき宛先ディレクトリ列 (深さ順)。
-/// `files`: コピーすべき (src, dest) ペア列。
+/// Scan Phase が組み立てる Copy の実行計画。
+/// `directories`: 作成すべき宛先ディレクトリ列 (親が子に先行する DFS pre-order)。
+///     単一ファイル root では何も追加されず空のまま (mkdir は `run_copy` 冒頭の `create_dir_all(dest)` で十分)。
+/// `files`: コピーすべき src/dst ペア列。各 dst の親は `directories` に含まれるか
+///     `dest` 自体のため、Operation Phase ではディレクトリ作成不要。
 #[derive(Debug, Default)]
 struct CopyPlan {
     directories: Vec<PathBuf>,
-    files: Vec<(PathBuf, PathBuf)>,
+    files: Vec<CopyEntry>,
 }
 
-/// Scan Phase 中に cancel された場合は Ok(None) を返す。
+/// Scan Phase で 1 エントリ分の (src, dst) 対応を保持する。
+#[derive(Debug)]
+struct CopyEntry {
+    src: PathBuf,
+    dst: PathBuf,
+}
+
+/// Scan Phase の中断/完走を表す。
+enum CollectStatus {
+    Completed,
+    Cancelled,
+}
+
+/// `roots` 配下を一度走査して、cancel 可能なまま `CopyPlan` を組み立てる (Scan Phase)。
+///
+/// - `Ok(Some(plan))`: 全 root を列挙完了。`plan.files` の各 src→dst をコピーすれば結果が得られる
+/// - `Ok(None)`: Scan 中に Cancel Token がセットされ早期中断。Partial Result は無し
+/// - `Err`: 走査中の I/O エラー (`read_dir` 失敗、`unique_path` 失敗など)
+///
+/// 各 root の top-level 名は `fs::file::unique_path` で衝突回避し、`dest/<name>` がすでに
+/// 存在すれば `<name>_1`, `<name>_2`, ... に振り替える (`fs::file::copy_to` と同じ規約)。
 fn scan_copy_plan(
     roots: &[VFile],
     dest: &Path,
@@ -77,50 +131,87 @@ fn scan_copy_plan(
     let mut plan = CopyPlan::default();
     on_progress(Phase::Scanning, 0, None);
     for root in roots {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
         let src = Path::new(root.absolute_path());
         let name = src
             .file_name()
-            .with_context(|| format!("{}: No file name", src.display()))?;
-        // 既存 fs::file::copy_to と同じ衝突回避規約: top-level の宛先名が既に存在すれば
-        // `foo_1`, `foo_2`, ... の suffix を付けて未使用名を探す。
-        let top_dest = crate::fs::file::unique_path(&dest.join(name))?;
-        if !collect_into_plan(src, &top_dest, &mut plan, cancel, on_progress)? {
-            return Ok(None);
+            .with_context(|| format!("{}: Copy source has no file name", src.display()))?;
+        let top_dest = unique_path(&dest.join(name))?;
+
+        // top-level は既存 fs::file::copy_to と同じく metadata (symlink follow) で判定する。
+        // ユーザがコマンドで明示的に指定した対象なので、dir-symlink ならその内容をコピー。
+        // `Path::is_dir()` ではなく `metadata()?` を使うことで、stat 失敗 (権限不足・dangling
+        // symlink 等) を「通常ファイル扱い」に握りつぶさず Scan Phase で早期 Err として顕在化する。
+        let metadata = src
+            .metadata()
+            .with_context(|| format!("{}: Failed to stat copy source", src.display()))?;
+        let status = if metadata.is_dir() {
+            collect_directory_into_plan(src, &top_dest, &mut plan, cancel, on_progress)?
+        } else {
+            enqueue_file(&mut plan, src.to_path_buf(), top_dest, on_progress);
+            CollectStatus::Completed
+        };
+        match status {
+            CollectStatus::Completed => {}
+            CollectStatus::Cancelled => return Ok(None),
         }
     }
     Ok(Some(plan))
 }
 
-/// 再帰列挙。`Ok(true)` は最後まで列挙、`Ok(false)` は cancel による早期中断。
-fn collect_into_plan(
+/// `src` ディレクトリ配下を pre-order DFS で plan に積む。
+/// `src` は呼び出し側で `metadata().is_dir()` 判定済み (top-level は symlink follow 結果として
+/// dir-symlink である可能性あり、再帰内はリンクをたどっていないので非 symlink のディレクトリ)。
+/// `read_dir` で得たエントリの `file_type()` を使い、ディレクトリでもシンボリックリンクは
+/// たどらない (dir-symlink ループや任意領域脱出の防止)。
+fn collect_directory_into_plan(
     src: &Path,
     dst: &Path,
     plan: &mut CopyPlan,
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
-) -> Result<bool> {
-    if cancel.load(Ordering::Relaxed) {
-        return Ok(false);
-    }
-    if src.is_dir() {
-        plan.directories.push(dst.to_path_buf());
-        for entry in std::fs::read_dir(src)
-            .with_context(|| format!("{}: Failed to read directory", src.display()))?
-        {
-            let entry = entry.with_context(|| {
-                format!("{}: Failed to read directory entry", src.display())
-            })?;
-            let entry_path = entry.path();
-            let entry_dst = dst.join(entry.file_name());
-            if !collect_into_plan(&entry_path, &entry_dst, plan, cancel, on_progress)? {
-                return Ok(false);
-            }
+) -> Result<CollectStatus> {
+    plan.directories.push(dst.to_path_buf());
+    for entry in std::fs::read_dir(src)
+        .with_context(|| format!("{}: Failed to read directory", src.display()))?
+    {
+        // File-level Checkpoint: 各エントリ処理の前に cancel をチェックする
+        // (ZipExtract の `for i in 0..total` と対称形)。
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(CollectStatus::Cancelled);
         }
-    } else {
-        plan.files.push((src.to_path_buf(), dst.to_path_buf()));
-        on_progress(Phase::Scanning, plan.files.len(), None);
+        let entry = entry
+            .with_context(|| format!("{}: Failed to read directory entry", src.display()))?;
+        let entry_src = entry.path();
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("{}: Failed to read file type", entry_src.display()))?;
+        let entry_dst = dst.join(entry.file_name());
+        if file_type.is_dir() && !file_type.is_symlink() {
+            match collect_directory_into_plan(&entry_src, &entry_dst, plan, cancel, on_progress)? {
+                CollectStatus::Completed => {}
+                CollectStatus::Cancelled => return Ok(CollectStatus::Cancelled),
+            }
+        } else {
+            // 通常ファイル・symlink・特殊ファイルはすべて plan.files に積む。
+            // symlink はリンク先データを std::fs::copy が読み出してコピーする
+            // (dir-symlink は std::fs::copy が "Is a directory" でエラーになる - 既存挙動)。
+            enqueue_file(plan, entry_src, entry_dst, on_progress);
+        }
     }
-    Ok(true)
+    Ok(CollectStatus::Completed)
+}
+
+/// plan.files に 1 件積み、SCAN_NOTIFY_BATCH 件ごとに Scanning 進捗を通知するヘルパ。
+/// ファイル発見ごとの per-iteration callback コストを抑える。
+fn enqueue_file(plan: &mut CopyPlan, src: PathBuf, dst: PathBuf, on_progress: &mut dyn FnMut(Phase, usize, Option<usize>)) {
+    plan.files.push(CopyEntry { src, dst });
+    let count = plan.files.len();
+    if count % SCAN_NOTIFY_BATCH == 0 {
+        on_progress(Phase::Scanning, count, None);
+    }
 }
 
 fn run_zip_extract(
@@ -224,6 +315,13 @@ mod tests {
         s
     }
 
+    fn write_file(path: &std::path::Path, contents: &[u8]) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        File::create(path).unwrap().write_all(contents).unwrap();
+    }
+
     #[test]
     fn zip_extract_returns_err_when_source_file_is_missing() {
         let tmp = TempDir::new().unwrap();
@@ -317,13 +415,6 @@ mod tests {
         );
     }
 
-    fn write_file(path: &std::path::Path, contents: &[u8]) {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        File::create(path).unwrap().write_all(contents).unwrap();
-    }
-
     #[test]
     fn copy_avoids_collision_by_appending_numeric_suffix() {
         let tmp = TempDir::new().unwrap();
@@ -369,7 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn copy_keeps_partial_result_when_cancelled_during_operation() {
+    fn copy_keeps_partial_result_when_cancelled_during_copying_phase() {
         use std::sync::Arc;
         let tmp = TempDir::new().unwrap();
         let src_root = tmp.path().join("foo");
@@ -405,7 +496,7 @@ mod tests {
     }
 
     #[test]
-    fn copy_stops_during_scan_when_cancel_is_preset() {
+    fn copy_stops_during_scanning_phase_when_cancel_is_preset() {
         let tmp = TempDir::new().unwrap();
         let src_root = tmp.path().join("foo");
         write_file(&src_root.join("a.txt"), b"a");
@@ -413,14 +504,17 @@ mod tests {
         let dest = tmp.path().join("out");
         std::fs::create_dir(&dest).unwrap();
 
+        let mut events: Vec<(Phase, usize, Option<usize>)> = Vec::new();
         let job = FileJob::Copy {
             files: vec![vfile(&src_root)],
             dest: dest.clone(),
         };
         // 事前 cancel
-        let result = job.run(&AtomicBool::new(true), &mut |_, _, _| {});
-        assert!(result.is_ok(), "cancel should produce Ok early return");
+        job.run(&AtomicBool::new(true), &mut |p, n, t| events.push((p, n, t)))
+            .expect("cancel should produce Ok early return");
 
+        // Scan Phase 開始時の (Scanning, 0, None) のみ通知され、Operation Phase へ進まない
+        assert_eq!(events, vec![(Phase::Scanning, 0, None)]);
         // どのファイルもコピーされていない (Partial Result すらない)
         assert!(!dest.join("foo").exists());
     }
@@ -459,7 +553,9 @@ mod tests {
     }
 
     #[test]
-    fn copy_emits_scanning_progress_per_file_discovered() {
+    fn copy_emits_initial_scanning_progress_at_phase_start() {
+        // Scan Phase は SCAN_NOTIFY_BATCH (256) 件ごとにバッチで通知するため、
+        // 小規模 (2 ファイル) では初回 (Scanning, 0, None) のみ emit される。
         let tmp = TempDir::new().unwrap();
         let src_root = tmp.path().join("foo");
         write_file(&src_root.join("a.txt"), b"a");
@@ -480,15 +576,7 @@ mod tests {
             .filter(|(p, _, _)| *p == Phase::Scanning)
             .copied()
             .collect();
-        // Scan Phase 開始時の 0 と、各ファイル発見ごとの増分通知
-        assert_eq!(
-            scanning,
-            vec![
-                (Phase::Scanning, 0, None),
-                (Phase::Scanning, 1, None),
-                (Phase::Scanning, 2, None),
-            ]
-        );
+        assert_eq!(scanning, vec![(Phase::Scanning, 0, None)]);
     }
 
     #[test]
@@ -530,5 +618,69 @@ mod tests {
             .expect("Copy should succeed");
 
         assert_eq!(read_to_string(&dest.join("hello.txt")), "hello fv");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_does_not_recurse_into_nested_directory_symlinks() {
+        // src/inside/safe.txt (通常ファイル) と src/escape -> ../outside (dir-symlink) を用意し、
+        // 再帰内では dir-symlink (escape) をたどらず outside/ 配下が dest に取り込まれないことを検証。
+        // (top-level の dir-symlink は意図的にたどる仕様だが、本テストは再帰内の dir-symlink を対象とする)
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("src");
+        write_file(&src_root.join("inside").join("safe.txt"), b"safe");
+        let outside = tmp.path().join("outside");
+        write_file(&outside.join("secret.txt"), b"should-not-be-copied");
+        std::os::unix::fs::symlink(&outside, src_root.join("escape")).unwrap();
+
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        // dir-symlink への std::fs::copy が "Is a directory" Err になり Job が Err 終了する可能性があるが、
+        // 本テストは「outside の中身が escape 経由で取り込まれていないこと」のみ検証する。
+        let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
+        let _ = result;
+
+        assert!(
+            !dest.join("src").join("escape").join("secret.txt").exists(),
+            "dir-symlink should not be followed during recursive Scan Phase"
+        );
+        assert!(
+            !dest.join("src").join("escape").is_dir(),
+            "escape entry must not be a copied directory"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_does_not_infinitely_recurse_on_symlink_loop() {
+        // src/loop -> src の自己ループ。Scan が再帰せず有限時間で return することを検証する
+        // (loop エントリは plan.files に積まれ、std::fs::copy が dir なので Err になる)。
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("src");
+        std::fs::create_dir(&src_root).unwrap();
+        std::os::unix::fs::symlink(&src_root, src_root.join("loop")).unwrap();
+
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        // 結果の Ok/Err は問わない (dir-symlink への std::fs::copy は Err になり得る) が、
+        // 「return する」(無限ループ・スタックオーバーフロー しない) ことが本質。
+        let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
+        let _ = result;
+
+        // 自己ループ展開によるネストが dest に生まれていないこと
+        assert!(
+            !dest.join("src").join("loop").join("loop").exists(),
+            "self-loop symlink should not produce nested loop/loop/... directories"
+        );
     }
 }
