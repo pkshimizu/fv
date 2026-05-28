@@ -1,3 +1,5 @@
+pub mod async_job;
+
 use ratatui::DefaultTerminal;
 
 use crate::app_context::AppContext;
