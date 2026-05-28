@@ -690,9 +690,14 @@ fn execute_file_action(ctx: &mut AppContext, action: FileAction, value: &str) ->
             Ok(())
         }
         FileAction::Move { files } => {
-            for file in &files {
-                file.move_to(value)?;
-            }
+            start_file_job(
+                ctx,
+                FileJob::Move {
+                    files,
+                    dest: PathBuf::from(value),
+                },
+                Phase::Moving,
+            );
             Ok(())
         }
         FileAction::Jump => {

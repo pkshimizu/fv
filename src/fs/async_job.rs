@@ -17,6 +17,7 @@ const SCAN_NOTIFY_BATCH: usize = 256;
 pub enum FileJob {
     ZipExtract { file: VFile, dest: PathBuf },
     Copy { files: Vec<VFile>, dest: PathBuf },
+    Move { files: Vec<VFile>, dest: PathBuf },
 }
 
 impl FileJob {
@@ -38,8 +39,110 @@ impl FileJob {
         match self {
             FileJob::ZipExtract { file, dest } => run_zip_extract(&file, &dest, cancel, on_progress),
             FileJob::Copy { files, dest } => run_copy(&files, &dest, cancel, on_progress),
+            FileJob::Move { files, dest } => run_move(&files, &dest, cancel, on_progress),
         }
     }
+}
+
+/// Move Job 本体。
+/// 同一 FS では `rename` 一発で済むため Scan Phase を経由せず top-level 件数で進捗を出す。
+/// `std::fs::rename` が `libc::EXDEV` で失敗した場合は、全 root を Scan + Copy + Remove の
+/// フォールバックパスに切り替える (UI 上は `Scanning... N files` → `Moving k/N files` の遷移)。
+///
+/// # Partial Result
+/// - 同一 FS 高速パス中の cancel: 既に rename 済みの root は dest に残り、未処理は src に残る
+/// - EXDEV フォールバック中の cancel:
+///   - Scan 中: 何も変えない
+///   - Copy 中: dest にコピー済み、src にはまだ全エントリ残存 (src/dest の重複状態)
+///   - Remove 中: dest には全エントリ、src には未削除の root が残存
+fn run_move(
+    files: &[VFile],
+    dest: &Path,
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) -> Result<()> {
+    if files.is_empty() {
+        return Ok(());
+    }
+    if cancel.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+    let pairs = resolve_top_level_pairs(files, dest)?;
+
+    // Probe: 先頭 root に rename を試す。同一 FS なら成功、クロス FS なら EXDEV エラー。
+    let (first_src, first_dest) = &pairs[0];
+    match std::fs::rename(first_src, first_dest) {
+        Ok(()) => {
+            // 同一 FS 高速パス: 残りの root も rename で処理。
+            let total = pairs.len();
+            on_progress(Phase::Moving, 0, Some(total));
+            on_progress(Phase::Moving, 1, Some(total));
+            for (i, (src, dst)) in pairs.iter().enumerate().skip(1) {
+                if cancel.load(Ordering::Relaxed) {
+                    return Ok(());
+                }
+                std::fs::rename(src, dst)
+                    .with_context(|| format!("{}: Failed to rename", dst.display()))?;
+                on_progress(Phase::Moving, i + 1, Some(total));
+            }
+            Ok(())
+        }
+        Err(e) if e.raw_os_error() == Some(libc::EXDEV) => {
+            move_via_copy_and_remove(&pairs, cancel, on_progress)
+        }
+        Err(e) => Err(anyhow::Error::from(e)
+            .context(format!("{}: Failed to rename", first_dest.display()))),
+    }
+}
+
+/// EXDEV フォールバック: 事前解決済みペア列を Scan + Copy + Remove で移動する。
+/// 進捗 phase は Scan 中 `Scanning`、Copy 以降 `Moving`。
+fn move_via_copy_and_remove(
+    pairs: &[(PathBuf, PathBuf)],
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) -> Result<()> {
+    let Some(plan) = scan_pairs_into_plan(pairs, cancel, on_progress)? else {
+        // Scan 中の cancel は Partial Result なしで早期 return
+        return Ok(());
+    };
+    let total = plan.files.len();
+    on_progress(Phase::Moving, 0, Some(total));
+    // 各 dest 自体の存在は保証しないが、parent ディレクトリは pairs の top_dest の親 = dest なので
+    // 呼び出し側 (Move) では未保証。EXDEV 時は cross-FS の dest なので create_dir_all で確保する。
+    // pairs[0] の親をひとつ create_dir_all しておく (全 pairs は同じ dest 配下なので 1 回で十分)。
+    if let Some(parent) = pairs[0].1.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("{}: Failed to create directory", parent.display()))?;
+    }
+    for dir in &plan.directories {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        std::fs::create_dir(dir)
+            .with_context(|| format!("{}: Failed to create directory", dir.display()))?;
+    }
+    for (i, entry) in plan.files.iter().enumerate() {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        copy_entry(entry)?;
+        on_progress(Phase::Moving, i + 1, Some(total));
+    }
+    // 全 Copy 完了後に各 root の src を削除する (Partial Result の意味づけは Cancel 時のみ)。
+    for (src, _) in pairs {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        if src.is_dir() {
+            std::fs::remove_dir_all(src)
+                .with_context(|| format!("{}: Failed to remove source", src.display()))?;
+        } else {
+            std::fs::remove_file(src)
+                .with_context(|| format!("{}: Failed to remove source", src.display()))?;
+        }
+    }
+    Ok(())
 }
 
 /// Copy Job 本体。Scan Phase → Operation Phase の二相で動く。
@@ -159,35 +262,55 @@ fn scan_copy_plan(
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<Option<CopyPlan>> {
+    // top-level の宛先名を `unique_path` で衝突回避してから内部のペア用 scan に委譲する。
+    let pairs = resolve_top_level_pairs(roots, dest)?;
+    scan_pairs_into_plan(&pairs, cancel, on_progress)
+}
+
+/// 各 root の絶対パスと、`unique_path` で衝突回避した宛先トップレベルパスのペア列を返す。
+/// Copy / Move の Scan Phase 共通の前処理。
+fn resolve_top_level_pairs(roots: &[VFile], dest: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
+    roots
+        .iter()
+        .map(|root| {
+            let src = Path::new(root.absolute_path());
+            let name = src
+                .file_name()
+                .with_context(|| format!("{}: source has no file name", src.display()))?;
+            let top_dest = unique_path(&dest.join(name))?;
+            Ok((src.to_path_buf(), top_dest))
+        })
+        .collect()
+}
+
+/// 事前解決済みの (src, top_dest) ペア列を走査して `CopyPlan` を組み立てる Scan Phase。
+/// Copy/Move の EXDEV フォールバックで共通利用する。
+fn scan_pairs_into_plan(
+    pairs: &[(PathBuf, PathBuf)],
+    cancel: &AtomicBool,
+    on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
+) -> Result<Option<CopyPlan>> {
     let mut plan = CopyPlan::default();
     on_progress(Phase::Scanning, 0, None);
-    for root in roots {
+    for (src, top_dest) in pairs {
         if cancel.load(Ordering::Relaxed) {
             return Ok(None);
         }
-        let src = Path::new(root.absolute_path());
-        let name = src
-            .file_name()
-            .with_context(|| format!("{}: Copy source has no file name", src.display()))?;
-        let top_dest = unique_path(&dest.join(name))?;
-
         // top-level は既存 fs::file::copy_to と同じく metadata (symlink follow) で判定する。
         // ユーザがコマンドで明示的に指定した対象なので、dir-symlink ならその内容をコピー。
-        // `Path::is_dir()` ではなく `metadata()?` を使うことで、stat 失敗 (権限不足・dangling
-        // symlink 等) を「通常ファイル扱い」に握りつぶさず Scan Phase で早期 Err として顕在化する。
+        // `Path::is_dir()` ではなく `metadata()?` を使うことで、stat 失敗を「通常ファイル扱い」に
+        // 握りつぶさず Scan Phase で早期 Err として顕在化する。
         let metadata = src
             .metadata()
-            .with_context(|| format!("{}: Failed to stat copy source", src.display()))?;
+            .with_context(|| format!("{}: Failed to stat source", src.display()))?;
         let status = if metadata.is_dir() {
-            collect_directory_into_plan(src, &top_dest, &mut plan, cancel, on_progress)?
+            collect_directory_into_plan(src, top_dest, &mut plan, cancel, on_progress)?
         } else {
-            // top-level は `metadata()?` で symlink follow 済みなので、ここに来た時点で
-            // 通常ファイル (もしくは file-symlink の follow 結果) として扱う。
             enqueue_entry(
                 &mut plan,
                 CopyEntry::File {
-                    src: src.to_path_buf(),
-                    dst: top_dest,
+                    src: src.clone(),
+                    dst: top_dest.clone(),
                 },
                 on_progress,
             );
@@ -279,7 +402,7 @@ fn enqueue_entry(
 ) {
     plan.files.push(entry);
     let count = plan.files.len();
-    if count % SCAN_NOTIFY_BATCH == 0 {
+    if count.is_multiple_of(SCAN_NOTIFY_BATCH) {
         on_progress(Phase::Scanning, count, None);
     }
 }
@@ -772,6 +895,231 @@ mod tests {
         );
         // symlink follow すれば alias の内容は target.txt のデータ
         assert_eq!(read_to_string(&alias), "original");
+    }
+
+    #[test]
+    fn move_returns_err_when_source_is_missing() {
+        let tmp = TempDir::new().unwrap();
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Move {
+            files: vec![vfile(&tmp.path().join("no-such.txt"))],
+            dest,
+        };
+        let result = job.run(&AtomicBool::new(false), &mut |_, _, _| {});
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn move_via_copy_and_remove_completes_scan_copy_remove_sequence() {
+        // EXDEV フォールバック関数を直接呼び出して動作検証する (実際の cross-FS は CI で再現困難)。
+        // 結果として src は消え dest にすべてのファイルが入り、進捗は Scanning → Moving 順で発火する。
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"alpha");
+        write_file(&src_root.join("bar").join("b.txt"), b"beta");
+        let dest_root = tmp.path().join("out").join("foo");
+        std::fs::create_dir_all(dest_root.parent().unwrap()).unwrap();
+
+        let pairs = vec![(src_root.clone(), dest_root.clone())];
+        let mut events: Vec<(Phase, usize, Option<usize>)> = Vec::new();
+        move_via_copy_and_remove(&pairs, &AtomicBool::new(false), &mut |p, n, t| {
+            events.push((p, n, t))
+        })
+        .expect("EXDEV fallback should succeed");
+
+        // dest にファイル群がコピーされている
+        assert_eq!(read_to_string(&dest_root.join("a.txt")), "alpha");
+        assert_eq!(
+            read_to_string(&dest_root.join("bar").join("b.txt")),
+            "beta"
+        );
+        // src は削除されている
+        assert!(!src_root.exists(), "src must be removed after move fallback");
+
+        // 進捗: Scanning 始まり → Moving に遷移
+        assert!(
+            events.iter().any(|(p, _, _)| *p == Phase::Scanning),
+            "Scanning phase should be emitted: {events:?}"
+        );
+        let moving_events: Vec<_> = events
+            .iter()
+            .filter(|(p, _, _)| *p == Phase::Moving)
+            .copied()
+            .collect();
+        // 初期 (Moving, 0, Some(2)) と各ファイルコピー後の通知 = (Moving, 2, Some(2)) で終わる
+        let last = moving_events.last().expect("Moving emit must exist");
+        assert_eq!(*last, (Phase::Moving, 2, Some(2)));
+    }
+
+    #[test]
+    fn move_via_copy_and_remove_keeps_partial_result_when_cancelled_during_copy() {
+        // Copy 中の cancel で src は残り、dest には部分結果が積まれていることを確認する。
+        use std::sync::Arc;
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"a");
+        write_file(&src_root.join("b.txt"), b"b");
+        write_file(&src_root.join("c.txt"), b"c");
+        let dest_root = tmp.path().join("out").join("foo");
+        std::fs::create_dir_all(dest_root.parent().unwrap()).unwrap();
+
+        let pairs = vec![(src_root.clone(), dest_root.clone())];
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_for_closure = cancel.clone();
+        move_via_copy_and_remove(&pairs, &cancel, &mut |p, n, _| {
+            // 1 ファイルコピー完了直後に cancel をセット
+            if p == Phase::Moving && n == 1 {
+                cancel_for_closure.store(true, Ordering::Relaxed);
+            }
+        })
+        .expect("cancel should produce Ok early return");
+
+        // src は手付かずで残る (Partial Result on src)
+        assert!(src_root.exists(), "src must remain after Copy-time cancel");
+        // dest にはコピー済みファイルが残る (Partial Result on dest)
+        let copied_count = std::fs::read_dir(&dest_root)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .count();
+        assert_eq!(
+            copied_count, 1,
+            "exactly one file should be copied as partial result, got {copied_count}"
+        );
+    }
+
+    #[test]
+    fn move_avoids_collision_by_appending_numeric_suffix() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("foo.txt");
+        write_file(&src, b"new");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+        // dest/foo.txt がすでに存在 → unique_path で foo_1.txt にずらす
+        write_file(&dest.join("foo.txt"), b"existing");
+
+        let job = FileJob::Move {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Move should succeed");
+
+        // 既存ファイルは無傷
+        assert_eq!(read_to_string(&dest.join("foo.txt")), "existing");
+        // 移動は foo_1.txt に
+        assert_eq!(read_to_string(&dest.join("foo_1.txt")), "new");
+        assert!(!src.exists());
+    }
+
+    #[test]
+    fn move_stops_when_cancel_is_preset() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("hello.txt");
+        write_file(&src, b"hello");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Move {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(true), &mut |_, _, _| {})
+            .expect("cancel should produce Ok early return");
+
+        // 事前 cancel なので rename は発火していない
+        assert!(src.exists(), "src file should remain untouched");
+        assert!(!dest.join("hello.txt").exists());
+    }
+
+    #[test]
+    fn move_emits_top_level_progress_on_same_filesystem_path() {
+        let tmp = TempDir::new().unwrap();
+        let a = tmp.path().join("a.txt");
+        let b = tmp.path().join("b.txt");
+        let c = tmp.path().join("c.txt");
+        write_file(&a, b"a");
+        write_file(&b, b"b");
+        write_file(&c, b"c");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let mut events: Vec<(Phase, usize, Option<usize>)> = Vec::new();
+        let job = FileJob::Move {
+            files: vec![vfile(&a), vfile(&b), vfile(&c)],
+            dest,
+        };
+        job.run(&AtomicBool::new(false), &mut |p, n, t| events.push((p, n, t)))
+            .expect("Move should succeed");
+
+        // 同一 FS パスでは Scan Phase をスキップし、Moving の top-level 件数のみ通知
+        let moving: Vec<_> = events
+            .iter()
+            .filter(|(p, _, _)| *p == Phase::Moving)
+            .copied()
+            .collect();
+        assert_eq!(
+            moving,
+            vec![
+                (Phase::Moving, 0, Some(3)),
+                (Phase::Moving, 1, Some(3)),
+                (Phase::Moving, 2, Some(3)),
+                (Phase::Moving, 3, Some(3)),
+            ]
+        );
+        // Scan Phase は emit されない
+        assert!(
+            !events.iter().any(|(p, _, _)| *p == Phase::Scanning),
+            "same-FS move should skip Scan Phase: {events:?}"
+        );
+    }
+
+    #[test]
+    fn move_renames_directory_atomically_on_same_filesystem() {
+        let tmp = TempDir::new().unwrap();
+        let src_root = tmp.path().join("foo");
+        write_file(&src_root.join("a.txt"), b"alpha");
+        write_file(&src_root.join("bar").join("b.txt"), b"beta");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Move {
+            files: vec![vfile(&src_root)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Move should succeed");
+
+        // dest 配下に階層が再現されている
+        assert_eq!(read_to_string(&dest.join("foo").join("a.txt")), "alpha");
+        assert_eq!(
+            read_to_string(&dest.join("foo").join("bar").join("b.txt")),
+            "beta"
+        );
+        // src からはディレクトリごと消えている
+        assert!(!src_root.exists(), "src directory should be gone after move");
+    }
+
+    #[test]
+    fn move_renames_single_file_to_destination_directory_on_same_filesystem() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("hello.txt");
+        write_file(&src, b"hello fv");
+        let dest = tmp.path().join("out");
+        std::fs::create_dir(&dest).unwrap();
+
+        let job = FileJob::Move {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Move should succeed");
+
+        // dest にファイルが現れている
+        assert_eq!(read_to_string(&dest.join("hello.txt")), "hello fv");
+        // src からは消えている
+        assert!(!src.exists(), "src file should be gone after move");
     }
 
     #[cfg(unix)]
