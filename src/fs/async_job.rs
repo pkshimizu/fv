@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// `&mut dyn FnMut` の vtable hop と `spawn_async_job` 側の `Instant::now()` 呼出を削減する目的。
 const SCAN_NOTIFY_BATCH: usize = 256;
 
-/// `unique_path` の suffix 探索上限 (`fs::file::unique_path` と揃える)。
+/// 衝突回避時の suffix 探索上限 (`pick_unique_top_dest` で使用)。
 const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
 
 /// Copy/Move の Scan Phase で扱う「src ファイルパス → 衝突回避済み宛先 top-level パス」のペア。
@@ -155,8 +155,7 @@ fn run_delete_with(
         }
         let path = Path::new(file.absolute_path());
         let remaining = total - i - 1;
-        delete_fn(path)
-            .with_context(|| format!("Delete aborted ({remaining} files remaining)"))?;
+        delete_fn(path).with_context(|| format!("Delete aborted ({remaining} files remaining)"))?;
         on_progress(Phase::Deleting, i + 1, Some(total));
     }
     Ok(())
@@ -658,7 +657,7 @@ fn move_via_copy_and_remove(
 ///
 /// # Symlink
 /// top-level の VFile が dir-symlink の場合はリンクをたどってその内容をコピーする
-/// (既存 `fs::file::copy_to` と同じ挙動)。再帰内ではリンクをたどらず、symlink エントリは
+/// (旧 `fs::file::copy_to` と同じ挙動)。再帰内ではリンクをたどらず、symlink エントリは
 /// `std::fs::copy` で「リンク先データを書き出すファイル」として扱う。これにより
 /// 入れ子の symlink ループや任意領域への脱出を防ぐ。
 fn run_copy(
@@ -765,7 +764,7 @@ enum CollectStatus {
 ///
 /// 各 root の top-level 名は `pick_unique_top_dest` で衝突回避し、`dest/<name>` がすでに
 /// 存在するか、**同一 batch 内で既に他 root に予約されている** 場合は `<name>_1`, `<name>_2`, ... に
-/// 振り替える (`fs::file::copy_to` と同じ規約 + multi-root batch での内部衝突回避)。
+/// 振り替える (旧 `fs::file::copy_to` と同じ規約 + multi-root batch での内部衝突回避)。
 fn scan_copy_plan(
     roots: &[VFile],
     dest: &Path,
@@ -802,7 +801,7 @@ fn resolve_top_level_pairs(roots: &[VFile], dest: &Path) -> Result<Vec<TopLevelP
 /// 衝突回避済みの宛先パスを返す。
 /// `initial` が `claimed` に予約済みでなく、かつディスクにも存在しなければそれを採用する。
 /// それ以外は `initial` の stem に `_1`, `_2`, ... を付けて未予約 + 未存在な候補を探す。
-/// `fs::file::unique_path` と同じ規約だが、batch 内の同名 root を `claimed` で内部回避する点が異なる。
+/// ディスク上の既存名を避けるだけでなく、batch 内の同名 root を `claimed` で内部回避する。
 fn pick_unique_top_dest(initial: &Path, claimed: &HashSet<PathBuf>) -> Result<PathBuf> {
     if !claimed.contains(initial) && !initial.exists() {
         return Ok(initial.to_path_buf());
@@ -844,7 +843,7 @@ fn scan_pairs_into_plan(
         if cancel.load(Ordering::Relaxed) {
             return Ok(None);
         }
-        // top-level は既存 fs::file::copy_to と同じく metadata (symlink follow) で判定する。
+        // top-level は旧 fs::file::copy_to と同じく metadata (symlink follow) で判定する。
         // ユーザがコマンドで明示的に指定した対象なので、dir-symlink ならその内容をコピー。
         // `Path::is_dir()` ではなく `metadata()?` を使うことで、stat 失敗を「通常ファイル扱い」に
         // 握りつぶさず Scan Phase で早期 Err として顕在化する。

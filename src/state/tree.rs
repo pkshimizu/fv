@@ -93,10 +93,10 @@ impl TreeNode {
             return Some(self);
         }
         for child in &mut self.children {
-            if Path::new(path).starts_with(Path::new(&child.path)) {
-                if let Some(node) = child.find_node_mut(path) {
-                    return Some(node);
-                }
+            if Path::new(path).starts_with(Path::new(&child.path))
+                && let Some(node) = child.find_node_mut(path)
+            {
+                return Some(node);
             }
         }
         None
@@ -217,10 +217,10 @@ impl TreeState {
             self.rebuild_flat_list_preserving_selection(&path);
         } else {
             // 親ディレクトリに移動
-            if let Some(parent) = Path::new(&path).parent().and_then(|p| p.to_str()) {
-                if let Some(idx) = self.flat_nodes.iter().position(|e| e.path == parent) {
-                    self.table_state.select(Some(idx));
-                }
+            if let Some(parent) = Path::new(&path).parent().and_then(|p| p.to_str())
+                && let Some(idx) = self.flat_nodes.iter().position(|e| e.path == parent)
+            {
+                self.table_state.select(Some(idx));
             }
         }
     }

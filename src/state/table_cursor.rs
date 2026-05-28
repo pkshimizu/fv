@@ -14,10 +14,10 @@ impl<'a> TableCursor<'a> {
         if self.len == 0 {
             return;
         }
-        if let Some(selected) = self.state.selected() {
-            if selected < self.len - 1 {
-                self.state.select(Some(selected + 1));
-            }
+        if let Some(selected) = self.state.selected()
+            && selected < self.len - 1
+        {
+            self.state.select(Some(selected + 1));
         }
     }
 
@@ -25,10 +25,10 @@ impl<'a> TableCursor<'a> {
         if self.len == 0 {
             return;
         }
-        if let Some(selected) = self.state.selected() {
-            if selected > 0 {
-                self.state.select(Some(selected - 1));
-            }
+        if let Some(selected) = self.state.selected()
+            && selected > 0
+        {
+            self.state.select(Some(selected - 1));
         }
     }
 

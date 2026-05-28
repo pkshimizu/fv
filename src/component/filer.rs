@@ -378,18 +378,18 @@ impl FilerComponent {
         let Some(file) = self.state.selected_file() else {
             return Ok(Action::None);
         };
-        Ok(Action::ShowSidePanel(SidePanel::Attribute(
+        Ok(Action::ShowSidePanel(Box::new(SidePanel::Attribute(
             AttributeComponent::new(file)?,
-        )))
+        ))))
     }
 
     fn show_file_info(&self) -> Result<Action> {
         let Some(file) = self.state.selected_file() else {
             return Ok(Action::None);
         };
-        Ok(Action::ShowSidePanel(SidePanel::FileInfo(
+        Ok(Action::ShowSidePanel(Box::new(SidePanel::FileInfo(
             FileInfoComponent::new(file)?,
-        )))
+        ))))
     }
 
     fn show_tree(&self) -> Action {
@@ -399,10 +399,10 @@ impl FilerComponent {
             self.state.current_dir.absolute_path().to_string()
         };
         let show_dot_file = self.state.show_dot_file();
-        Action::ShowSidePanel(SidePanel::Tree(TreeComponent::new(
+        Action::ShowSidePanel(Box::new(SidePanel::Tree(TreeComponent::new(
             &current_path,
             show_dot_file,
-        )))
+        ))))
     }
 
     fn show_preview(&self) -> Result<Action> {
@@ -423,7 +423,7 @@ impl FilerComponent {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)
         };
         match panel {
-            Ok(p) => Ok(Action::ShowSidePanel(p)),
+            Ok(p) => Ok(Action::ShowSidePanel(Box::new(p))),
             Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
                 message: format!("Failed to preview: {e}"),
             }))),
@@ -566,7 +566,9 @@ impl Component for FilerComponent {
             KeyCode::Char('t') => Ok(self.show_tree()),
             KeyCode::Char('v') => self.show_preview(),
             KeyCode::Char('x') => Ok(self.prompt_execute()),
-            KeyCode::Char('?') => Ok(Action::ShowSidePanel(SidePanel::Help(HelpComponent::new()))),
+            KeyCode::Char('?') => Ok(Action::ShowSidePanel(Box::new(SidePanel::Help(
+                HelpComponent::new(),
+            )))),
             _ => Ok(Action::None),
         }
     }

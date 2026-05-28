@@ -2,17 +2,16 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+// variant 名は serde で settings.json に永続化される文字列表現そのもの。
+// `Directory` サフィックスは永続化形式の一部かつ UI ラベルとの対応が取れて読みやすいため、
+// enum_variant_names lint を意図的に抑制する。
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum StartupDirectory {
+    #[default]
     CurrentDirectory,
     HomeDirectory,
     LastDirectory,
-}
-
-impl Default for StartupDirectory {
-    fn default() -> Self {
-        Self::CurrentDirectory
-    }
 }
 
 impl StartupDirectory {

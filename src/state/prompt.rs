@@ -5,13 +5,9 @@ use crate::fs::VFile;
 /// `Cancelling` は worker からは emit されず、Esc 受信時に PromptComponent が上書きする。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
-    #[allow(dead_code)] // 後続スライス #222 (Copy) で利用
     Scanning,
-    #[allow(dead_code)] // 後続スライス #222 で利用
     Copying,
-    #[allow(dead_code)] // 後続スライス #223 (Move) で利用
     Moving,
-    #[allow(dead_code)] // 後続スライス #224 (Zip 作成) で利用
     Zipping,
     Extracting,
     Deleting,
