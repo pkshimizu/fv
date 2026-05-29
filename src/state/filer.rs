@@ -104,11 +104,33 @@ impl FilerFilter {
     }
 }
 
+/// Operation Targets を解決した結果。集合だけでなく、Cursor File 由来か
+/// Checked Paths 由来かという「由来」を保持する（CONTEXT.md 参照）。
+/// いずれの variant も非空を不変条件とし、ターゲットが存在しない場合は
+/// `operation_targets` が `None` を返す。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OperationTargets {
+    /// Checked Paths が空のため、Cursor File 単体を対象とする。
+    Cursor(VFile),
+    /// 多重選択。Checked Paths に一致する current_dir_files（常に非空）。
+    Checked(Vec<VFile>),
+}
+
+impl OperationTargets {
+    /// 実際に操作する VFile 列へ落とし込む。Copy / Move / Delete / Zip が利用する。
+    pub fn into_files(self) -> Vec<VFile> {
+        match self {
+            OperationTargets::Cursor(file) => vec![file],
+            OperationTargets::Checked(files) => files,
+        }
+    }
+}
+
 pub struct FilerState {
     pub current_dir: VFile,
     pub current_dir_files: Vec<VFile>,
     pub file_table_state: TableState,
-    pub checked_paths: HashSet<String>,
+    checked_paths: HashSet<String>,
     pub sort_key: SortKey,
     filter: FilerFilter,
     pending_select_name: Option<String>,
@@ -228,6 +250,28 @@ impl FilerState {
             } else {
                 self.checked_paths.insert(path);
             }
+        }
+    }
+
+    /// Checked Paths をすべて解除する。
+    pub fn clear_checked_paths(&mut self) {
+        self.checked_paths.clear();
+    }
+
+    /// Operation Targets を解決する。「Checked Paths が非空ならそれ、さもなくば
+    /// Cursor File 単体」というルール（CONTEXT.md 参照）の唯一の実装。
+    /// ターゲットが存在しない場合は `None`。
+    pub fn operation_targets(&self) -> Option<OperationTargets> {
+        if self.checked_paths.is_empty() {
+            self.selected_file().cloned().map(OperationTargets::Cursor)
+        } else {
+            let files: Vec<VFile> = self
+                .current_dir_files
+                .iter()
+                .filter(|file| self.is_checked_path(file.absolute_path()))
+                .cloned()
+                .collect();
+            (!files.is_empty()).then_some(OperationTargets::Checked(files))
         }
     }
 
@@ -534,5 +578,79 @@ impl FilerState {
         }
         self.change_to(parent);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 指定したパス列を current_dir_files に持ち、cursor を index に合わせた
+    /// FilerState を組み立てる。VFile::new は存在しないパスでもパニックしない。
+    fn state_with(files: &[&str], cursor: Option<usize>) -> FilerState {
+        let mut state = FilerState::new();
+        state.current_dir_files = files.iter().map(|p| VFile::new(*p)).collect();
+        state.file_table_state.select(cursor);
+        state
+    }
+
+    #[test]
+    fn operation_targets_falls_through_to_cursor_file_when_unchecked() {
+        let state = state_with(&["/a/foo.txt", "/a/bar.txt"], Some(1));
+
+        let targets = state.operation_targets();
+
+        assert_eq!(
+            targets,
+            Some(OperationTargets::Cursor(VFile::new("/a/bar.txt")))
+        );
+    }
+
+    #[test]
+    fn operation_targets_is_none_when_unchecked_and_no_cursor() {
+        let state = state_with(&[], None);
+
+        assert_eq!(state.operation_targets(), None);
+    }
+
+    #[test]
+    fn operation_targets_uses_checked_paths_in_directory_order() {
+        let mut state = state_with(&["/a/a.txt", "/a/b.txt", "/a/c.txt"], Some(0));
+        // c を先に、a を後にチェックしても、結果は current_dir_files の順序を保つ。
+        state.checked_paths.insert("/a/c.txt".to_string());
+        state.checked_paths.insert("/a/a.txt".to_string());
+
+        let targets = state.operation_targets();
+
+        assert_eq!(
+            targets,
+            Some(OperationTargets::Checked(vec![
+                VFile::new("/a/a.txt"),
+                VFile::new("/a/c.txt"),
+            ]))
+        );
+    }
+
+    #[test]
+    fn operation_targets_is_none_when_checked_paths_are_all_stale() {
+        let mut state = state_with(&["/a/a.txt"], Some(0));
+        // current_dir_files に存在しないパスだけがチェックされている状態。
+        state.checked_paths.insert("/a/gone.txt".to_string());
+
+        assert_eq!(state.operation_targets(), None);
+    }
+
+    #[test]
+    fn clear_checked_paths_empties_the_set() {
+        let mut state = state_with(&["/a/a.txt"], Some(0));
+        state.checked_paths.insert("/a/a.txt".to_string());
+
+        state.clear_checked_paths();
+
+        // チェックが消えたので Cursor File へフォールスルーする。
+        assert_eq!(
+            state.operation_targets(),
+            Some(OperationTargets::Cursor(VFile::new("/a/a.txt")))
+        );
     }
 }

@@ -5,8 +5,8 @@ use crate::component::{
 use crate::fs::VFile;
 use crate::fs::file_info::{is_audio_file, is_image_file};
 use crate::state::{
-    ConfirmAction, FileAction, FileActionCandidateType, FilerState, PromptMode, SelectAction,
-    SidePanel, SortKey, TextAction,
+    ConfirmAction, FileAction, FileActionCandidateType, FilerState, OperationTargets, PromptMode,
+    SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderStyle, build_bordered_block};
@@ -88,7 +88,7 @@ impl FilerComponent {
     }
 
     pub fn clear_checked_paths(&mut self) {
-        self.state.checked_paths.clear();
+        self.state.clear_checked_paths();
     }
 
     pub fn set_pending_select_name(&mut self, name: String) {
@@ -101,19 +101,6 @@ impl FilerComponent {
 
     pub fn select_file_table(&mut self, index: Option<usize>) {
         self.state.file_table_state.select(index);
-    }
-
-    fn collect_action_targets(&self) -> Vec<VFile> {
-        if self.state.checked_paths.is_empty() {
-            self.state.selected_file().cloned().into_iter().collect()
-        } else {
-            self.state
-                .current_dir_files
-                .iter()
-                .filter(|file| self.state.checked_paths.contains(file.absolute_path()))
-                .cloned()
-                .collect()
-        }
     }
 
     fn action_title(action_name: &str, files: &[VFile]) -> String {
@@ -134,10 +121,10 @@ impl FilerComponent {
         candidate_type: FileActionCandidateType,
         make_action: impl FnOnce(Vec<VFile>) -> FileAction,
     ) -> Action {
-        let files = self.collect_action_targets();
-        if files.is_empty() {
+        let Some(targets) = self.state.operation_targets() else {
             return Action::None;
-        }
+        };
+        let files = targets.into_files();
         let title = Self::action_title(label, &files);
         let init_value = if files.len() == 1 {
             files[0].absolute_path()
@@ -170,10 +157,10 @@ impl FilerComponent {
     }
 
     fn prompt_delete(&self) -> Action {
-        let files = self.collect_action_targets();
-        if files.is_empty() {
+        let Some(targets) = self.state.operation_targets() else {
             return Action::None;
-        }
+        };
+        let files = targets.into_files();
         let title = Self::action_title("Delete", &files);
         Action::SetPromptMode(Box::new(PromptMode::Confirm {
             title,
@@ -212,24 +199,27 @@ impl FilerComponent {
     }
 
     fn prompt_zip(&self) -> Action {
-        let files = self.collect_action_targets();
-        if files.is_empty() {
+        let Some(targets) = self.state.operation_targets() else {
             return Action::None;
-        }
-        let dir = self.state.current_dir.clone();
-        let default_name = if self.state.checked_paths.is_empty() {
-            let stem = files[0]
-                .file_name()
-                .and_then(|n| {
-                    Path::new(n)
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                })
-                .unwrap_or_else(|| "archive".to_string());
-            format!("{stem}.zip")
-        } else {
-            "files.zip".to_string()
         };
+        let dir = self.state.current_dir.clone();
+        // デフォルト名は Operation Targets の由来で決まる（CONTEXT.md 参照）。
+        // Cursor File 単体ならその名前から、多重選択なら汎用名。
+        let default_name = match &targets {
+            OperationTargets::Cursor(file) => {
+                let stem = file
+                    .file_name()
+                    .and_then(|n| {
+                        Path::new(n)
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                    })
+                    .unwrap_or_else(|| "archive".to_string());
+                format!("{stem}.zip")
+            }
+            OperationTargets::Checked(_) => "files.zip".to_string(),
+        };
+        let files = targets.into_files();
         let default_path = Path::new(dir.absolute_path()).join(&default_name);
         let value = default_path
             .file_name()
