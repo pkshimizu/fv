@@ -22,6 +22,10 @@ impl GrepComponent {
 }
 
 impl Component for GrepComponent {
+    fn keymap(&self) -> &'static str {
+        "↑↓: Move  ←→: Top/Bottom  Enter: Open  g/Esc: Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('g') | KeyCode::Esc => Ok(Action::CloseSidePanel),

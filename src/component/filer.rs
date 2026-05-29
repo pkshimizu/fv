@@ -472,6 +472,10 @@ impl FilerComponent {
 }
 
 impl Component for FilerComponent {
+    fn keymap(&self) -> &'static str {
+        "q: Quit  ?: Help"
+    }
+
     fn tick(&mut self) {
         self.state.receive_files();
     }

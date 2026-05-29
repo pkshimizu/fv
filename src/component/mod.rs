@@ -91,4 +91,10 @@ pub trait Component {
 
     /// 毎フレーム呼ばれるライフサイクルメソッド。非同期結果の受信等に使用する。
     fn tick(&mut self) {}
+
+    /// アイドル時（`PromptMode::None`）に Prompt 領域へ表示する操作キーのヒント。
+    /// デフォルトは空。表示対象となる Filer と各サイドパネルが override する。
+    fn keymap(&self) -> &'static str {
+        ""
+    }
 }

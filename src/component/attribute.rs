@@ -84,6 +84,10 @@ impl AttributeComponent {
 }
 
 impl Component for AttributeComponent {
+    fn keymap(&self) -> &'static str {
+        "↑↓: Move  a/Esc: Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('a') | KeyCode::Esc => Ok(Action::CloseSidePanel),

@@ -35,6 +35,10 @@ impl SettingsComponent {
 }
 
 impl Component for SettingsComponent {
+    fn keymap(&self) -> &'static str {
+        "←→: Select  o/Esc: Save & Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('o') | KeyCode::Esc => {

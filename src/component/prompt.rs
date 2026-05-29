@@ -355,9 +355,9 @@ impl PromptComponent {
         }
     }
 
-    fn render_prompt(&self, frame: &mut Frame, area: Rect) {
+    pub fn render_with_keymap(&self, frame: &mut Frame, area: Rect, keymap: &str) {
         let widget = match &self.mode {
-            PromptMode::None => Paragraph::new("q: Quit")
+            PromptMode::None => Paragraph::new(keymap)
                 .block(build_bordered_block("Commands", BorderStyle::Inactive)),
             PromptMode::Text { title, value, .. }
             | PromptMode::File { title, value, .. }
@@ -426,7 +426,7 @@ impl Component for PromptComponent {
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        self.render_prompt(frame, area);
+        self.render_with_keymap(frame, area, "");
     }
 
     fn tick(&mut self) {
@@ -818,6 +818,61 @@ mod tests {
             worker_tx: tx,
             cancel,
         }
+    }
+
+    /// PromptComponent を TestBackend に描画し、バッファ内容を1つの文字列にして返す。
+    fn render_with_keymap_to_string(prompt: &mut PromptComponent, keymap: &str) -> String {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        let mut terminal = Terminal::new(TestBackend::new(80, 3)).expect("terminal");
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                prompt.render_with_keymap(frame, area, keymap);
+            })
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        let mut text = String::new();
+        for y in 0..buffer.area.height {
+            for x in 0..buffer.area.width {
+                if let Some(cell) = buffer.cell((x, y)) {
+                    text.push_str(cell.symbol());
+                }
+            }
+            text.push('\n');
+        }
+        text
+    }
+
+    #[test]
+    fn idle_prompt_renders_the_supplied_keymap() {
+        let mut prompt = PromptComponent::new();
+
+        let text = render_with_keymap_to_string(&mut prompt, "q: Quit  ?: Help");
+
+        assert!(text.contains("q: Quit  ?: Help"), "got: {text:?}");
+    }
+
+    #[test]
+    fn active_prompt_renders_input_and_ignores_keymap() {
+        let mut prompt = PromptComponent::new();
+        prompt.mode = PromptMode::Text {
+            title: "Grep".to_string(),
+            value: "needle".to_string(),
+            cursor: 0,
+            action: Box::new(TextAction::Grep),
+        };
+
+        let text = render_with_keymap_to_string(&mut prompt, "q: Quit  ?: Help");
+
+        assert!(
+            text.contains("needle"),
+            "input should render, got: {text:?}"
+        );
+        assert!(
+            !text.contains("q: Quit"),
+            "keymap must not leak into active mode, got: {text:?}"
+        );
     }
 
     #[test]

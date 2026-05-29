@@ -28,5 +28,11 @@ pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootSto
             ctx.filer.render_with_store(frame, content_area, store);
         }
     }
-    ctx.prompt.render(frame, prompt_area);
+    // アイドル時に表示するキーマップは、アクティブなコンポーネント自身が提供する。
+    // サイドパネル表示中はそのパネル、さもなくば Filer のキーマップ。
+    let keymap = match &ctx.side_panel {
+        Some(panel) => panel.keymap(),
+        None => ctx.filer.keymap(),
+    };
+    ctx.prompt.render_with_keymap(frame, prompt_area, keymap);
 }

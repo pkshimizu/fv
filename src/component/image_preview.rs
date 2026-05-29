@@ -39,6 +39,10 @@ impl ImagePreviewComponent {
 }
 
 impl Component for ImagePreviewComponent {
+    fn keymap(&self) -> &'static str {
+        "v/Esc: Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),

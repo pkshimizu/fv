@@ -24,6 +24,10 @@ impl FileInfoComponent {
 }
 
 impl Component for FileInfoComponent {
+    fn keymap(&self) -> &'static str {
+        "↑↓: Scroll  ←→: Top/Bottom  i/Esc: Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         if self.text_output.handle_scroll_key(event.code) {
             return Ok(Action::None);
