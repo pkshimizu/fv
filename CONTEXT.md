@@ -15,7 +15,7 @@ The set of paths the user has explicitly marked with the spacebar in the Filer (
 _Avoid_: selected paths, marked files, tagged paths.
 
 **Operation Targets**:
-The actual files an action operates on, resolved by the rule "Checked Paths if non-empty, otherwise the Cursor File alone". Copy, Move, Delete, Zip create, and Yank all read targets through this rule.
+The actual files an action operates on, resolved by the rule "Checked Paths if non-empty, otherwise the Cursor File alone". Copy, Move, Delete, Zip create, and Yank all read targets through this rule. The resolved set **remembers its origin** — whether it came from the Cursor File or from Checked Paths — because downstream UX keys on it (e.g. Zip create's default archive name: the Cursor File's stem when single, a generic `files.zip` when multi-selected). Resolves to **nothing** when neither a Cursor File nor matching Checked Paths exist.
 _Avoid_: targets, selection (both ambiguous between Cursor File and Checked Paths).
 
 **Yank**:

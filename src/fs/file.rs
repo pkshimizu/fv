@@ -33,6 +33,10 @@ impl VFile {
         Path::new(&self.path).file_name()?.to_str()
     }
 
+    pub fn file_stem(&self) -> Option<&str> {
+        Path::new(&self.path).file_stem()?.to_str()
+    }
+
     pub fn parent_dir(&self) -> Option<VFile> {
         let path = Path::new(&self.path);
         let parent = path.parent()?;

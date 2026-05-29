@@ -6,7 +6,7 @@ pub(crate) mod table_cursor;
 mod text_output;
 mod tree;
 
-pub use filer::{FilerState, SortKey};
+pub use filer::{FilerState, OperationTargets, SortKey};
 pub use path_list::PathListState;
 pub use prompt::{
     ConfirmAction, FileAction, FileActionCandidateType, Phase, ProgressMessage, PromptMode,
