@@ -18,6 +18,10 @@ _Avoid_: selected paths, marked files, tagged paths.
 The actual files an action operates on, resolved by the rule "Checked Paths if non-empty, otherwise the Cursor File alone". Copy, Move, Delete, Zip create, and Yank all read targets through this rule. The resolved set **remembers its origin** — whether it came from the Cursor File or from Checked Paths — because downstream UX keys on it (e.g. Zip create's default archive name: the Cursor File's stem when single, a generic `files.zip` when multi-selected). Resolves to **nothing** when neither a Cursor File nor matching Checked Paths exist.
 _Avoid_: targets, selection (both ambiguous between Cursor File and Checked Paths).
 
+**Destination**:
+The path the user supplies for a Copy or Move — where the Operation Targets go. Resolved by: when there is a **single** Operation Target and the path is **not** an existing directory, the path *is* the new top-level name (rename-on-copy/move — the result is created at exactly that path). Otherwise (multiple Operation Targets, or the path is an existing directory) the path is a **container directory** and each Operation Target is placed inside it under its own name; the container is created if missing. Resolution **never overwrites**: if a resolved path already exists, a `_1`, `_2`, … suffix is appended.
+_Avoid_: target (ambiguous with Operation Targets), output path, folder.
+
 **Yank**:
 Read-only copy of the Operation Targets' absolute paths into the system clipboard, bound to `y`. Multiple paths are joined with `\n` and no trailing newline. Does not modify the filesystem or clear Checked Paths, so a `y` immediately followed by `c` / `m` can chain yank-then-copy/move on the same set.
 _Avoid_: copy (overloaded with the Copy file action), clipboard write, pull to clipboard.
