@@ -19,22 +19,16 @@ impl VFileMetadata {
         self.metadata.len()
     }
 
-    pub fn formatted_size(&self) -> String {
-        const KB: u64 = 1024;
-        const MB: u64 = 1024 * KB;
-        const GB: u64 = 1024 * MB;
+    /// Filer 一覧向けのコンパクトなサイズ表記。例: `234.5 MB` / `512 B`。
+    /// 1024 以上は単位（KB/MB/GB/TB）付き小数1桁、未満は整数 + `B`。
+    pub fn compact_size(&self) -> String {
+        compact_size_str(self.file_size())
+    }
 
-        let bytes = self.file_size();
-        let formatted = bytes.to_formatted_string(&Locale::en);
-        if bytes >= GB {
-            format!("{formatted} bytes ({:.1} GB)", bytes as f64 / GB as f64)
-        } else if bytes >= MB {
-            format!("{formatted} bytes ({:.1} MB)", bytes as f64 / MB as f64)
-        } else if bytes >= KB {
-            format!("{formatted} bytes ({:.1} KB)", bytes as f64 / KB as f64)
-        } else {
-            format!("{formatted} bytes")
-        }
+    /// 属性 / info パネル向けの、[`Self::compact_size`] に生バイト数を添えた詳細表記。
+    /// 例: `123.4 MB (123,400,000 bytes)`。1024 未満は `512 bytes` のみ。
+    pub fn verbose_size(&self) -> String {
+        verbose_size_str(self.file_size())
     }
 
     pub fn file_type(&self) -> &str {
@@ -118,5 +112,97 @@ impl VFileMetadata {
     #[cfg(unix)]
     pub fn blocks(&self) -> u64 {
         self.metadata.blocks()
+    }
+}
+
+const KB: u64 = 1024;
+const MB: u64 = 1024 * KB;
+const GB: u64 = 1024 * MB;
+const TB: u64 = 1024 * GB;
+
+/// バイト数を単位の梯子（基数 1024、最上位 TB）に当てはめ、換算値と単位ラベルを返す。
+/// 1024 未満は梯子に乗らないため `None`。最上位を TB とするのは実在し得る単一
+/// ファイルを十分カバーするため。整形は呼び出し側に委ね、compact / verbose の
+/// 双方がこの梯子を共有する。
+fn unit_size(bytes: u64) -> Option<(f64, &'static str)> {
+    if bytes >= TB {
+        Some((bytes as f64 / TB as f64, "TB"))
+    } else if bytes >= GB {
+        Some((bytes as f64 / GB as f64, "GB"))
+    } else if bytes >= MB {
+        Some((bytes as f64 / MB as f64, "MB"))
+    } else if bytes >= KB {
+        Some((bytes as f64 / KB as f64, "KB"))
+    } else {
+        None
+    }
+}
+
+fn compact_size_str(bytes: u64) -> String {
+    match unit_size(bytes) {
+        Some((value, unit)) => format!("{value:.1} {unit}"),
+        None => format!("{bytes} B"),
+    }
+}
+
+fn verbose_size_str(bytes: u64) -> String {
+    let separated = bytes.to_formatted_string(&Locale::en);
+    match unit_size(bytes) {
+        Some((value, unit)) => format!("{value:.1} {unit} ({separated} bytes)"),
+        None => format!("{separated} bytes"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unit_size_is_none_below_one_kilobyte() {
+        assert_eq!(unit_size(0), None);
+        assert_eq!(unit_size(1023), None);
+    }
+
+    #[test]
+    fn unit_size_selects_the_label_at_each_threshold() {
+        assert_eq!(unit_size(1024).map(|(_, unit)| unit), Some("KB"));
+        assert_eq!(unit_size(MB).map(|(_, unit)| unit), Some("MB"));
+        assert_eq!(unit_size(GB).map(|(_, unit)| unit), Some("GB"));
+        assert_eq!(unit_size(TB).map(|(_, unit)| unit), Some("TB"));
+    }
+
+    #[test]
+    fn size_extends_beyond_gigabytes_to_terabytes() {
+        // 旧実装は GB 止まりで 2 TB を "2048.0 GB" と表示していた。
+        assert_eq!(compact_size_str(2 * TB), "2.0 TB");
+    }
+
+    #[test]
+    fn compact_size_uses_bare_byte_count_below_one_kilobyte() {
+        assert_eq!(compact_size_str(0), "0 B");
+        assert_eq!(compact_size_str(512), "512 B");
+        assert_eq!(compact_size_str(1023), "1023 B");
+    }
+
+    #[test]
+    fn compact_size_uses_units_at_and_above_one_kilobyte() {
+        assert_eq!(compact_size_str(1024), "1.0 KB");
+        assert_eq!(compact_size_str(5 * MB), "5.0 MB");
+    }
+
+    #[test]
+    fn verbose_size_omits_parentheses_below_one_kilobyte() {
+        assert_eq!(verbose_size_str(512), "512 bytes");
+        // 区切りは 1000 以上で入る。
+        assert_eq!(verbose_size_str(1023), "1,023 bytes");
+    }
+
+    #[test]
+    fn verbose_size_leads_with_unit_then_raw_bytes() {
+        assert_eq!(verbose_size_str(1024), "1.0 KB (1,024 bytes)");
+        assert_eq!(
+            verbose_size_str(1_288_490_189),
+            "1.2 GB (1,288,490,189 bytes)"
+        );
     }
 }

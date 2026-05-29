@@ -20,7 +20,6 @@ use ratatui::widgets::{Block, Cell, Row, Table};
 use ratatui_image::picker::Picker;
 
 use crate::fs::VFileTime;
-use num_format::{Locale, ToFormattedString};
 use std::path::Path;
 
 const DOTFILE_STYLE: Style = Style::new().fg(Color::Blue);
@@ -439,7 +438,7 @@ impl FilerComponent {
                         Text::from(if is_dir {
                             "<dir>".to_string()
                         } else {
-                            metadata.file_size().to_formatted_string(&Locale::en)
+                            metadata.compact_size()
                         })
                         .alignment(Alignment::Right),
                     ),

@@ -36,7 +36,7 @@ impl AttributeComponent {
         let mut entries = Vec::new();
         entries.extend([
             ("File Type", metadata.file_type().to_string()),
-            ("Size", metadata.formatted_size()),
+            ("Size", metadata.verbose_size()),
             ("Permissions", metadata.permissions().to_rwx_string()),
         ]);
 
