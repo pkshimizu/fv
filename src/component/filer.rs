@@ -9,7 +9,7 @@ use crate::state::{
     SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
-use crate::ui::widgets::{BorderStyle, build_bordered_block};
+use crate::ui::widgets::{BorderStyle, Spinner, build_bordered_block};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -31,6 +31,7 @@ pub struct FilerComponent {
     state: FilerState,
     active: bool,
     picker: Picker,
+    spinner: Spinner,
 }
 
 impl FilerComponent {
@@ -39,6 +40,7 @@ impl FilerComponent {
             state: FilerState::new(),
             active: true,
             picker,
+            spinner: Spinner::new(),
         }
     }
 
@@ -477,6 +479,7 @@ impl Component for FilerComponent {
     }
 
     fn tick(&mut self) {
+        self.spinner.advance();
         self.state.receive_files();
     }
 
@@ -564,9 +567,10 @@ impl FilerComponent {
         let list_size = self.state.current_dir_files.len();
         let title = if self.state.is_loading() {
             format!(
-                "{} ({}) Loading...",
+                "{} ({}) {}",
                 self.state.current_dir.absolute_path(),
-                list_size
+                list_size,
+                self.spinner.label("Loading")
             )
         } else {
             format!("{} ({})", self.state.current_dir.absolute_path(), list_size)

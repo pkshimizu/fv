@@ -8,7 +8,7 @@ use crate::state::{
     SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
-use crate::ui::widgets::{BorderStyle, build_bordered_block};
+use crate::ui::widgets::{BorderStyle, Spinner, build_bordered_block};
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -30,6 +30,9 @@ pub struct PromptComponent {
     /// 毎フレーム `format!` で再確保しないよう、進捗状態が変わったタイミングのみ
     /// `clear() + write!` で詰め替える。
     progress_buf: String,
+    /// Async Job 進捗表示に添える Activity Indicator。`progress_buf` とは独立に
+    /// `tick()` で進めるため、件数が固まってもアニメーションは止まらない。
+    spinner: Spinner,
 }
 
 impl PromptComponent {
@@ -38,6 +41,7 @@ impl PromptComponent {
             mode: PromptMode::None,
             handle: None,
             progress_buf: String::new(),
+            spinner: Spinner::new(),
         }
     }
 
@@ -394,8 +398,12 @@ impl PromptComponent {
             PromptMode::Error { message } => Paragraph::new(message.as_str())
                 .style(Style::default().fg(Color::Red))
                 .block(build_bordered_block("Error", BorderStyle::Error)),
-            PromptMode::Progress { .. } => Paragraph::new(self.progress_buf.as_str())
-                .block(build_bordered_block("Progress", BorderStyle::Active)),
+            PromptMode::Progress { .. } => Paragraph::new(Line::from(vec![
+                Span::raw(self.spinner.frame()),
+                Span::raw(" "),
+                Span::raw(self.progress_buf.as_str()),
+            ]))
+            .block(build_bordered_block("Progress", BorderStyle::Active)),
         };
         frame.render_widget(widget, area);
 
@@ -435,6 +443,9 @@ impl Component for PromptComponent {
     }
 
     fn tick(&mut self) {
+        // Activity Indicator を毎 tick 進める。進捗の有無に関わらず動かすことで、
+        // 件数が固まる場面でもアニメーションが止まらない。
+        self.spinner.advance();
         // 溜まったメッセージを全て消費し、最新の進捗状態のみを反映する。
         // 各 try_recv は短いスコープに閉じて self.handle の借用を即座に解放し、
         // その後の self.apply_progress / self.clear_job (mutable self) と共存させる。
@@ -947,5 +958,32 @@ mod tests {
             other => panic!("expected Progress mode, got {other:?}"),
         }
         assert!(fx.prompt.is_job_running());
+    }
+
+    #[test]
+    fn progress_shows_an_advancing_spinner_even_when_counts_are_unchanged() {
+        let mut fx = prompt_with_running_job(Phase::Copying);
+
+        let first = render_with_keymap_to_string(&mut fx.prompt, "");
+        assert!(
+            first.contains('⠋'),
+            "first spinner frame expected, got: {first:?}"
+        );
+        assert!(
+            first.contains("Copying"),
+            "progress text expected, got: {first:?}"
+        );
+
+        // 件数を変えずに tick だけ進める（巨大単一ファイル Copy で数字が固まる状況）。
+        fx.prompt.tick();
+        let second = render_with_keymap_to_string(&mut fx.prompt, "");
+        assert!(
+            second.contains('⠙'),
+            "spinner should advance to the next frame, got: {second:?}"
+        );
+        assert!(
+            second.contains("Copying"),
+            "progress text should remain, got: {second:?}"
+        );
     }
 }
