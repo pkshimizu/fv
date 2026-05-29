@@ -24,6 +24,10 @@ impl TreeComponent {
 }
 
 impl Component for TreeComponent {
+    fn keymap(&self) -> &'static str {
+        "↑↓: Move  →: Expand  ←: Collapse  Enter: Open  t/Esc: Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('t') | KeyCode::Esc => Ok(Action::CloseSidePanel),

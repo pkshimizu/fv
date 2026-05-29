@@ -66,4 +66,34 @@ impl Component for SidePanel {
             SidePanel::Help(c) => c.tick(),
         }
     }
+
+    fn keymap(&self) -> &'static str {
+        match self {
+            SidePanel::Attribute(c) => c.keymap(),
+            SidePanel::FileInfo(c) => c.keymap(),
+            SidePanel::Bookmark(c) => c.keymap(),
+            SidePanel::Grep(c) => c.keymap(),
+            SidePanel::Settings(c) => c.keymap(),
+            SidePanel::Tree(c) => c.keymap(),
+            SidePanel::Preview(c) => c.keymap(),
+            SidePanel::AudioPlayer(c) => c.keymap(),
+            SidePanel::ImagePreview(c) => c.keymap(),
+            SidePanel::Help(c) => c.keymap(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keymap_delegates_to_the_active_panel() {
+        let help = HelpComponent::new();
+        let expected = help.keymap();
+        let panel = SidePanel::Help(help);
+
+        assert_eq!(panel.keymap(), expected);
+        assert!(!expected.is_empty(), "panel keymap should not be empty");
+    }
 }

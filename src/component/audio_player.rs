@@ -80,6 +80,10 @@ impl AudioPlayerComponent {
 }
 
 impl Component for AudioPlayerComponent {
+    fn keymap(&self) -> &'static str {
+        "Space: Play/Pause  ←→: Seek  v/Esc: Close"
+    }
+
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char(' ') => {

@@ -355,9 +355,12 @@ impl PromptComponent {
         }
     }
 
-    fn render_prompt(&self, frame: &mut Frame, area: Rect) {
+    /// Prompt を描画する。`keymap` はアイドル時（`PromptMode::None`）にのみ
+    /// Commands 領域へ表示され、入力・進捗など他モードでは無視される。
+    /// 本番では `render_main_view` がアクティブなコンポーネントの keymap を渡す。
+    pub(crate) fn render_with_keymap(&self, frame: &mut Frame, area: Rect, keymap: &str) {
         let widget = match &self.mode {
-            PromptMode::None => Paragraph::new("q: Quit")
+            PromptMode::None => Paragraph::new(keymap)
                 .block(build_bordered_block("Commands", BorderStyle::Inactive)),
             PromptMode::Text { title, value, .. }
             | PromptMode::File { title, value, .. }
@@ -425,8 +428,10 @@ impl Component for PromptComponent {
         }
     }
 
+    // 本番描画は render_main_view が render_with_keymap を直接呼ぶ。
+    // この trait 実装は Component 契約を満たすためのフォールバック（keymap 空）。
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        self.render_prompt(frame, area);
+        self.render_with_keymap(frame, area, "");
     }
 
     fn tick(&mut self) {
@@ -792,6 +797,8 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 mod tests {
     use super::*;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
     use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::sync::mpsc::{self, Sender};
@@ -818,6 +825,55 @@ mod tests {
             worker_tx: tx,
             cancel,
         }
+    }
+
+    /// PromptComponent を TestBackend に描画し、バッファ内容を1つの文字列にして返す。
+    fn render_with_keymap_to_string(prompt: &mut PromptComponent, keymap: &str) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(80, 3)).expect("build test terminal");
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                prompt.render_with_keymap(frame, area, keymap);
+            })
+            .expect("draw prompt");
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
+    }
+
+    #[test]
+    fn idle_prompt_renders_the_supplied_keymap() {
+        let mut prompt = PromptComponent::new();
+
+        let text = render_with_keymap_to_string(&mut prompt, "q: Quit  ?: Help");
+
+        assert!(text.contains("q: Quit  ?: Help"), "got: {text:?}");
+    }
+
+    #[test]
+    fn active_prompt_renders_input_and_ignores_keymap() {
+        let mut prompt = PromptComponent::new();
+        prompt.mode = PromptMode::Text {
+            title: "Grep".to_string(),
+            value: "needle".to_string(),
+            cursor: 0,
+            action: Box::new(TextAction::Grep),
+        };
+
+        let text = render_with_keymap_to_string(&mut prompt, "q: Quit  ?: Help");
+
+        assert!(
+            text.contains("needle"),
+            "input should render, got: {text:?}"
+        );
+        assert!(
+            !text.contains("q: Quit"),
+            "keymap must not leak into active mode, got: {text:?}"
+        );
     }
 
     #[test]

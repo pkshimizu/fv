@@ -70,4 +70,8 @@ impl Component for HelpComponent {
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         render_text_output(frame, area, &mut self.text_output, "Help");
     }
+
+    fn keymap(&self) -> &'static str {
+        "↑↓: Scroll  ←→: Top/Bottom  ?/Esc: Close"
+    }
 }
