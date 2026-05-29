@@ -17,7 +17,7 @@ impl FileInfo {
 
         // 共通項目
         entries.push(("Path", path.to_string()));
-        entries.push(("Size", metadata.formatted_size()));
+        entries.push(("Size", metadata.verbose_size()));
         entries.push(("Permissions", metadata.permissions().to_rwx_string()));
         if let Ok(created) = metadata.created() {
             entries.push(("Created", created.to_string()));

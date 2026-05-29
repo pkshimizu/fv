@@ -25,9 +25,9 @@ impl VFileMetadata {
         compact_size_str(self.file_size())
     }
 
-    /// 属性 / info パネル向けの詳細なサイズ表記。
+    /// 属性 / info パネル向けの、[`Self::compact_size`] に生バイト数を添えた詳細表記。
     /// 例: `123.4 MB (123,400,000 bytes)`。1024 未満は `512 bytes` のみ。
-    pub fn formatted_size(&self) -> String {
+    pub fn verbose_size(&self) -> String {
         verbose_size_str(self.file_size())
     }
 
@@ -120,32 +120,35 @@ const MB: u64 = 1024 * KB;
 const GB: u64 = 1024 * MB;
 const TB: u64 = 1024 * GB;
 
-/// 1024 以上のバイト数を単位付き小数1桁の文字列（例: `1.2 GB`）に変換する。
-/// 1024 未満は単位の梯子に乗らないため `None` を返す。基数は 1024、
-/// 最上位は TB（実在し得る単一ファイルを十分カバーする）。
-/// compact_size と formatted_size の双方がこの梯子を共有する。
-fn unit_size(bytes: u64) -> Option<String> {
+/// バイト数を単位の梯子（基数 1024、最上位 TB）に当てはめ、換算値と単位ラベルを返す。
+/// 1024 未満は梯子に乗らないため `None`。最上位を TB とするのは実在し得る単一
+/// ファイルを十分カバーするため。整形は呼び出し側に委ね、compact / verbose の
+/// 双方がこの梯子を共有する。
+fn unit_size(bytes: u64) -> Option<(f64, &'static str)> {
     if bytes >= TB {
-        Some(format!("{:.1} TB", bytes as f64 / TB as f64))
+        Some((bytes as f64 / TB as f64, "TB"))
     } else if bytes >= GB {
-        Some(format!("{:.1} GB", bytes as f64 / GB as f64))
+        Some((bytes as f64 / GB as f64, "GB"))
     } else if bytes >= MB {
-        Some(format!("{:.1} MB", bytes as f64 / MB as f64))
+        Some((bytes as f64 / MB as f64, "MB"))
     } else if bytes >= KB {
-        Some(format!("{:.1} KB", bytes as f64 / KB as f64))
+        Some((bytes as f64 / KB as f64, "KB"))
     } else {
         None
     }
 }
 
 fn compact_size_str(bytes: u64) -> String {
-    unit_size(bytes).unwrap_or_else(|| format!("{bytes} B"))
+    match unit_size(bytes) {
+        Some((value, unit)) => format!("{value:.1} {unit}"),
+        None => format!("{bytes} B"),
+    }
 }
 
 fn verbose_size_str(bytes: u64) -> String {
     let separated = bytes.to_formatted_string(&Locale::en);
     match unit_size(bytes) {
-        Some(unit) => format!("{unit} ({separated} bytes)"),
+        Some((value, unit)) => format!("{value:.1} {unit} ({separated} bytes)"),
         None => format!("{separated} bytes"),
     }
 }
@@ -161,17 +164,17 @@ mod tests {
     }
 
     #[test]
-    fn unit_size_climbs_the_ladder_at_each_threshold() {
-        assert_eq!(unit_size(1024).as_deref(), Some("1.0 KB"));
-        assert_eq!(unit_size(MB).as_deref(), Some("1.0 MB"));
-        assert_eq!(unit_size(GB).as_deref(), Some("1.0 GB"));
-        assert_eq!(unit_size(TB).as_deref(), Some("1.0 TB"));
+    fn unit_size_selects_the_label_at_each_threshold() {
+        assert_eq!(unit_size(1024).map(|(_, unit)| unit), Some("KB"));
+        assert_eq!(unit_size(MB).map(|(_, unit)| unit), Some("MB"));
+        assert_eq!(unit_size(GB).map(|(_, unit)| unit), Some("GB"));
+        assert_eq!(unit_size(TB).map(|(_, unit)| unit), Some("TB"));
     }
 
     #[test]
-    fn unit_size_extends_beyond_gigabytes_to_terabytes() {
+    fn size_extends_beyond_gigabytes_to_terabytes() {
         // 旧実装は GB 止まりで 2 TB を "2048.0 GB" と表示していた。
-        assert_eq!(unit_size(2 * TB).as_deref(), Some("2.0 TB"));
+        assert_eq!(compact_size_str(2 * TB), "2.0 TB");
     }
 
     #[test]
@@ -185,7 +188,6 @@ mod tests {
     fn compact_size_uses_units_at_and_above_one_kilobyte() {
         assert_eq!(compact_size_str(1024), "1.0 KB");
         assert_eq!(compact_size_str(5 * MB), "5.0 MB");
-        assert_eq!(compact_size_str(2 * TB), "2.0 TB");
     }
 
     #[test]
