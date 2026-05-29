@@ -104,14 +104,13 @@ impl FilerComponent {
     }
 
     fn action_title(action_name: &str, files: &[VFile]) -> String {
-        if files.len() == 1 {
-            format!(
+        match files {
+            [file] => format!(
                 "{} {}?",
                 action_name,
-                files[0].file_name().unwrap_or("(unknown)")
-            )
-        } else {
-            format!("{} {} files?", action_name, files.len())
+                file.file_name().unwrap_or("(unknown)")
+            ),
+            _ => format!("{} {} files?", action_name, files.len()),
         }
     }
 
@@ -126,10 +125,9 @@ impl FilerComponent {
         };
         let files = targets.into_files();
         let title = Self::action_title(label, &files);
-        let init_value = if files.len() == 1 {
-            files[0].absolute_path()
-        } else {
-            self.state.current_dir.absolute_path()
+        let init_value = match files.as_slice() {
+            [file] => file.absolute_path(),
+            _ => self.state.current_dir.absolute_path(),
         };
         let value = init_value.to_string();
         let cursor = value.chars().count();
@@ -204,17 +202,10 @@ impl FilerComponent {
         };
         let dir = self.state.current_dir.clone();
         // デフォルト名は Operation Targets の由来で決まる（CONTEXT.md 参照）。
-        // Cursor File 単体ならその名前から、多重選択なら汎用名。
+        // Cursor File 由来ならその stem から、Checked Paths 由来なら汎用名。
         let default_name = match &targets {
             OperationTargets::Cursor(file) => {
-                let stem = file
-                    .file_name()
-                    .and_then(|n| {
-                        Path::new(n)
-                            .file_stem()
-                            .map(|s| s.to_string_lossy().to_string())
-                    })
-                    .unwrap_or_else(|| "archive".to_string());
+                let stem = file.file_stem().unwrap_or("archive");
                 format!("{stem}.zip")
             }
             OperationTargets::Checked(_) => "files.zip".to_string(),
