@@ -67,9 +67,9 @@ impl Component for GrepComponent {
         let is_running = self.state.is_running();
         let title = if is_running {
             format!(
-                "Grep ({}) {} Running",
+                "Grep ({}) {}",
                 self.state.paths.len(),
-                self.spinner.frame()
+                self.spinner.label("Running")
             )
         } else {
             format!("Grep ({})", self.state.paths.len())

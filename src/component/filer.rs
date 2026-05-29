@@ -567,10 +567,10 @@ impl FilerComponent {
         let list_size = self.state.current_dir_files.len();
         let title = if self.state.is_loading() {
             format!(
-                "{} ({}) {} Loading",
+                "{} ({}) {}",
                 self.state.current_dir.absolute_path(),
                 list_size,
-                self.spinner.frame()
+                self.spinner.label("Loading")
             )
         } else {
             format!("{} ({})", self.state.current_dir.absolute_path(), list_size)
