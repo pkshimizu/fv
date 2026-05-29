@@ -45,6 +45,28 @@ fn ensure_dest_dir(dest: &Path) -> Result<()> {
         .with_context(|| format!("{}: Failed to create destination directory", dest.display()))
 }
 
+/// dest を「正確な宛先パス」（rename-on-copy/move）として扱うか判定する。
+/// 単一 Operation Target かつ dest が既存ディレクトリでないときのみ true。
+/// false のときは dest をコンテナディレクトリとして各 root をベース名で中に入れる。
+/// CONTEXT.md の Destination 参照。Copy / Move 共通。
+fn dest_is_target_path(roots: &[VFile], dest: &Path) -> bool {
+    roots.len() == 1 && !dest.is_dir()
+}
+
+/// Copy / Move の前に存在を保証すべきディレクトリを作る。
+/// コンテナ扱いなら dest 自身、正確な宛先パス扱いなら dest の親ディレクトリ。
+fn ensure_destination_dir(roots: &[VFile], dest: &Path) -> Result<()> {
+    let dir = if dest_is_target_path(roots, dest) {
+        dest.parent()
+    } else {
+        Some(dest)
+    };
+    match dir {
+        Some(d) => ensure_dest_dir(d),
+        None => Ok(()),
+    }
+}
+
 /// Async Job として実行される重いファイル操作。
 /// UI とは結合せず、進捗はクロージャ経由で通知する。
 /// `Phase::Cancelling` は worker からは emit せず、UI 側で Esc 受信時に上書きされる。
@@ -547,8 +569,9 @@ fn run_move(
     if cancel.load(Ordering::Relaxed) {
         return Ok(());
     }
-    // `run_copy` と同じく、入口で dest 自体を確保する (rename も create_dir_all 同等の効果は無いため)。
-    ensure_dest_dir(dest)?;
+    // `run_copy` と同じく、入口でコンテナ dir（または宛先パスの親）を確保する
+    // (rename も create_dir_all 同等の効果は無いため)。
+    ensure_destination_dir(files, dest)?;
     let pairs = resolve_top_level_pairs(files, dest)?;
 
     // 副作用つき probe: 先頭 root への rename を 1 回だけ試し、成功なら同一 FS 高速パスに乗り、
@@ -674,9 +697,9 @@ fn run_copy(
     // Operation Phase 開始を Phase 切り替え直後の `(Copying, 0, Some(total))` で通知。
     // mkdir ループに入る前に出すことで「ディレクトリ作成中は UI が Scanning のまま」を回避する。
     on_progress(Phase::Copying, 0, Some(total));
-    // ユーザ指定の dest 自体が存在しない可能性に備え一度だけ確保。
+    // ユーザ指定の宛先に応じてコンテナ dir（または宛先パスの親）を一度だけ確保。
     // それ以降の plan.directories は pre-order により親が常に作成済みなので create_dir で十分。
-    ensure_dest_dir(dest)?;
+    ensure_destination_dir(files, dest)?;
     for dir in &plan.directories {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
@@ -782,12 +805,20 @@ fn scan_copy_plan(
 fn resolve_top_level_pairs(roots: &[VFile], dest: &Path) -> Result<Vec<TopLevelPair>> {
     let mut claimed: HashSet<PathBuf> = HashSet::new();
     let mut pairs = Vec::with_capacity(roots.len());
+    // 単一 root かつ dest が既存ディレクトリでないなら dest をそのまま新しい名前に
+    // 使う（rename-on-copy/move）。それ以外は dest をコンテナとし、ベース名を中に入れる。
+    let target_path = dest_is_target_path(roots, dest);
     for root in roots {
         let src = Path::new(root.absolute_path());
-        let name = src
-            .file_name()
-            .with_context(|| format!("{}: source has no file name", src.display()))?;
-        let top_dest = pick_unique_top_dest(&dest.join(name), &claimed)
+        let base = if target_path {
+            dest.to_path_buf()
+        } else {
+            let name = src
+                .file_name()
+                .with_context(|| format!("{}: source has no file name", src.display()))?;
+            dest.join(name)
+        };
+        let top_dest = pick_unique_top_dest(&base, &claimed)
             .with_context(|| format!("{}: Failed to resolve unique destination", src.display()))?;
         claimed.insert(top_dest.clone());
         pairs.push(TopLevelPair {
@@ -1362,6 +1393,89 @@ mod tests {
             .expect("Copy should succeed");
 
         assert_eq!(read_to_string(&dest.join("hello.txt")), "hello fv");
+    }
+
+    #[test]
+    fn copy_single_file_to_nonexistent_path_writes_that_exact_file() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("file.txt");
+        write_file(&src, b"hello fv");
+        // 既存しない宛先パス（ファイル名）を指定する。
+        let dest = tmp.path().join("file_2.txt");
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy should succeed");
+
+        // dest はちょうどそのパスのファイルになる（ディレクトリ化しない）。
+        assert!(dest.is_file(), "dest should be a file, not a directory");
+        assert_eq!(read_to_string(&dest), "hello fv");
+    }
+
+    #[test]
+    fn copy_multiple_files_to_nonexistent_dest_creates_container_directory() {
+        let tmp = TempDir::new().unwrap();
+        let a = tmp.path().join("a.txt");
+        let b = tmp.path().join("b.txt");
+        write_file(&a, b"alpha");
+        write_file(&b, b"bravo");
+        // 既存しない宛先。複数ソースなのでコンテナディレクトリとして作成されるべき。
+        let dest = tmp.path().join("box");
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&a), vfile(&b)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy should succeed");
+
+        assert!(dest.is_dir(), "dest should be created as a directory");
+        assert_eq!(read_to_string(&dest.join("a.txt")), "alpha");
+        assert_eq!(read_to_string(&dest.join("b.txt")), "bravo");
+    }
+
+    #[test]
+    fn move_single_file_to_nonexistent_path_writes_that_exact_file() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("file.txt");
+        write_file(&src, b"hello fv");
+        let dest = tmp.path().join("file_2.txt");
+
+        let job = FileJob::Move {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Move should succeed");
+
+        // dest はそのパスのファイル、ソースは消える。
+        assert!(dest.is_file(), "dest should be a file, not a directory");
+        assert_eq!(read_to_string(&dest), "hello fv");
+        assert!(!src.exists(), "source should be removed after move");
+    }
+
+    #[test]
+    fn copy_single_file_to_existing_file_path_appends_numeric_suffix() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("a.txt");
+        write_file(&src, b"alpha");
+        // 明示した宛先パスが既存ファイルのケース。上書きせず _1 を付与する。
+        let dest = tmp.path().join("b.txt");
+        write_file(&dest, b"existing");
+
+        let job = FileJob::Copy {
+            files: vec![vfile(&src)],
+            dest: dest.clone(),
+        };
+        job.run(&AtomicBool::new(false), &mut |_, _, _| {})
+            .expect("Copy should succeed");
+
+        // 既存ファイルは無傷、コピーは b_1.txt に置かれる。
+        assert_eq!(read_to_string(&dest), "existing");
+        assert_eq!(read_to_string(&tmp.path().join("b_1.txt")), "alpha");
     }
 
     #[cfg(unix)]
