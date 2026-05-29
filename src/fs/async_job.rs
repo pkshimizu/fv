@@ -46,25 +46,26 @@ fn ensure_dest_dir(dest: &Path) -> Result<()> {
 }
 
 /// dest を「正確な宛先パス」（rename-on-copy/move）として扱うか判定する。
-/// 単一 Operation Target かつ dest が既存ディレクトリでないときのみ true。
+/// 単一 root（= 単一 Operation Target）かつ dest が既存ディレクトリでないときのみ true。
 /// false のときは dest をコンテナディレクトリとして各 root をベース名で中に入れる。
+/// `dest.is_dir()` の stat を含むため、1 操作につき一度だけ評価して結果を引き回す。
 /// CONTEXT.md の Destination 参照。Copy / Move 共通。
-fn dest_is_target_path(roots: &[VFile], dest: &Path) -> bool {
+fn dest_is_exact_path(roots: &[VFile], dest: &Path) -> bool {
     roots.len() == 1 && !dest.is_dir()
 }
 
 /// Copy / Move の前に存在を保証すべきディレクトリを作る。
-/// コンテナ扱いなら dest 自身、正確な宛先パス扱いなら dest の親ディレクトリ。
-fn ensure_destination_dir(roots: &[VFile], dest: &Path) -> Result<()> {
-    let dir = if dest_is_target_path(roots, dest) {
+/// コンテナ扱い（`exact_path == false`）なら dest 自身、正確な宛先パス扱いなら dest の親。
+/// `exact_path` は呼び出し側で `dest_is_exact_path` を一度だけ評価した結果を渡す。
+fn ensure_destination_dir(exact_path: bool, dest: &Path) -> Result<()> {
+    let dir = if exact_path {
         dest.parent()
     } else {
         Some(dest)
     };
-    match dir {
-        Some(d) => ensure_dest_dir(d),
-        None => Ok(()),
-    }
+    // 親が無い（ルート直下など）場合は確保すべきディレクトリが無いので何もしない。
+    // 実書き込みの失敗は後段の I/O 側 with_context が拾う。
+    dir.map_or(Ok(()), ensure_dest_dir)
 }
 
 /// Async Job として実行される重いファイル操作。
@@ -569,10 +570,12 @@ fn run_move(
     if cancel.load(Ordering::Relaxed) {
         return Ok(());
     }
+    // dest の解釈は一度だけ評価して ensure と resolve の双方で同じ結果を使う。
+    let exact_path = dest_is_exact_path(files, dest);
     // `run_copy` と同じく、入口でコンテナ dir（または宛先パスの親）を確保する
     // (rename も create_dir_all 同等の効果は無いため)。
-    ensure_destination_dir(files, dest)?;
-    let pairs = resolve_top_level_pairs(files, dest)?;
+    ensure_destination_dir(exact_path, dest)?;
+    let pairs = resolve_top_level_pairs(files, dest, exact_path)?;
 
     // 副作用つき probe: 先頭 root への rename を 1 回だけ試し、成功なら同一 FS 高速パスに乗り、
     // CrossesDevices ならフォールバックパスへ。先頭 root はこの時点で本処理を 1 件分消費しているため、
@@ -689,7 +692,10 @@ fn run_copy(
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<()> {
-    let Some(plan) = scan_copy_plan(files, dest, cancel, on_progress)? else {
+    // dest の解釈（正確な宛先パス or コンテナ）は dest.is_dir() の stat を含むため
+    // 一度だけ評価し、Scan Phase と dir 確保の双方で同じ結果を使う。
+    let exact_path = dest_is_exact_path(files, dest);
+    let Some(plan) = scan_copy_plan(files, dest, exact_path, cancel, on_progress)? else {
         // Scan Phase 中に cancel された場合は Partial Result なしで早期 return
         return Ok(());
     };
@@ -699,7 +705,7 @@ fn run_copy(
     on_progress(Phase::Copying, 0, Some(total));
     // ユーザ指定の宛先に応じてコンテナ dir（または宛先パスの親）を一度だけ確保。
     // それ以降の plan.directories は pre-order により親が常に作成済みなので create_dir で十分。
-    ensure_destination_dir(files, dest)?;
+    ensure_destination_dir(exact_path, dest)?;
     for dir in &plan.directories {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
@@ -791,10 +797,11 @@ enum CollectStatus {
 fn scan_copy_plan(
     roots: &[VFile],
     dest: &Path,
+    exact_path: bool,
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<Option<CopyPlan>> {
-    let pairs = resolve_top_level_pairs(roots, dest)?;
+    let pairs = resolve_top_level_pairs(roots, dest, exact_path)?;
     scan_pairs_into_plan(&pairs, cancel, on_progress)
 }
 
@@ -802,20 +809,23 @@ fn scan_copy_plan(
 /// Copy / Move の Scan Phase 共通の前処理。同一 batch 内で複数 root が同名 (`a/foo.txt`, `b/foo.txt`)
 /// だった場合も `claimed` set で 1 件ずつ予約しながら回避するため、後続 root が前 root の宛先を
 /// 上書きすることはない。
-fn resolve_top_level_pairs(roots: &[VFile], dest: &Path) -> Result<Vec<TopLevelPair>> {
+fn resolve_top_level_pairs(
+    roots: &[VFile],
+    dest: &Path,
+    exact_path: bool,
+) -> Result<Vec<TopLevelPair>> {
     let mut claimed: HashSet<PathBuf> = HashSet::new();
     let mut pairs = Vec::with_capacity(roots.len());
-    // 単一 root かつ dest が既存ディレクトリでないなら dest をそのまま新しい名前に
-    // 使う（rename-on-copy/move）。それ以外は dest をコンテナとし、ベース名を中に入れる。
-    let target_path = dest_is_target_path(roots, dest);
+    // exact_path のとき dest をそのまま新しい名前に使う（rename-on-copy/move）。
+    // それ以外は dest をコンテナとし、各 root のベース名を中に入れる。
     for root in roots {
         let src = Path::new(root.absolute_path());
-        let base = if target_path {
+        let base = if exact_path {
             dest.to_path_buf()
         } else {
             let name = src
                 .file_name()
-                .with_context(|| format!("{}: source has no file name", src.display()))?;
+                .with_context(|| format!("{}: Failed to read source file name", src.display()))?;
             dest.join(name)
         };
         let top_dest = pick_unique_top_dest(&base, &claimed)
