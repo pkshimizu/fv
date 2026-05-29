@@ -94,6 +94,10 @@ pub trait Component {
 
     /// アイドル時（`PromptMode::None`）に Prompt 領域へ表示する操作キーのヒント。
     /// デフォルトは空。表示対象となる Filer と各サイドパネルが override する。
+    ///
+    /// 体裁: 各項目は `キー: 説明`、項目間は半角スペース2個区切り。末尾は閉じ操作
+    /// （`<key>/Esc: Close`。保存等を伴う場合は `Save & Close` のように明記してよい）。
+    /// `↑↓` はカーソル移動を `Move`、テキストスクロールを `Scroll` と表記し分ける。
     fn keymap(&self) -> &'static str {
         ""
     }

@@ -355,7 +355,10 @@ impl PromptComponent {
         }
     }
 
-    pub fn render_with_keymap(&self, frame: &mut Frame, area: Rect, keymap: &str) {
+    /// Prompt を描画する。`keymap` はアイドル時（`PromptMode::None`）にのみ
+    /// Commands 領域へ表示され、入力・進捗など他モードでは無視される。
+    /// 本番では `render_main_view` がアクティブなコンポーネントの keymap を渡す。
+    pub(crate) fn render_with_keymap(&self, frame: &mut Frame, area: Rect, keymap: &str) {
         let widget = match &self.mode {
             PromptMode::None => Paragraph::new(keymap)
                 .block(build_bordered_block("Commands", BorderStyle::Inactive)),
@@ -425,6 +428,8 @@ impl Component for PromptComponent {
         }
     }
 
+    // 本番描画は render_main_view が render_with_keymap を直接呼ぶ。
+    // この trait 実装は Component 契約を満たすためのフォールバック（keymap 空）。
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         self.render_with_keymap(frame, area, "");
     }
@@ -792,6 +797,8 @@ fn execute_grep(ctx: &mut AppContext, _store: &mut RootStore, value: &str) -> Re
 mod tests {
     use super::*;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
     use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::sync::mpsc::{self, Sender};
@@ -822,26 +829,20 @@ mod tests {
 
     /// PromptComponent を TestBackend に描画し、バッファ内容を1つの文字列にして返す。
     fn render_with_keymap_to_string(prompt: &mut PromptComponent, keymap: &str) -> String {
-        use ratatui::Terminal;
-        use ratatui::backend::TestBackend;
-        let mut terminal = Terminal::new(TestBackend::new(80, 3)).expect("terminal");
+        let mut terminal = Terminal::new(TestBackend::new(80, 3)).expect("build test terminal");
         terminal
             .draw(|frame| {
                 let area = frame.area();
                 prompt.render_with_keymap(frame, area, keymap);
             })
-            .expect("draw");
-        let buffer = terminal.backend().buffer();
-        let mut text = String::new();
-        for y in 0..buffer.area.height {
-            for x in 0..buffer.area.width {
-                if let Some(cell) = buffer.cell((x, y)) {
-                    text.push_str(cell.symbol());
-                }
-            }
-            text.push('\n');
-        }
-        text
+            .expect("draw prompt");
+        terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
     }
 
     #[test]
