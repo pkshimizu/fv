@@ -370,7 +370,7 @@ impl FilerComponent {
             return Ok(Action::None);
         };
         Ok(Action::ShowSidePanel(Box::new(SidePanel::FileInfo(
-            FileInfoComponent::new(file)?,
+            FileInfoComponent::new(file),
         ))))
     }
 

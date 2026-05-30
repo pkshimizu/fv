@@ -64,7 +64,7 @@ _Avoid_: leftover, residue, half-state.
 ### Feedback
 
 **Activity Indicator**:
-An animated glyph shown next to an in-flight asynchronous operation — directory load, Grep, or an Async Job — to signal that the UI loop is still alive, i.e. the app is working rather than frozen. Distinct from **Progress**: Progress says *how much* is done (phase and counts); the Activity Indicator only says *that work is ongoing*. It is shown for indeterminate waits (directory load, Grep) and **alongside** Progress during an Async Job, where it keeps moving even when the processed count is momentarily stuck — e.g. copying a single large file with no intervening File-level Checkpoint.
+An animated glyph shown next to an in-flight asynchronous operation — directory load, Grep, file info load, or an Async Job — to signal that the UI loop is still alive, i.e. the app is working rather than frozen. Distinct from **Progress**: Progress says *how much* is done (phase and counts); the Activity Indicator only says *that work is ongoing*. It is shown for indeterminate waits (directory load, Grep, file info load) and **alongside** Progress during an Async Job, where it keeps moving even when the processed count is momentarily stuck — e.g. copying a single large file with no intervening File-level Checkpoint.
 _Avoid_: spinner (that names the glyph, not the concept), progress, loading flag.
 
 ### Example dialogues
