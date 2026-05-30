@@ -228,7 +228,10 @@ impl App {
         let mut watching_dir_path = self.ctx.filer.current_dir_path().to_string();
         // 起動直後の初期ディレクトリにも監視を張る。ループ内の watch_directory は
         // ナビゲートで current_dir が変わったときしか呼ばれないため、ここで一度設定する。
-        self.event_handler.watch_directory(&watching_dir_path)?;
+        // 監視は自動更新のための付加機能なので、失敗してもアプリ起動は止めず警告に留める。
+        if let Err(e) = self.event_handler.watch_directory(&watching_dir_path) {
+            tracing::warn!("Failed to watch startup directory: {e}");
+        }
 
         while self.ctx.running {
             // UI を描画
@@ -272,7 +275,10 @@ impl App {
             // カレントディレクトリの監視と履歴保存
             let current_dir_path = self.ctx.filer.current_dir_path();
             if current_dir_path != watching_dir_path {
-                self.event_handler.watch_directory(current_dir_path)?;
+                // 監視失敗は致命ではないため警告に留める（起動時と同方針）。
+                if let Err(e) = self.event_handler.watch_directory(current_dir_path) {
+                    tracing::warn!("Failed to watch directory: {e}");
+                }
                 if self.skip_history_add {
                     self.skip_history_add = false;
                 } else if let Err(e) = self.store.history.add(current_dir_path) {
