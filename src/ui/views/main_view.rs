@@ -25,11 +25,13 @@ fn render_too_small_warning(frame: &mut Frame, area: Rect) {
         Line::from(format!("Resize to at least {MIN_WIDTH}x{MIN_HEIGHT}")),
         Line::from(format!("(current: {}x{})", area.width, area.height)),
     ];
+    // 行数を lines から導出して二重管理を避ける。
+    let text_height = lines.len() as u16;
     let message = Paragraph::new(lines).alignment(Alignment::Center);
 
-    // 縦方向にも中央へ寄せる（3 行分）。
-    let text_height = 3;
-    let y = area.y + area.height.saturating_sub(text_height) / 2;
+    // メッセージを縦方向にも中央へ寄せる。
+    let offset = area.height.saturating_sub(text_height) / 2;
+    let y = area.y.saturating_add(offset);
     let centered = Rect::new(area.x, y, area.width, text_height.min(area.height));
     frame.render_widget(message, centered);
 }
@@ -76,7 +78,6 @@ pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootSto
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::layout::Rect;
 
     fn area(width: u16, height: u16) -> Rect {
         Rect::new(0, 0, width, height)
