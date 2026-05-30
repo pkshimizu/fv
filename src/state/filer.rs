@@ -212,6 +212,11 @@ impl FilerState {
 
     pub fn change_dir_in_parent_dir(&mut self) {
         if let Some(parent_dir) = self.current_dir.parent_dir() {
+            // 遷移元（今いるディレクトリ）の名前を控えておき、親ロード後に
+            // finalize_loaded_files がその名前でカーソルを復元する。
+            if let Some(name) = self.current_dir.file_name() {
+                self.pending_select_name = Some(name.to_string());
+            }
             self.start_async_load(Some(parent_dir));
         }
     }
@@ -651,6 +656,41 @@ mod tests {
         assert_eq!(
             state.operation_targets(),
             Some(OperationTargets::Cursor(VFile::new("/a/a.txt")))
+        );
+    }
+
+    #[test]
+    fn parent_navigation_selects_the_directory_we_came_from() {
+        use std::time::Duration;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let parent = tmp.path().join("parent");
+        for name in ["aaa", "bbb", "ccc"] {
+            std::fs::create_dir_all(parent.join(name)).unwrap();
+        }
+        let child = parent.join("bbb");
+
+        let mut state = FilerState::new();
+        // bbb の中にいる状態を作る。
+        state.current_dir = VFile::new(child.to_str().unwrap());
+
+        // バックスペース相当: 親へ遷移する。
+        state.change_dir_in_parent_dir();
+
+        // 非同期ロードを完了まで駆動する（小さな dir なので数 ms で終わる）。
+        let mut guard = 0;
+        while state.is_loading() && guard < 5_000 {
+            state.receive_files();
+            std::thread::sleep(Duration::from_millis(1));
+            guard += 1;
+        }
+        assert!(!state.is_loading(), "async load did not finish");
+
+        // カーソルは遷移元 bbb に乗る（先頭 aaa ではなく）。
+        assert_eq!(
+            state.selected_file().and_then(|f| f.file_name()),
+            Some("bbb")
         );
     }
 }
