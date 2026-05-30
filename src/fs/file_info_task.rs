@@ -1,7 +1,7 @@
 use crate::fs::VFile;
 use crate::fs::file_info::FileInfo;
 use anyhow::Result;
-use std::panic::catch_unwind;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{self, Receiver};
 
 /// `spawn_file_info` の戻り値。`rx` で `FileInfo` 取得結果（Result）を一度だけ受信する。
@@ -20,24 +20,40 @@ pub fn spawn_file_info(file: &VFile) -> FileInfoHandle {
 
     let spawn_result = std::thread::Builder::new()
         .name("fv-file-info".into())
-        .spawn(move || {
-            let result = match catch_unwind(|| FileInfo::from_file(&file)) {
-                Ok(r) => r,
-                Err(_) => Err(anyhow::anyhow!("file info task panicked")),
-            };
-            // 受信者が既に drop されていれば送信は失敗するが、結果を破棄するだけでよい。
-            let _ = tx.send(result);
+        .spawn({
+            let tx = tx.clone();
+            move || {
+                let result = match catch_unwind(AssertUnwindSafe(|| FileInfo::from_file(&file))) {
+                    Ok(r) => r,
+                    Err(payload) => Err(anyhow::anyhow!(panic_message(payload))),
+                };
+                // 受信者が既に drop されていれば送信は失敗するが、結果を破棄するだけでよい。
+                let _ = tx.send(result);
+            }
         });
 
+    // spawn 自体に失敗した場合も「結果は常に rx 経由で届く」という不変条件を保つため、
+    // 失敗を載せた結果を同じ channel に流して呼び出し側の通常経路（try_recv）に合流させる。
     if let Err(e) = spawn_result {
-        let (err_tx, err_rx) = mpsc::channel::<Result<FileInfo>>();
-        let _ = err_tx.send(Err(
+        let _ = tx.send(Err(
             anyhow::Error::from(e).context("Failed to spawn file info task")
         ));
-        return FileInfoHandle { rx: err_rx };
     }
 
     FileInfoHandle { rx }
+}
+
+/// `catch_unwind` の panic ペイロードからメッセージ本文を取り出す。
+/// 文字列でない場合は原因不明のため固定文言を返す（`app::async_job` と同方針）。
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    let detail = payload
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str));
+    match detail {
+        Some(s) => format!("file info task panicked: {s}"),
+        None => "file info task panicked (non-string payload)".to_string(),
+    }
 }
 
 #[cfg(test)]

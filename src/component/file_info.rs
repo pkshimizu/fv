@@ -31,6 +31,13 @@ impl FileInfoComponent {
     pub fn is_loading(&self) -> bool {
         self.handle.is_some()
     }
+
+    /// 取得失敗時の終端処理。タイトルと本文をエラー表示に切り替え、loading 状態を解除する。
+    fn set_error(&mut self, message: impl Into<String>) {
+        self.title = "File Info (error)".to_string();
+        self.text_output = TextOutputState::with_lines(vec![format!("Error: {}", message.into())]);
+        self.handle = None;
+    }
 }
 
 impl Component for FileInfoComponent {
@@ -60,24 +67,19 @@ impl Component for FileInfoComponent {
                 self.text_output = TextOutputState::with_lines(lines);
                 self.handle = None;
             }
-            Ok(Err(e)) => {
-                self.title = "File Info (error)".to_string();
-                self.text_output = TextOutputState::with_lines(vec![format!("Error: {e}")]);
-                self.handle = None;
-            }
+            // `{e:#}` で anyhow の context chain も含めて表示する
+            Ok(Err(e)) => self.set_error(format!("{e:#}")),
             Err(TryRecvError::Empty) => {} // 取得中
+            // 送信前にワーカーが異常終了した場合のみ到達する（通常は send が先に届く）
             Err(TryRecvError::Disconnected) => {
-                self.title = "File Info (error)".to_string();
-                self.text_output =
-                    TextOutputState::with_lines(vec!["Error: file info task ended".to_string()]);
-                self.handle = None;
+                self.set_error("file info task aborted before sending")
             }
         }
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         if self.is_loading() {
-            let title = format!("File Info {} Loading", self.spinner.frame());
+            let title = format!("File Info {}", self.spinner.label("Loading"));
             render_text_output(frame, area, &mut self.text_output, &title);
             return;
         }
