@@ -138,6 +138,10 @@ pub struct FilerState {
     progress_rx: Option<mpsc::Receiver<ProgressMessage>>,
     load_error: Option<String>,
     prev_dir: Option<VFile>,
+    /// 同一ディレクトリ更新（in-place refresh）中に受信ファイルを蓄積する一時バッファ。
+    /// `Some` の間は旧リストを表示したまま受信を貯め、完了時に一括差し替えする
+    /// （ちらつき防止）。ディレクトリ移動時は `None`（従来の逐次マージ）。
+    loading_buffer: Option<Vec<VFile>>,
 }
 
 impl std::fmt::Debug for FilerState {
@@ -167,6 +171,7 @@ impl FilerState {
             progress_rx: None,
             load_error: None,
             prev_dir: None,
+            loading_buffer: None,
         }
     }
 
@@ -359,13 +364,23 @@ impl FilerState {
         self.progress_rx = None;
         self.load_error = None;
 
+        // ディレクトリ移動時は内容が別物なのでクリアして逐次表示する。
+        // 同一ディレクトリ更新（new_dir = None）はちらつき防止のため旧リストを保持し、
+        // 完了時に一括差し替えする（後述の reconcile）。
+        let is_navigation = new_dir.is_some();
         self.prev_dir = Some(self.current_dir.clone());
         if let Some(new_dir) = new_dir {
             self.current_dir = new_dir;
         }
 
-        self.current_dir_files.clear();
-        self.file_table_state.select(None);
+        if is_navigation {
+            self.current_dir_files.clear();
+            self.file_table_state.select(None);
+            self.loading_buffer = None;
+        } else {
+            // in-place refresh: 受信は別バッファへ貯め、完了時に差し替える。
+            self.loading_buffer = Some(Vec::new());
+        }
 
         let (file_tx, file_rx) = mpsc::channel::<VFile>();
         let (progress_tx, progress_rx) = mpsc::channel::<ProgressMessage>();
@@ -418,6 +433,7 @@ impl FilerState {
                         self.load_error = Some(e);
                         self.progress_rx = None;
                         self.dir_load_rx = None;
+                        self.loading_buffer = None;
                         // エラー時は元のディレクトリに戻して同期リロード
                         if let Some(prev_dir) = self.prev_dir.take() {
                             if let Err(restore_err) = self.load_current_dir_sync(Some(prev_dir)) {
@@ -463,58 +479,79 @@ impl FilerState {
             }
         }
 
-        // バッチをソートして既存リストとマージ（O(k log k + n)）
-        if !batch.is_empty() {
-            let sort_key = self.sort_key;
-            Self::sort_files(&mut batch, sort_key);
-
-            // 選択位置の補正: マージ前の選択ファイル名を記録
-            let selected_name = self
-                .file_table_state
-                .selected()
-                .and_then(|i| self.current_dir_files.get(i))
-                .and_then(|f| f.file_name().map(String::from));
-
-            // ソート済み同士のマージ
-            let existing_files = std::mem::take(&mut self.current_dir_files);
-            let mut merged = Vec::with_capacity(existing_files.len() + batch.len());
-            let mut existing = existing_files.into_iter().peekable();
-            let mut incoming = batch.into_iter().peekable();
-
-            while existing.peek().is_some() || incoming.peek().is_some() {
-                let take_existing = match (existing.peek(), incoming.peek()) {
-                    (Some(a), Some(b)) => Self::compare_files(a, b, sort_key) != Ordering::Greater,
-                    (Some(_), None) => true,
-                    _ => false,
-                };
-                if take_existing {
-                    merged.push(existing.next().unwrap());
-                } else {
-                    merged.push(incoming.next().unwrap());
-                }
+        // in-place refresh（同一ディレクトリ更新）は旧リストを表示したままバッファへ蓄積し、
+        // 完了時に reconcile_refresh で一括差し替えする。ディレクトリ移動は旧リスト
+        // （クリア済み）へ逐次マージする。
+        if self.loading_buffer.is_some() {
+            if let Some(buffer) = self.loading_buffer.as_mut() {
+                buffer.append(&mut batch);
             }
-            self.current_dir_files = merged;
-
-            // 選択位置の復元
-            if let Some(name) = selected_name {
-                if let Some(idx) = self
-                    .current_dir_files
-                    .iter()
-                    .position(|f| f.file_name().unwrap_or_default() == name)
-                {
-                    self.file_table_state.select(Some(idx));
-                }
-            } else if self.file_table_state.selected().is_none()
-                && !self.current_dir_files.is_empty()
-            {
-                self.file_table_state.select(Some(0));
+            if disconnected {
+                self.close_load_channels();
+                self.reconcile_refresh();
+            }
+        } else {
+            self.merge_batch_into_current(batch);
+            if disconnected {
+                self.close_load_channels();
+                self.finalize_loaded_files();
             }
         }
+    }
 
-        if disconnected {
-            self.dir_load_rx = None;
-            self.progress_rx = None;
-            self.finalize_loaded_files();
+    /// 非同期ロードのチャネルを閉じる（完了時の共通後始末）。
+    fn close_load_channels(&mut self) {
+        self.dir_load_rx = None;
+        self.progress_rx = None;
+    }
+
+    /// 受信バッチをソートして現在のリストへマージし、選択中ファイルを名前で追従させる。
+    /// ディレクトリ移動時の逐次表示で使う（旧リストはクリア済み）。
+    fn merge_batch_into_current(&mut self, mut batch: Vec<VFile>) {
+        if batch.is_empty() {
+            return;
+        }
+        let sort_key = self.sort_key;
+        Self::sort_files(&mut batch, sort_key);
+
+        // 選択位置の補正: マージ前の選択ファイル名を記録
+        let selected_name = self
+            .file_table_state
+            .selected()
+            .and_then(|i| self.current_dir_files.get(i))
+            .and_then(|f| f.file_name().map(String::from));
+
+        // ソート済み同士のマージ
+        let existing_files = std::mem::take(&mut self.current_dir_files);
+        let mut merged = Vec::with_capacity(existing_files.len() + batch.len());
+        let mut existing = existing_files.into_iter().peekable();
+        let mut incoming = batch.into_iter().peekable();
+
+        while existing.peek().is_some() || incoming.peek().is_some() {
+            let take_existing = match (existing.peek(), incoming.peek()) {
+                (Some(a), Some(b)) => Self::compare_files(a, b, sort_key) != Ordering::Greater,
+                (Some(_), None) => true,
+                _ => false,
+            };
+            if take_existing {
+                merged.push(existing.next().unwrap());
+            } else {
+                merged.push(incoming.next().unwrap());
+            }
+        }
+        self.current_dir_files = merged;
+
+        // 選択位置の復元（逐次表示中はバッチごとに同じファイルへ追従）
+        if let Some(name) = selected_name {
+            if let Some(idx) = self
+                .current_dir_files
+                .iter()
+                .position(|f| f.file_name() == Some(name.as_str()))
+            {
+                self.file_table_state.select(Some(idx));
+            }
+        } else if self.file_table_state.selected().is_none() && !self.current_dir_files.is_empty() {
+            self.file_table_state.select(Some(0));
         }
     }
 
@@ -527,24 +564,33 @@ impl FilerState {
     /// （ファイルは receive_files でソート済み挿入されるためソート不要）
     fn finalize_loaded_files(&mut self) {
         self.prev_dir = None;
-
-        // 選択ファイル状態の復元。
         // pending_select_name は change_dir_in_parent_dir（親遷移時の遷移元名）や
-        // jump_to / refresh_files がセットする。一致する名前があればそこへ、無ければ先頭へ。
-        if let Some(name) = self.pending_select_name.take() {
-            let new_index = self
-                .current_dir_files
-                .iter()
-                .position(|f| f.file_name().unwrap_or_default() == name)
-                .unwrap_or(0);
-            self.file_table_state.select(Some(
-                new_index.min(self.current_dir_files.len().saturating_sub(1)),
-            ));
-        } else if !self.current_dir_files.is_empty() {
-            self.file_table_state.select(Some(0));
-        }
+        // jump_to / refresh_files がセットする。一致する名前が無ければ先頭へ。
+        let name = self.pending_select_name.take();
+        self.restore_cursor(name, Some(0));
+        self.cleanup_checked_paths();
+    }
 
-        // チェック済みファイルのクリーンアップ
+    /// ロード完了後にカーソルを復元する。控えた選択名 `name` が現リストにあればそこへ、
+    /// 無ければ `fallback`（クランプ）へ、それも無ければ先頭へ。空リストでは未選択。
+    fn restore_cursor(&mut self, name: Option<String>, fallback: Option<usize>) {
+        let len = self.current_dir_files.len();
+        let index = if len == 0 {
+            None
+        } else {
+            name.and_then(|n| {
+                self.current_dir_files
+                    .iter()
+                    .position(|f| f.file_name() == Some(n.as_str()))
+            })
+            .or_else(|| fallback.map(|i| i.min(len - 1)))
+            .or(Some(0))
+        };
+        self.file_table_state.select(index);
+    }
+
+    /// current_dir_files に存在しないパスを Checked Paths から取り除く。
+    fn cleanup_checked_paths(&mut self) {
         let file_paths: HashSet<&str> = self
             .current_dir_files
             .iter()
@@ -552,6 +598,27 @@ impl FilerState {
             .collect();
         self.checked_paths
             .retain(|path| file_paths.contains(path.as_str()));
+    }
+
+    /// in-place refresh の完了処理。蓄積したバッファをソートして一括差し替えし、
+    /// カーソルを復元する（同名があればそのファイル、無ければ旧 index をクランプ）。
+    /// Checked Paths は現存パスのみ残す。旧リストは差し替えの瞬間まで保持される。
+    fn reconcile_refresh(&mut self) {
+        self.prev_dir = None;
+        let Some(mut files) = self.loading_buffer.take() else {
+            return;
+        };
+        Self::sort_files(&mut files, self.sort_key);
+
+        // 復元の手がかり: refresh_files が控えた旧選択名と、未クリアの旧 index。
+        // 名前一致が無ければ旧 index にクランプして同じ位置に留める。
+        let name = self.pending_select_name.take();
+        let old_index = self.file_table_state.selected();
+
+        self.current_dir_files = files;
+        self.restore_cursor(name, old_index);
+
+        self.cleanup_checked_paths();
     }
 
     pub fn is_loading(&self) -> bool {
@@ -696,5 +763,131 @@ mod tests {
             state.selected_file().and_then(|f| f.file_name()),
             Some("bbb")
         );
+    }
+
+    #[test]
+    fn refresh_keeps_the_existing_list_visible() {
+        // 同一ディレクトリ更新の開始直後、一覧はクリアされず旧内容・選択が残る（ちらつき防止）。
+        let mut state = FilerState::new();
+        state.current_dir = VFile::new("/some/dir");
+        state.current_dir_files =
+            vec![VFile::new("/some/dir/a.txt"), VFile::new("/some/dir/b.txt")];
+        state.file_table_state.select(Some(1));
+
+        state.refresh_files();
+
+        assert!(
+            !state.current_dir_files.is_empty(),
+            "list must not be cleared on refresh"
+        );
+        assert_eq!(
+            state.file_table_state.selected(),
+            Some(1),
+            "selection must be kept during refresh"
+        );
+    }
+
+    /// 非同期ロードを完了まで駆動する（小さな dir なので実際は数 ms）。
+    fn drive_until_loaded(state: &mut FilerState) {
+        const MAX_TICKS: u32 = 5_000;
+        let mut ticks = 0;
+        while state.is_loading() && ticks < MAX_TICKS {
+            state.receive_files();
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            ticks += 1;
+        }
+        assert!(!state.is_loading(), "async load did not finish");
+    }
+
+    #[test]
+    fn refresh_reflects_new_files_without_duplicates_and_keeps_cursor() {
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("a.txt"), b"a").unwrap();
+        std::fs::write(tmp.path().join("b.txt"), b"b").unwrap();
+
+        let mut state = FilerState::new();
+        state.current_dir = VFile::new(tmp.path().to_str().unwrap());
+        state.load_current_dir_sync(None).unwrap();
+        state.file_table_state.select(Some(0)); // a.txt にカーソル
+        assert_eq!(
+            state.selected_file().and_then(|f| f.file_name()),
+            Some("a.txt")
+        );
+
+        // 外部で新規ファイルを追加
+        std::fs::write(tmp.path().join("c.txt"), b"c").unwrap();
+
+        state.refresh_files();
+        drive_until_loaded(&mut state);
+
+        // 重複なく a,b,c が反映される
+        let names: Vec<&str> = state
+            .current_dir_files
+            .iter()
+            .filter_map(|f| f.file_name())
+            .collect();
+        assert_eq!(names, vec!["a.txt", "b.txt", "c.txt"]);
+        // カーソルは同じ a.txt に留まる
+        assert_eq!(
+            state.selected_file().and_then(|f| f.file_name()),
+            Some("a.txt")
+        );
+    }
+
+    #[test]
+    fn refresh_clamps_cursor_to_same_index_when_selected_file_removed() {
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        for name in ["a.txt", "b.txt", "c.txt"] {
+            std::fs::write(tmp.path().join(name), b"x").unwrap();
+        }
+
+        let mut state = FilerState::new();
+        state.current_dir = VFile::new(tmp.path().to_str().unwrap());
+        state.load_current_dir_sync(None).unwrap();
+        state.file_table_state.select(Some(1)); // b.txt にカーソル
+        assert_eq!(
+            state.selected_file().and_then(|f| f.file_name()),
+            Some("b.txt")
+        );
+
+        // カーソル位置の b.txt を削除
+        std::fs::remove_file(tmp.path().join("b.txt")).unwrap();
+
+        state.refresh_files();
+        drive_until_loaded(&mut state);
+
+        // 一覧は a, c に。カーソルは同じ index 1 に留まる（＝今は c.txt）。
+        let names: Vec<&str> = state
+            .current_dir_files
+            .iter()
+            .filter_map(|f| f.file_name())
+            .collect();
+        assert_eq!(names, vec!["a.txt", "c.txt"]);
+        assert_eq!(state.file_table_state.selected(), Some(1));
+        assert_eq!(
+            state.selected_file().and_then(|f| f.file_name()),
+            Some("c.txt")
+        );
+    }
+
+    #[test]
+    fn navigation_clears_the_list_during_load() {
+        // ディレクトリ移動は内容が別物なので従来どおりクリア（逐次表示）する。
+        let mut state = FilerState::new();
+        state.current_dir = VFile::new("/old/dir");
+        state.current_dir_files = vec![VFile::new("/old/dir/a.txt")];
+        state.file_table_state.select(Some(0));
+
+        state.change_to("/new/dir");
+
+        assert!(
+            state.current_dir_files.is_empty(),
+            "navigation should clear the list"
+        );
+        assert_eq!(state.file_table_state.selected(), None);
     }
 }
