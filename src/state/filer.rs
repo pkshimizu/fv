@@ -215,10 +215,14 @@ impl FilerState {
         self.start_async_load(Some(VFile::new(path)));
     }
 
-    /// ホームディレクトリへ移動する。取得できない場合（dirs::home_dir() が None）は何もしない。
+    /// ホームディレクトリへ移動する。取得できない場合（dirs::home_dir() が None、
+    /// またはパスが非 UTF-8）は何もしない。
     pub fn change_to_home(&mut self) {
-        if let Some(home) = dirs::home_dir().and_then(|p| p.to_str().map(String::from)) {
-            self.change_to(&home);
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        if let Some(home) = home.to_str() {
+            self.change_to(home);
         }
     }
 
