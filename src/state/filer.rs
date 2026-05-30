@@ -215,6 +215,13 @@ impl FilerState {
         self.start_async_load(Some(VFile::new(path)));
     }
 
+    /// ホームディレクトリへ移動する。取得できない場合（dirs::home_dir() が None）は何もしない。
+    pub fn change_to_home(&mut self) {
+        if let Some(home) = dirs::home_dir().and_then(|p| p.to_str().map(String::from)) {
+            self.change_to(&home);
+        }
+    }
+
     pub fn change_dir_in_parent_dir(&mut self) {
         if let Some(parent_dir) = self.current_dir.parent_dir() {
             // 遷移元（今いるディレクトリ）の名前を控えておき、親ロード後に
@@ -889,5 +896,21 @@ mod tests {
             "navigation should clear the list"
         );
         assert_eq!(state.file_table_state.selected(), None);
+    }
+
+    #[test]
+    fn change_to_home_sets_current_dir_to_home() {
+        let home = dirs::home_dir().expect("home directory available in test env");
+
+        let mut state = FilerState::new();
+        state.current_dir = VFile::new("/some/other/dir");
+
+        state.change_to_home();
+
+        assert_eq!(
+            state.current_dir.absolute_path(),
+            home.to_str().unwrap(),
+            "current_dir should become the home directory"
+        );
     }
 }

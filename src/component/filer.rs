@@ -509,6 +509,10 @@ impl Component for FilerComponent {
             }
             KeyCode::Char('<') => Ok(Action::NavigateBack),
             KeyCode::Char('>') => Ok(Action::NavigateForward),
+            KeyCode::Char('~') => {
+                self.state.change_to_home();
+                Ok(Action::None)
+            }
             KeyCode::Char('q') => Ok(Action::Quit),
             KeyCode::Char('c') => Ok(self.prompt_copy()),
             KeyCode::Char('d') => Ok(self.prompt_delete()),
