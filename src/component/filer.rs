@@ -170,10 +170,10 @@ impl FilerComponent {
     /// Operation Targets の絶対パスをクリップボードへ書き出す Action を返す。
     /// ターゲットが存在しなければ（空ディレクトリ等）サイレントな no-op。
     fn yank(&self) -> Action {
-        match self.state.operation_targets() {
-            Some(targets) => Action::Yank(targets.into_absolute_paths()),
-            None => Action::None,
-        }
+        let Some(targets) = self.state.operation_targets() else {
+            return Action::None;
+        };
+        Action::Yank(targets.into_absolute_paths())
     }
 
     fn prompt_mkdir(&self) -> Action {

@@ -129,7 +129,7 @@ impl OperationTargets {
     /// current_dir_files の順序（into_files と同じ）を保つ。
     pub fn into_absolute_paths(self) -> Vec<String> {
         self.into_files()
-            .iter()
+            .into_iter()
             .map(|file| file.absolute_path().to_string())
             .collect()
     }
