@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyEvent};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
@@ -89,9 +89,12 @@ impl EventHandler {
                 }
             },
             Config::default(),
-        )?;
+        )
+        .context("Failed to create file watcher")?;
 
-        watcher.watch(Path::new(path), RecursiveMode::NonRecursive)?;
+        watcher
+            .watch(Path::new(path), RecursiveMode::NonRecursive)
+            .with_context(|| format!("{path}: Failed to watch directory"))?;
         self.watcher = Some(watcher);
         Ok(())
     }
