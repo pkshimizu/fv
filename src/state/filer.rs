@@ -124,6 +124,15 @@ impl OperationTargets {
             OperationTargets::Checked(files) => files,
         }
     }
+
+    /// 各ターゲットの絶対パス文字列列へ落とし込む。Yank がクリップボードへ書き出す際に利用する。
+    /// current_dir_files の順序（into_files と同じ）を保つ。
+    pub fn into_absolute_paths(self) -> Vec<String> {
+        self.into_files()
+            .into_iter()
+            .map(|file| file.absolute_path().to_string())
+            .collect()
+    }
 }
 
 pub struct FilerState {
@@ -713,6 +722,27 @@ mod tests {
                 VFile::new("/a/a.txt"),
                 VFile::new("/a/c.txt"),
             ]))
+        );
+    }
+
+    #[test]
+    fn into_absolute_paths_of_cursor_yields_the_single_cursor_path() {
+        let targets = OperationTargets::Cursor(VFile::new("/a/bar.txt"));
+
+        assert_eq!(
+            targets.into_absolute_paths(),
+            vec!["/a/bar.txt".to_string()]
+        );
+    }
+
+    #[test]
+    fn into_absolute_paths_of_checked_yields_all_paths_in_order() {
+        let targets =
+            OperationTargets::Checked(vec![VFile::new("/a/a.txt"), VFile::new("/a/c.txt")]);
+
+        assert_eq!(
+            targets.into_absolute_paths(),
+            vec!["/a/a.txt".to_string(), "/a/c.txt".to_string()]
         );
     }
 

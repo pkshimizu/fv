@@ -31,6 +31,7 @@ const KEY_BINDINGS: &[(&str, &str)] = &[
     ("u", "Unzip file"),
     ("v", "Preview file"),
     ("x", "Execute command"),
+    ("y", "Yank paths to clipboard"),
     ("<", "Go back in directory history"),
     (">", "Go forward in directory history"),
     ("~", "Go to home directory"),
