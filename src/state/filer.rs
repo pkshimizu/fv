@@ -528,7 +528,9 @@ impl FilerState {
     fn finalize_loaded_files(&mut self) {
         self.prev_dir = None;
 
-        // 選択ファイル状態の復元
+        // 選択ファイル状態の復元。
+        // pending_select_name は change_dir_in_parent_dir（親遷移時の遷移元名）や
+        // jump_to / refresh_files がセットする。一致する名前があればそこへ、無ければ先頭へ。
         if let Some(name) = self.pending_select_name.take() {
             let new_index = self
                 .current_dir_files
@@ -678,12 +680,14 @@ mod tests {
         // バックスペース相当: 親へ遷移する。
         state.change_dir_in_parent_dir();
 
-        // 非同期ロードを完了まで駆動する（小さな dir なので数 ms で終わる）。
-        let mut guard = 0;
-        while state.is_loading() && guard < 5_000 {
+        // 非同期ロードを完了まで駆動する（小さな dir なので実際は数 ms で終わる）。
+        // 1 tick = 1ms なので MAX_TICKS は最大待機 ~5 秒の上限（ハング防止）。
+        const MAX_TICKS: u32 = 5_000;
+        let mut ticks = 0;
+        while state.is_loading() && ticks < MAX_TICKS {
             state.receive_files();
             std::thread::sleep(Duration::from_millis(1));
-            guard += 1;
+            ticks += 1;
         }
         assert!(!state.is_loading(), "async load did not finish");
 
