@@ -33,6 +33,7 @@ const KEY_BINDINGS: &[(&str, &str)] = &[
     ("x", "Execute command"),
     ("<", "Go back in directory history"),
     (">", "Go forward in directory history"),
+    ("~", "Go to home directory"),
     ("+", "Add bookmark"),
     ("-", "Remove bookmark"),
     ("?", "Show this help"),
