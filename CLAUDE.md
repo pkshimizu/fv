@@ -48,6 +48,7 @@ src/
 ├── app/
 │   └── async_job.rs     # Async Job worker（spawn_async_job、進捗スロットリング）
 ├── app_context.rs       # AppContext（コンポーネントコンテナ）
+├── clipboard.rs         # システムクリップボード書き込み（Yank、arboard）
 ├── config.rs            # 設定関連
 ├── event.rs             # イベント取得（EventHandler、InputEvent）
 ├── component/           # コンポーネント（イベント処理 + 状態 + 描画）
@@ -97,6 +98,7 @@ src/
 | `state` | データ型の定義、AppContext（コンポーネントコンテナ） |
 | `ui` | レイアウト構成と共通ウィジェット |
 | `fs` | ファイルシステム操作、Async Job の `FileJob` 実行ロジック |
+| `clipboard` | システムクリップボードへのパス書き込み（Yank） |
 | `store` | 永続データの管理（ブックマーク等） |
 | `app` | メインループ、Action の処理、Async Job worker の起動 |
 

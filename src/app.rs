@@ -188,6 +188,12 @@ impl App {
             Action::OpenFile(path) => {
                 open::that(path)?;
             }
+            Action::Yank(paths) => {
+                if let Err(e) = crate::clipboard::write_paths(&paths) {
+                    tracing::warn!("yank failed: {e:#}");
+                    self.set_error(format!("{e:#}"));
+                }
+            }
             Action::ShowBookmark => {
                 if self.ctx.side_panel.is_none() {
                     let paths = self.store.bookmark.get_paths().cloned().collect();

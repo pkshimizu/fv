@@ -1,5 +1,6 @@
 mod app;
 mod app_context;
+mod clipboard;
 mod component;
 mod config;
 mod event;
