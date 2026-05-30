@@ -226,6 +226,9 @@ impl App {
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut watching_dir_path = self.ctx.filer.current_dir_path().to_string();
+        // 起動直後の初期ディレクトリにも監視を張る。ループ内の watch_directory は
+        // ナビゲートで current_dir が変わったときしか呼ばれないため、ここで一度設定する。
+        self.event_handler.watch_directory(&watching_dir_path)?;
 
         while self.ctx.running {
             // UI を描画
