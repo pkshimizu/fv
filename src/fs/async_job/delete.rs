@@ -95,7 +95,7 @@ fn scan_delete_count(
     }
     // Scan Phase の最後で端数件数を通知 (バッチ境界で終わらない場合の取りこぼし対策)。
     // ちょうど SCAN_NOTIFY_BATCH の倍数で終わったときは notify_scan_progress で発火済みなのでスキップ。
-    // count == 0 のときは 180 行目の入口 emit と同値になるのでスキップ。
+    // count == 0 のときは関数冒頭の入口 emit (Scanning, 0, None) と同値になるのでスキップ。
     if count > 0 && !count.is_multiple_of(SCAN_NOTIFY_BATCH) {
         on_progress(Phase::Scanning, count, None);
     }

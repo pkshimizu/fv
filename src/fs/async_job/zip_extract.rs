@@ -8,6 +8,15 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+/// Zip 解凍 Job 本体。`archive.len()` が即座に得られるため Scan Phase を持たず、
+/// Operation Phase で `archive` を index 走査して各エントリを `dest` 配下へ展開する。
+/// File-level Checkpoint はエントリ境界（`for i in 0..total` のループ先頭）で取り、
+/// cancel 時はそこで早期 return する。
+///
+/// # Partial Result
+/// Cancel・エラーで途中終了した場合、展開済みのファイル/ディレクトリは `dest` に残る
+/// （Zip 作成と異なり cleanup はしない。展開先は新規生成物なので「完了済みファイルを残す」
+/// という Async Job の通常方針に従う）。
 pub(super) fn run_zip_extract(
     file: &VFile,
     dest: &Path,

@@ -3,7 +3,7 @@
 //! エントリ列）を組み立て、Operation Phase は `copy_entry` で 1 エントリずつ実行する。
 //! Copy と Move（EXDEV フォールバック）が共通利用する。
 
-use super::checkpoint::{CollectStatus, SCAN_NOTIFY_BATCH};
+use super::checkpoint::{CollectStatus, notify_scan_progress};
 use super::destination::{TopLevelPair, resolve_top_level_pairs};
 use crate::fs::VFile;
 use crate::state::Phase;
@@ -200,8 +200,5 @@ fn enqueue_entry(
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) {
     plan.files.push(entry);
-    let count = plan.files.len();
-    if count.is_multiple_of(SCAN_NOTIFY_BATCH) {
-        on_progress(Phase::Scanning, count, None);
-    }
+    notify_scan_progress(plan.files.len(), on_progress);
 }

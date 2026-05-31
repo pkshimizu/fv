@@ -58,12 +58,26 @@ An `Arc<AtomicBool>` shared between the Prompt and the worker. The Prompt sets i
 _Avoid_: cancellation signal, abort flag, kill switch.
 
 **Filer Lock**:
-The UI invariant that while an Async Job is in flight (including the `Cancelling` phase), only the Prompt receives keyboard input — Filer and side panels ignore keys. Implies `PromptMode::Progress` is treated as an active mode.
+The UI invariant that while a blocking asynchronous operation owns the Prompt — an **Async Job** (including the `Cancelling` phase) or a **Translation Request** — only the Prompt receives keyboard input; Filer and side panels ignore keys. Implies the owning `PromptMode` is treated as an active mode.
 _Avoid_: modal block, input freeze.
 
 **Partial Result**:
 The set of fully-completed files an Async Job leaves behind when cancelled or aborted by error. Always retained on disk. **Exception**: the in-progress zip file produced by a cancelled Zip create is removed (matching the existing error-path behaviour of `create_zip`).
 _Avoid_: leftover, residue, half-state.
+
+### Translation
+
+**Target Language**:
+The human language the user wants file content translated **into** — a translation destination only, not the app's UI language (the UI stays English). Selected from a curated enum in Settings, defaulting to English. Maps to the **Translation Provider**'s target-language parameter. The **source** language is never set by the user — the Provider auto-detects it.
+_Avoid_: display language, UI language, locale (all imply the app's own UI language, which this is not), source language.
+
+**Translation Provider**:
+The swappable backend that turns text in an unknown source language into the **Target Language**. DeepL is the first (and currently only) Provider; the abstraction exists so others can be added later. Requires a user-supplied credential (the DeepL auth key, stored in settings). Distinct from an **Async Job**: a Provider does network work, not filesystem work.
+_Avoid_: translation API, translation service, translator (reserve for the abstraction, not a concrete vendor).
+
+**Translation Request**:
+A single cancellable, asynchronous round-trip to the **Translation Provider** that translates the text currently loaded in the Preview side panel into the **Target Language**. Not an **Async Job** (which is strictly a file operation) but it **shares** the Async Job machinery: it holds the **Filer Lock** while in flight and observes a **Cancel Token** on Esc. Unlike an Async Job it reports no `processed/total` **Progress** — a Request is a single indeterminate wait, so the user sees only an **Activity Indicator** with the label `Translating...`.
+_Avoid_: translate job, async translation (job implies the file-operation Async Job).
 
 ### Feedback
 

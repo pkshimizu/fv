@@ -28,6 +28,23 @@ fn is_cross_device_error(e: &std::io::Error) -> bool {
     }
 }
 
+/// Move Job 本体。
+/// 同一 FS では `rename` 一発で済むため Scan Phase を経由せず top-level 件数で進捗を出す。
+/// `std::fs::rename` がクロスファイルシステムで失敗した場合は、全 root を Scan + Copy + Remove の
+/// フォールバックパスに切り替える (UI 上は `Scanning... N files` → `Moving k/N files` の遷移)。
+///
+/// # Partial Result
+/// Move における Partial Result は「src から消え、dest に存在する root」の集合と定義する。
+/// 中途半端な状態 (src/dest 重複や、コピー途中) は **未完了 root** とみなし、
+/// ユーザに伝わるべき "完了済み" には含めない。
+///
+/// 各タイミングごとの実ディスク状態:
+/// - 同一 FS 高速パス中の cancel: 既に rename 済みの root は dest に、未処理 root は src に残る (= 完了 + 未完了)
+/// - 同一 FS 高速パス中の rename Err (probe 以降): 既に rename 済みの root は dest に残る (エラー文言に明記)
+/// - EXDEV フォールバック中の cancel:
+///   - Scan 中: 何も変えない (完了 root 無し)
+///   - Copy 中: dest にコピー済み + src に全 root → "完了" root はゼロ。Copy 完了せず src/dest 重複の生データが残る
+///   - Remove 中: dest には全 root のコピーが揃い、src からは既に削除された root が消える (完了済み = src 消去された root)
 pub(super) fn run_move(
     files: &[VFile],
     dest: &Path,
