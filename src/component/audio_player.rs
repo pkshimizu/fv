@@ -1,6 +1,6 @@
 use crate::component::{Action, Component};
 use crate::fs::file_info::{format_duration, get_media_duration};
-use crate::ui::widgets::{BorderStyle, build_bordered_block};
+use crate::ui::widgets::build_focused_block;
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -104,7 +104,7 @@ impl Component for AudioPlayerComponent {
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let block = build_bordered_block(&self.title, BorderStyle::Active);
+        let block = build_focused_block(&self.title);
         let inner = block.inner(area);
         frame.render_widget(block, area);
 

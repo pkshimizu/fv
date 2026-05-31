@@ -8,7 +8,7 @@ use crate::state::{
     SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
-use crate::ui::widgets::{BorderStyle, Spinner, build_bordered_block};
+use crate::ui::widgets::{BorderState, Focus, Spinner, build_bordered_block, build_focused_block};
 use anyhow::{Context, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -361,15 +361,19 @@ impl PromptComponent {
 
     /// Prompt を描画する。`keymap` はアイドル時（`PromptMode::None`）にのみ
     /// Commands 領域へ表示され、入力・進捗など他モードでは無視される。
-    /// 本番では `render_main_view` がアクティブなコンポーネントの keymap を渡す。
+    /// 本番では `render_main_view` が Focused View の keymap を渡す。
     pub(crate) fn render_with_keymap(&self, frame: &mut Frame, area: Rect, keymap: &str) {
         let widget = match &self.mode {
-            PromptMode::None => Paragraph::new(keymap)
-                .block(build_bordered_block("Commands", BorderStyle::Inactive)),
+            PromptMode::None => Paragraph::new(keymap).block(build_bordered_block(
+                "Commands",
+                Focus::Unfocused,
+                BorderState::Normal,
+            )),
             PromptMode::Text { title, value, .. }
             | PromptMode::File { title, value, .. }
-            | PromptMode::Search { title, value, .. } => Paragraph::new(value.as_str())
-                .block(build_bordered_block(title.as_ref(), BorderStyle::Active)),
+            | PromptMode::Search { title, value, .. } => {
+                Paragraph::new(value.as_str()).block(build_focused_block(title.as_ref()))
+            }
             PromptMode::Select {
                 title,
                 options,
@@ -390,20 +394,24 @@ impl PromptComponent {
                         spans.push(Span::raw(format!(" {opt} ")));
                     }
                 }
-                Paragraph::new(Line::from(spans))
-                    .block(build_bordered_block(title.as_str(), BorderStyle::Active))
+                Paragraph::new(Line::from(spans)).block(build_focused_block(title.as_str()))
             }
-            PromptMode::Confirm { title, .. } => Paragraph::new("Yes(y) No(n)")
-                .block(build_bordered_block(title.as_str(), BorderStyle::Active)),
+            PromptMode::Confirm { title, .. } => {
+                Paragraph::new("Yes(y) No(n)").block(build_focused_block(title.as_str()))
+            }
             PromptMode::Error { message } => Paragraph::new(message.as_str())
                 .style(Style::default().fg(Color::Red))
-                .block(build_bordered_block("Error", BorderStyle::Error)),
+                .block(build_bordered_block(
+                    "Error",
+                    Focus::Focused,
+                    BorderState::Error,
+                )),
             PromptMode::Progress { .. } => Paragraph::new(Line::from(vec![
                 Span::raw(self.spinner.frame()),
                 Span::raw(" "),
                 Span::raw(self.progress_buf.as_str()),
             ]))
-            .block(build_bordered_block("Progress", BorderStyle::Active)),
+            .block(build_focused_block("Progress")),
         };
         frame.render_widget(widget, area);
 
