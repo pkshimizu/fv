@@ -3,6 +3,7 @@
 //! ホスト環境とのやり取りをここに集約する。
 
 pub mod clipboard;
+pub mod clock;
 pub mod disk_usage;
 pub mod system_info;
 

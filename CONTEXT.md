@@ -97,6 +97,10 @@ _Avoid_: system status, machine info, stats bar.
 The used and total capacity (with a derived usage percentage) of the storage volume that contains the Filer's current directory, shown compactly in the header beside the dynamic **System Info** figures — e.g. `Disk 120.0/500.0G (24%)` in `used/total (percent)` form. Recomputed on the same ~1s throttle as System Info, so it reflects the current directory after navigation and tracks space changes from file operations. Unlike System Info — which is host-wide and tied to no location — Disk Usage is **directory-dependent**: it follows the current directory and changes when that directory moves between volumes. Only capacity is surfaced here; the volume's filesystem type and mount point are not shown.
 _Avoid_: drive (implies a Windows drive letter / physical device, not the mounted volume), free space (the figure is used/total — free is derived), volume info.
 
+**Clock**:
+The current wall-clock time shown at the right edge of the header content row (`YYYY-MM-DD HH:MM:SS`, local time zone). Advances its seconds via the ~250ms redraw, not a throttled refresh — reading the system clock is cheap, so unlike **System Info** and **Disk Usage** it holds no reader state. Where System Info reports facts about the host environment (CPU, memory, …), the Clock reports only what time it is now, tied to no machine, file, or operation. Omitted when the terminal is too narrow to fit it.
+_Avoid_: timer, time, clock widget.
+
 ### Example dialogues
 
 #### On Selection
