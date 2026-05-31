@@ -85,6 +85,10 @@ _Avoid_: translate job, async translation (job implies the file-operation Async 
 An animated glyph shown next to an in-flight asynchronous operation — directory load, Grep, file info load, or an Async Job — to signal that the UI loop is still alive, i.e. the app is working rather than frozen. Distinct from **Progress**: Progress says *how much* is done (phase and counts); the Activity Indicator only says *that work is ongoing*. It is shown for indeterminate waits (directory load, Grep, file info load) and **alongside** Progress during an Async Job, where it keeps moving even when the processed count is momentarily stuck — e.g. copying a single large file with no intervening File-level Checkpoint.
 _Avoid_: spinner (that names the glyph, not the concept), progress, loading flag.
 
+**System Info**:
+The live host-environment readout shown in the header — OS, kernel, hostname (the unchanging facts, in the header box title) plus CPU load, memory use, and uptime (the changing figures, refreshed about once a second). It is ambient, always-on context about the machine fv runs on, not about any file or operation. Distinct from file metadata (which describes the **Cursor File**) and from **Progress** (which describes an in-flight Async Job).
+_Avoid_: system status, machine info, stats bar.
+
 ### Example dialogues
 
 #### On Selection

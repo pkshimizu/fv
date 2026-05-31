@@ -1,7 +1,6 @@
 mod app;
 mod app_context;
 mod component;
-mod config;
 mod event;
 mod fs;
 mod os;
@@ -11,7 +10,6 @@ mod ui;
 
 use anyhow::Result;
 use app::App;
-use config::Config;
 use ratatui_image::picker::{Picker, ProtocolType};
 
 fn main() -> Result<()> {
@@ -29,7 +27,7 @@ fn main() -> Result<()> {
     }
 
     let mut terminal = ratatui::init();
-    let mut app = App::new(Config::default(), picker)?;
+    let mut app = App::new(picker)?;
     app.init()?;
     let result = app.run(&mut terminal);
 

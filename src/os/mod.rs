@@ -3,3 +3,4 @@
 //! ホスト環境とのやり取りをここに集約する。
 
 pub mod clipboard;
+pub mod system_info;
