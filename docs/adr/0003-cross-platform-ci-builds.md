@@ -1,7 +1,7 @@
 # 3. Cross-platform CI builds: glibc + native runners, split CI/build workflows
 
 Date: 2026-06-01
-Status: accepted
+Status: accepted（macOS x86_64 ターゲットと `build.yml` に関する判断は ADR 0004 が supersede）
 
 ## Context
 

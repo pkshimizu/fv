@@ -39,3 +39,37 @@ jobs:
 
       - name: Test
         run: cargo test
+
+  # 各プラットフォームでコンパイルが通ることを PR 段階で検証する（アーティファクトは作らない）。
+  # リリース時まで macOS/Linux のビルド破綻に気づけない事態を防ぐ。
+  build-check:
+    name: Build check ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-14
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --target ${{ matrix.target }}
