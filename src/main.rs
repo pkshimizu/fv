@@ -1,10 +1,10 @@
 mod app;
 mod app_context;
-mod clipboard;
 mod component;
 mod config;
 mod event;
 mod fs;
+mod os;
 mod state;
 mod store;
 mod ui;

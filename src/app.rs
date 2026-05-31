@@ -189,7 +189,7 @@ impl App {
                 open::that(path)?;
             }
             Action::Yank(paths) => {
-                if let Err(e) = crate::clipboard::write_paths(&paths) {
+                if let Err(e) = crate::os::clipboard::write_paths(&paths) {
                     tracing::warn!("yank failed: {e:#}");
                     self.set_error(format!("{e:#}"));
                 }
