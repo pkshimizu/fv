@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::component::Component;
 use crate::store::RootStore;
-use crate::ui::features::build_header;
+use crate::ui::features::render_header;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::text::Line;
@@ -53,7 +53,7 @@ pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootSto
     ])
     .areas(area);
 
-    frame.render_widget(build_header(ctx), header_area);
+    render_header(frame, ctx, header_area);
     match &mut ctx.side_panel {
         Some(panel) => {
             let [filer_area, panel_area] =

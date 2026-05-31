@@ -4,7 +4,6 @@ use ratatui::DefaultTerminal;
 
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, prompt};
-use crate::config::Config;
 use crate::event::{EventHandler, InputEvent};
 use crate::store::RootStore;
 use crate::ui;
@@ -21,9 +20,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: Config, picker: ratatui_image::picker::Picker) -> Result<Self> {
+    pub fn new(picker: ratatui_image::picker::Picker) -> Result<Self> {
         Ok(Self {
-            ctx: AppContext::new(config, picker),
+            ctx: AppContext::new(picker),
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
             skip_history_add: false,
@@ -189,7 +188,7 @@ impl App {
                 open::that(path)?;
             }
             Action::Yank(paths) => {
-                if let Err(e) = crate::clipboard::write_paths(&paths) {
+                if let Err(e) = crate::os::clipboard::write_paths(&paths) {
                     tracing::warn!("yank failed: {e:#}");
                     self.set_error(format!("{e:#}"));
                 }

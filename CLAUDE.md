@@ -48,7 +48,6 @@ src/
 ├── app/
 │   └── async_job.rs     # Async Job worker（spawn_async_job、進捗スロットリング）
 ├── app_context.rs       # AppContext（コンポーネントコンテナ）
-├── clipboard.rs         # システムクリップボード書き込み（Yank、arboard）
 ├── config.rs            # 設定関連
 ├── event.rs             # イベント取得（EventHandler、InputEvent）
 ├── component/           # コンポーネント（イベント処理 + 状態 + 描画）
@@ -83,6 +82,10 @@ src/
 │   ├── file_metadata.rs # VFileMetadata
 │   ├── file_time.rs     # VFileTime
 │   └── permissions.rs   # VPermissions
+├── os/                  # ホスト OS／環境との対話（FS 以外）
+│   ├── mod.rs
+│   ├── clipboard.rs     # システムクリップボード書き込み（Yank、arboard）
+│   └── system_info.rs   # System Info（OS/CPU/メモリ等のヘッダー表示、sysinfo）
 └── store/               # 永続化
     ├── mod.rs
     └── bookmark.rs      # BookmarkStore
@@ -92,13 +95,12 @@ src/
 
 | Module | Responsibility |
 |--------|----------------|
-| `config` | アプリケーション設定を保持 |
 | `event` | キー入力・ファイル変更を検知し InputEvent として返す |
 | `component` | 各エリアのイベント処理・状態・描画を統合（Component trait） |
 | `state` | データ型の定義、AppContext（コンポーネントコンテナ） |
 | `ui` | レイアウト構成と共通ウィジェット |
 | `fs` | ファイルシステム操作、Async Job の `FileJob` 実行ロジック |
-| `clipboard` | システムクリップボードへのパス書き込み（Yank） |
+| `os` | ホスト OS／環境との対話（クリップボード・システム情報等、FS 以外） |
 | `store` | 永続データの管理（ブックマーク等） |
 | `app` | メインループ、Action の処理、Async Job worker の起動 |
 
