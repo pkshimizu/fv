@@ -2,38 +2,38 @@
 //! sysinfo 依存の I/O（`DiskUsageReader`）と、ディレクトリ→ボリューム照合・整形の
 //! 純粋ロジックを分離し、後者をユニットテスト可能にする。
 
-use crate::os::system_info::RefreshThrottle;
-use std::path::Path;
-use std::path::PathBuf;
+use crate::os::{RefreshThrottle, format_used_total};
+use std::path::{Path, PathBuf};
 use sysinfo::Disks;
 
 /// マウント済みボリュームの容量情報（sysinfo の 1 ディスク分に相当）。
-pub struct Volume {
-    pub mount_point: PathBuf,
-    pub total: u64,
-    pub available: u64,
+pub(crate) struct Volume {
+    pub(crate) mount_point: PathBuf,
+    pub(crate) total: u64,
+    pub(crate) available: u64,
 }
 
 /// あるディレクトリが属するボリュームの使用量と総容量。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DiskUsage {
-    pub used: u64,
-    pub total: u64,
+pub(crate) struct DiskUsage {
+    pub(crate) used: u64,
+    pub(crate) total: u64,
 }
 
 impl DiskUsage {
-    /// 使用率（%）を四捨五入で返す。total が 0 のときは 0。
-    pub fn percent(&self) -> u64 {
+    /// 使用率（%）を四捨五入で返す。total が 0 のときは 0、上限は 100 にクランプする
+    /// （sysinfo が一時的に available > total を返す等の異常値で 100 を超えないように）。
+    pub(crate) fn percent(self) -> u64 {
         if self.total == 0 {
             return 0;
         }
-        (self.used as f64 / self.total as f64 * 100.0).round() as u64
+        ((self.used as f64 / self.total as f64 * 100.0).round() as u64).min(100)
     }
 }
 
 /// `dir` を含むボリュームをマウントポイントの最長プレフィックス一致で解決する。
 /// `used = total - available`。一致するボリュームが無ければ `None`。
-pub fn resolve(dir: &Path, volumes: &[Volume]) -> Option<DiskUsage> {
+pub(crate) fn resolve(dir: &Path, volumes: &[Volume]) -> Option<DiskUsage> {
     volumes
         .iter()
         .filter(|v| dir.starts_with(&v.mount_point))
@@ -49,13 +49,19 @@ pub fn resolve(dir: &Path, volumes: &[Volume]) -> Option<DiskUsage> {
 /// `DiskUsage` を読む。System Info reader と同型。
 pub(crate) struct DiskUsageReader {
     disks: Disks,
+    /// `disks` から変換済みのボリューム一覧。`tick()` のリフレッシュ時にのみ再構築し、
+    /// 毎フレーム呼ばれる `usage_for` ではこれを参照するだけにする（確保を約1秒に1回へ）。
+    volumes: Vec<Volume>,
     throttle: RefreshThrottle,
 }
 
 impl DiskUsageReader {
     pub(crate) fn new() -> Self {
+        let disks = Disks::new_with_refreshed_list();
+        let volumes = collect_volumes(&disks);
         Self {
-            disks: Disks::new_with_refreshed_list(),
+            disks,
+            volumes,
             throttle: RefreshThrottle::new(),
         }
     }
@@ -64,54 +70,41 @@ impl DiskUsageReader {
     pub(crate) fn tick(&mut self) {
         if self.throttle.tick() {
             self.disks.refresh(true);
+            self.volumes = collect_volumes(&self.disks);
         }
     }
 
     /// `dir` が属するボリュームの使用状況を返す。特定できなければ `None`。
     pub(crate) fn usage_for(&self, dir: &Path) -> Option<DiskUsage> {
-        let volumes: Vec<Volume> = self
-            .disks
-            .list()
-            .iter()
-            .map(|d| Volume {
-                mount_point: d.mount_point().to_path_buf(),
-                total: d.total_space(),
-                available: d.available_space(),
-            })
-            .collect();
-        resolve(dir, &volumes)
+        resolve(dir, &self.volumes)
     }
+}
+
+/// sysinfo の `Disks` から `Volume` 一覧へ変換する。`tick()` のリフレッシュ時のみ呼ぶ。
+fn collect_volumes(disks: &Disks) -> Vec<Volume> {
+    disks
+        .list()
+        .iter()
+        .map(|d| Volume {
+            mount_point: d.mount_point().to_path_buf(),
+            total: d.total_space(),
+            available: d.available_space(),
+        })
+        .collect()
 }
 
 /// ヘッダーに載せる Disk フィールド文字列を整形する。
 /// 使用量/総容量(使用率) 形式。例: `Disk 120.0/500.0G (24%)`。
 /// ボリューム未特定（`None`）のときは `Disk n/a`。
-pub fn format_disk_field(usage: Option<DiskUsage>) -> String {
+pub(crate) fn format_disk_field(usage: Option<DiskUsage>) -> String {
     match usage {
         Some(u) => format!(
             "Disk {} ({}%)",
-            format_disk_sizes(u.used, u.total),
+            format_used_total(u.used, u.total),
             u.percent()
         ),
         None => "Disk n/a".to_string(),
     }
-}
-
-/// 使用量/総容量を `used/totalUNIT`（小数1桁）に整形する。
-/// 単位は総容量に応じて選ぶ（1TiB 以上なら T、それ未満は G）。used も同じ単位で表す。
-fn format_disk_sizes(used: u64, total: u64) -> String {
-    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
-    const TIB: f64 = 1024.0 * GIB;
-    let (divisor, unit) = if total as f64 >= TIB {
-        (TIB, "T")
-    } else {
-        (GIB, "G")
-    };
-    format!(
-        "{:.1}/{:.1}{unit}",
-        used as f64 / divisor,
-        total as f64 / divisor
-    )
 }
 
 #[cfg(test)]
@@ -170,6 +163,16 @@ mod tests {
             total: 500,
         };
         assert_eq!(usage.percent(), 24);
+    }
+
+    #[test]
+    fn percent_clamps_to_100_when_used_exceeds_total() {
+        // sysinfo が一時的に available > total を返す等の異常値でも 100 を超えない。
+        let usage = DiskUsage {
+            used: 600,
+            total: 500,
+        };
+        assert_eq!(usage.percent(), 100);
     }
 
     const GIB: u64 = 1024 * 1024 * 1024;

@@ -94,7 +94,7 @@ The live host-environment readout shown in the header — OS, kernel, hostname (
 _Avoid_: system status, machine info, stats bar.
 
 **Disk Usage**:
-The used and total capacity (with a derived usage percentage) of the storage volume that contains the Filer's current directory, shown compactly in the header beside the dynamic **System Info** figures — e.g. `Disk 120/500G (24%)` in `used/total (percent)` form. Recomputed on the same ~1s throttle as System Info, so it reflects the current directory after navigation and tracks space changes from file operations. Unlike System Info — which is host-wide and tied to no location — Disk Usage is **directory-dependent**: it follows the current directory and changes when that directory moves between volumes. Only capacity is surfaced here; the volume's filesystem type and mount point are not shown.
+The used and total capacity (with a derived usage percentage) of the storage volume that contains the Filer's current directory, shown compactly in the header beside the dynamic **System Info** figures — e.g. `Disk 120.0/500.0G (24%)` in `used/total (percent)` form. Recomputed on the same ~1s throttle as System Info, so it reflects the current directory after navigation and tracks space changes from file operations. Unlike System Info — which is host-wide and tied to no location — Disk Usage is **directory-dependent**: it follows the current directory and changes when that directory moves between volumes. Only capacity is surfaced here; the volume's filesystem type and mount point are not shown.
 _Avoid_: drive (implies a Windows drive letter / physical device, not the mounted volume), free space (the figure is used/total — free is derived), volume info.
 
 ### Example dialogues

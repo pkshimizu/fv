@@ -64,6 +64,9 @@ mod tests {
         assert!(text.contains("up "), "body should show uptime: {text:?}");
         // カレントディレクトリの Disk Usage も内容行に表示される（値・単位は環境依存だが
         // `Disk ` ラベルは常に出る。未特定時は `Disk n/a`）。
-        assert!(text.contains("Disk "), "body should show Disk usage: {text:?}");
+        assert!(
+            text.contains("Disk "),
+            "body should show Disk usage: {text:?}"
+        );
     }
 }

@@ -1,6 +1,7 @@
 //! ホスト環境のシステム情報（OS・カーネル・ホスト名・CPU・メモリ・アップタイム）。
 //! `sysinfo` クレートをこのモジュールに閉じ込め、表示用の `SystemInfo` 値型として公開する。
 
+use crate::os::{RefreshThrottle, format_used_total};
 use sysinfo::System;
 
 /// `sysinfo::System` を保持し、静的情報を 1 回・動的情報を約1秒ごとに取得する。
@@ -111,42 +112,10 @@ impl SystemInfo {
         format!(
             "CPU {:.0}%  Mem {}  up {}",
             self.cpu_percent,
-            format_mem(self.mem_used, self.mem_total),
+            format_used_total(self.mem_used, self.mem_total),
             format_uptime(self.uptime_secs),
         )
     }
-}
-
-/// 動的情報を再取得する間隔（tick 数）。tick は約250ms なので約1秒ごと。
-const REFRESH_EVERY_N_TICKS: u32 = 4;
-
-/// tick を数えて `REFRESH_EVERY_N_TICKS` ごとに 1 回だけリフレッシュ可否を返す簡易スロットル。
-/// System Info / Disk Usage が同じ約1秒間隔で再取得するために共有する。
-pub(crate) struct RefreshThrottle {
-    ticks: u32,
-}
-
-impl RefreshThrottle {
-    pub(crate) fn new() -> Self {
-        Self { ticks: 0 }
-    }
-
-    /// 1 tick 進める。リフレッシュすべきタイミングなら `true` を返してカウンタをリセットする。
-    pub(crate) fn tick(&mut self) -> bool {
-        self.ticks += 1;
-        if self.ticks >= REFRESH_EVERY_N_TICKS {
-            self.ticks = 0;
-            true
-        } else {
-            false
-        }
-    }
-}
-
-/// 使用量/総容量を GiB 単位・小数1桁で `used/totalG` に整形する。
-fn format_mem(used: u64, total: u64) -> String {
-    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
-    format!("{:.1}/{:.1}G", used as f64 / GIB, total as f64 / GIB)
 }
 
 /// 秒数を `{h}h{m}m`（1時間未満は `{m}m`、1日以上は `{d}d{h}h`）に整形する。
@@ -202,20 +171,5 @@ mod tests {
     #[test]
     fn format_uptime_one_day_or_more_shows_days_and_hours() {
         assert_eq!(format_uptime(86_400 + 3 * 3_600 + 21 * 60), "1d3h");
-    }
-
-    #[test]
-    fn format_mem_renders_gib_with_one_decimal() {
-        assert_eq!(format_mem(8_804_682_956, 17_179_869_184), "8.2/16.0G");
-    }
-
-    #[test]
-    fn refresh_throttle_fires_every_fourth_tick_and_resets() {
-        let mut throttle = RefreshThrottle::new();
-        // tick は約250ms。1秒（4tick）ごとに 1 回だけ true。
-        assert_eq!(
-            (0..8).map(|_| throttle.tick()).collect::<Vec<_>>(),
-            vec![false, false, false, true, false, false, false, true]
-        );
     }
 }
