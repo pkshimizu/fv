@@ -2,9 +2,6 @@
 name = "fv"
 version = "0.1.0"
 edition = "2024"
-# fv はバイナリアプリのため crates.io には公開しない。
-# release-plz もこの設定を尊重して cargo publish をスキップする。
-publish = false
 
 [dependencies]
 anyhow = "1.0.102"

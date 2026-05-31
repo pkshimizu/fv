@@ -1,10 +1,15 @@
 # release-plz の設定。
 # main への push 時に「リリース PR」（Cargo.toml のバージョン bump + CHANGELOG 生成）を
 # 自動作成・更新し、その PR をマージするとタグ + GitHub Release を作成する。
-#
-# crates.io への publish は Cargo.toml の `publish = false` により行わない。
 [workspace]
-# GitHub Release を作成する（既定 true。意図を明示するため記載）。
+# crates.io への publish（cargo publish）は行わない。
+# 注意: Cargo.toml の [package] publish = false はパッケージ自体を release-plz の
+# 処理対象外にしてしまう（リリース PR もリリースも作られない）。crates.io 公開だけを
+# 止めて GitHub Release は出すには、Cargo.toml ではなくこちら（release-plz.toml）で設定する。
+publish = false
+# リリースの起点はリリース PR のマージ。push のたびに自動リリースしない。
+release_always = false
+# GitHub Release を作成する。
 git_release_enable = true
 # CHANGELOG.md を生成・更新する。
 changelog_update = true
