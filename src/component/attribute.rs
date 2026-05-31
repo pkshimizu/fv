@@ -2,7 +2,7 @@ use crate::component::{Action, Component};
 use crate::fs::VFile;
 use crate::fs::VFileMetadata;
 use crate::state::table_cursor::TableCursor;
-use crate::ui::widgets::{BorderStyle, build_bordered_block};
+use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -105,7 +105,7 @@ impl Component for AttributeComponent {
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let title = format!("Attribute - {}", self.file_name);
-        let block = build_bordered_block(&title, BorderStyle::Active);
+        let block = build_bordered_block(&title, Focus::Focused, BorderState::Normal);
         let label_style = Style::default().fg(Color::Yellow);
         let rows: Vec<Row> = self
             .entries

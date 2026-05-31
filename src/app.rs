@@ -272,10 +272,10 @@ impl App {
                 self.set_error(error);
             }
 
-            // Filer のアクティブ状態を更新
+            // Filer のフォーカス状態を更新（Focused View は同時に1つ）
             self.ctx
                 .filer
-                .set_active(self.ctx.side_panel.is_none() && !self.ctx.prompt.is_active());
+                .set_focused(self.ctx.side_panel.is_none() && !self.ctx.prompt.is_active());
 
             // カレントディレクトリの監視と履歴保存
             let current_dir_path = self.ctx.filer.current_dir_path();

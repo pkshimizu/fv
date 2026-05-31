@@ -1,6 +1,6 @@
 use crate::component::{Action, Component};
 use crate::state::PathListState;
-use crate::ui::widgets::{BorderStyle, Spinner, build_bordered_block};
+use crate::ui::widgets::{BorderState, Focus, Spinner, build_bordered_block};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -74,7 +74,7 @@ impl Component for GrepComponent {
         } else {
             format!("Grep ({})", self.state.paths.len())
         };
-        let block = build_bordered_block(&title, BorderStyle::Active);
+        let block = build_bordered_block(&title, Focus::Focused, BorderState::Normal);
         let rows = self
             .state
             .paths

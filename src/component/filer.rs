@@ -9,7 +9,7 @@ use crate::state::{
     SelectAction, SidePanel, SortKey, TextAction,
 };
 use crate::store::RootStore;
-use crate::ui::widgets::{BorderStyle, Spinner, build_bordered_block};
+use crate::ui::widgets::{BorderState, Focus, Spinner, build_bordered_block};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -29,7 +29,7 @@ const BOOKMARK_SYMBOL: &str = "B";
 
 pub struct FilerComponent {
     state: FilerState,
-    active: bool,
+    focused: bool,
     picker: Picker,
     spinner: Spinner,
 }
@@ -38,7 +38,7 @@ impl FilerComponent {
     pub fn new(picker: Picker) -> Self {
         Self {
             state: FilerState::new(),
-            active: true,
+            focused: true,
             picker,
             spinner: Spinner::new(),
         }
@@ -48,8 +48,8 @@ impl FilerComponent {
         self.state.init(startup_dir)
     }
 
-    pub fn set_active(&mut self, active: bool) {
-        self.active = active;
+    pub fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
     }
 
     pub fn current_dir_path(&self) -> &str {
@@ -589,12 +589,12 @@ impl FilerComponent {
         } else {
             format!("{} ({})", self.state.current_dir.absolute_path(), list_size)
         };
-        let border_style = if self.active {
-            BorderStyle::Active
+        let focus = if self.focused {
+            Focus::Focused
         } else {
-            BorderStyle::Inactive
+            Focus::Unfocused
         };
-        let block = build_bordered_block(title.as_str(), border_style);
+        let block = build_bordered_block(title.as_str(), focus, BorderState::Normal);
         let table = self.build_file_table(block, store);
         frame.render_stateful_widget(table, area, &mut self.state.file_table_state);
     }

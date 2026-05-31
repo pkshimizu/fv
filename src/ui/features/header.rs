@@ -1,5 +1,5 @@
 use crate::app_context::AppContext;
-use crate::ui::widgets::{BorderStyle, build_bordered_block};
+use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
@@ -17,7 +17,7 @@ pub fn render_header(frame: &mut Frame, ctx: &AppContext, area: Rect) {
         env!("CARGO_PKG_VERSION"),
         info.title_fields()
     );
-    let block = build_bordered_block(&title, BorderStyle::Inactive);
+    let block = build_bordered_block(&title, Focus::Unfocused, BorderState::Normal);
     let inner = block.inner(area);
     frame.render_widget(block, area);
     // 左ゾーン: 動的情報。右ゾーン（時刻）は将来ここに右寄せで追加する。
