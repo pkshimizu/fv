@@ -76,7 +76,7 @@ The swappable backend that turns text in an unknown source language into the **T
 _Avoid_: translation API, translation service, translator (reserve for the abstraction, not a concrete vendor).
 
 **Translation Request**:
-A single cancellable, asynchronous round-trip to the **Translation Provider** that translates the text currently loaded in the Preview side panel into the **Target Language**. Not an **Async Job** (which is strictly a file operation) but it **shares** the Async Job machinery: it holds the **Filer Lock** while in flight and observes a **Cancel Token** on Esc. Unlike an Async Job it reports no `processed/total` **Progress** — a Request is a single indeterminate wait, so the user sees only an **Activity Indicator** with the label `Translating...`.
+A single cancellable, asynchronous round-trip to the **Translation Provider** that translates the text currently loaded in the Preview side panel into the **Target Language**. Not an **Async Job** (which is strictly a file operation): it holds the **Filer Lock** while in flight, but it does **not** use the Async Job's **Cancel Token** — a Request has no **File-level Checkpoint** to poll, so Esc cancels by *abandoning the wait* (dropping the result receiver, releasing the Filer Lock immediately; the in-flight HTTP request finishes in the background and its result is discarded, the same receiver-drop cancellation the file-info load uses). The provider's quota is still consumed. Unlike an Async Job it reports no `processed/total` **Progress** — a Request is a single indeterminate wait, so the user sees only an **Activity Indicator** with the label `Translating...`.
 _Avoid_: translate job, async translation (job implies the file-operation Async Job).
 
 ### Feedback
