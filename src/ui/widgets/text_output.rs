@@ -1,5 +1,5 @@
 use crate::state::TextOutputState;
-use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
+use crate::ui::widgets::build_focused_block;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
@@ -15,11 +15,7 @@ pub fn render_text_output(frame: &mut Frame, area: Rect, state: &mut TextOutputS
         .collect();
 
     let paragraph = Paragraph::new(lines)
-        .block(build_bordered_block(
-            title,
-            Focus::Focused,
-            BorderState::Normal,
-        ))
+        .block(build_focused_block(title))
         .wrap(Wrap { trim: false })
         .scroll((offset, 0));
     frame.render_widget(paragraph, area);

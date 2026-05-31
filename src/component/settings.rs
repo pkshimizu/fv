@@ -1,6 +1,6 @@
 use crate::component::{Action, Component};
 use crate::store::StartupDirectory;
-use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
+use crate::ui::widgets::build_focused_block;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -65,7 +65,7 @@ impl Component for SettingsComponent {
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let block = build_bordered_block("Settings", Focus::Focused, BorderState::Normal);
+        let block = build_focused_block("Settings");
         let inner = block.inner(area);
         frame.render_widget(block, area);
 

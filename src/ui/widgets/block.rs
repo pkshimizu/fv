@@ -33,6 +33,13 @@ pub fn build_bordered_block(title: &str, focus: Focus, state: BorderState) -> Bl
         .padding(Padding::horizontal(1))
 }
 
+/// Focused View 用の通常状態ブロック。最頻ケースのショートハンド。
+/// 開いている間は常に Focused View であるビュー（サイドパネル、アクティブな Prompt 入力など）が使う。
+/// `build_bordered_block(title, Focus::Focused, BorderState::Normal)` と同義。
+pub fn build_focused_block(title: &str) -> Block<'static> {
+    build_bordered_block(title, Focus::Focused, BorderState::Normal)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -41,19 +48,21 @@ mod tests {
 
     /// Block を描画し、左上角セルの字形を返す（線種の検証用）。
     fn top_left_symbol(block: Block<'static>) -> String {
-        let mut terminal = Terminal::new(TestBackend::new(10, 3)).expect("terminal");
+        let mut terminal =
+            Terminal::new(TestBackend::new(10, 3)).expect("TestBackend terminal の生成に失敗");
         terminal
             .draw(|frame| frame.render_widget(block, frame.area()))
-            .expect("draw");
+            .expect("block の描画に失敗");
         terminal.backend().buffer()[(0, 0)].symbol().to_string()
     }
 
     /// Block を描画し、左上角セルの前景色を返す（色の検証用）。
     fn top_left_fg(block: Block<'static>) -> Option<Color> {
-        let mut terminal = Terminal::new(TestBackend::new(10, 3)).expect("terminal");
+        let mut terminal =
+            Terminal::new(TestBackend::new(10, 3)).expect("TestBackend terminal の生成に失敗");
         terminal
             .draw(|frame| frame.render_widget(block, frame.area()))
-            .expect("draw");
+            .expect("block の描画に失敗");
         terminal.backend().buffer()[(0, 0)].style().fg
     }
 
@@ -84,15 +93,29 @@ mod tests {
     #[test]
     fn focus_and_state_are_orthogonal() {
         // フォーカス（線種）と状態（色）は独立に効く: Focused + Error は太線かつ赤。
-        let mut terminal = Terminal::new(TestBackend::new(10, 3)).expect("terminal");
+        let mut terminal =
+            Terminal::new(TestBackend::new(10, 3)).expect("TestBackend terminal の生成に失敗");
         terminal
             .draw(|frame| {
                 let block = build_bordered_block("title", Focus::Focused, BorderState::Error);
                 frame.render_widget(block, frame.area());
             })
-            .expect("draw");
+            .expect("block の描画に失敗");
         let cell = terminal.backend().buffer()[(0, 0)].clone();
         assert_eq!(cell.symbol(), "┏", "Focused は太線");
         assert_eq!(cell.style().fg, Some(Color::Red), "Error は赤");
+    }
+
+    #[test]
+    fn focused_block_helper_is_thick_and_normal() {
+        // build_focused_block は Focus::Focused + BorderState::Normal のショートハンド。
+        let mut terminal =
+            Terminal::new(TestBackend::new(10, 3)).expect("TestBackend terminal の生成に失敗");
+        terminal
+            .draw(|frame| frame.render_widget(build_focused_block("title"), frame.area()))
+            .expect("block の描画に失敗");
+        let cell = terminal.backend().buffer()[(0, 0)].clone();
+        assert_eq!(cell.symbol(), "┏", "Focused は太線");
+        assert_ne!(cell.style().fg, Some(Color::Red), "Normal は赤でない");
     }
 }

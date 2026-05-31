@@ -1,6 +1,6 @@
 use crate::component::{Action, Component};
 use crate::state::PathListState;
-use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
+use crate::ui::widgets::build_focused_block;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -66,7 +66,7 @@ impl Component for BookmarkComponent {
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let title = format!("Bookmark ({})", self.state.paths.len());
-        let block = build_bordered_block(&title, Focus::Focused, BorderState::Normal);
+        let block = build_focused_block(&title);
         let rows = self
             .state
             .paths

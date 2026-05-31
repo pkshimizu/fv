@@ -1,6 +1,6 @@
 use crate::component::{Action, Component};
 use crate::state::TreeState;
-use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
+use crate::ui::widgets::build_focused_block;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -60,7 +60,7 @@ impl Component for TreeComponent {
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
         let title = format!("Tree ({})", self.state.flat_nodes.len());
-        let block = build_bordered_block(&title, Focus::Focused, BorderState::Normal);
+        let block = build_focused_block(&title);
 
         let rows = self.state.flat_nodes.iter().map(|entry| {
             let indent = "  ".repeat(entry.depth);
