@@ -14,40 +14,44 @@ const SCAN_NOTIFY_BATCH: usize = 256;
 const MAX_UNIQUE_PATH_SUFFIX: u32 = 1000;
 
 /// Operation Phase の「File-level Checkpoint」を単一化した低層プリミティブ。
-/// 各要素の処理前に `cancel` を見て、立っていれば `Ok(false)` で早期中断する。
-/// `op` が `Err` を返しても `cancel` が立っていれば「キャンセル優先」として `Ok(false)` に畳む
+/// 各要素の処理前に `cancel` を見て、立っていれば `Cancelled` で早期中断する。
+/// `op` が `Err` を返しても `cancel` が立っていれば「キャンセル優先」として `Cancelled` に畳む
 /// （ユーザが停止を要求済みなら、停止直前のレース起因エラーは表に出さず Partial Result を残す）。
-/// 全件完走で `Ok(true)`。
+/// 全件完走で `Completed`。
+///
+/// 同一FS Move（`run_move` の rename 高速パス）と Zip 解凍（`run_zip_extract`）は、
+/// 前者が probe 済み先頭要素を `skip(1)` する不規則な件数進行、後者が `&[T]` でなく
+/// `archive` を index 走査する構造のため、この標準形には寄せず bespoke のまま残している。
 fn for_each_until_cancelled<T>(
     items: &[T],
     cancel: &AtomicBool,
     mut op: impl FnMut(&T) -> Result<()>,
-) -> Result<bool> {
+) -> Result<CollectStatus> {
     for item in items {
         if cancel.load(Ordering::Relaxed) {
-            return Ok(false);
+            return Ok(CollectStatus::Cancelled);
         }
         if let Err(e) = op(item) {
             if cancel.load(Ordering::Relaxed) {
-                return Ok(false);
+                return Ok(CollectStatus::Cancelled);
             }
             return Err(e);
         }
     }
-    Ok(true)
+    Ok(CollectStatus::Completed)
 }
 
 /// `for_each_until_cancelled` に進捗送出を足した Operation Phase の標準ループ。
 /// 各要素の処理成功ごとに `(phase, 処理済み件数, Some(items.len()))` を emit する。
 /// 開始時の `(phase, 0, total)` 通知は呼び出し側が担う（mkdir 等を挟む前に phase を
-/// 切り替えるため）。早期中断時は `Ok(false)`、全件完走で `Ok(true)`。
+/// 切り替えるため）。早期中断で `Cancelled`、全件完走で `Completed`。
 fn process_items<T>(
     items: &[T],
     phase: Phase,
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
     mut op: impl FnMut(&T) -> Result<()>,
-) -> Result<bool> {
+) -> Result<CollectStatus> {
     let total = items.len();
     let mut done = 0;
     for_each_until_cancelled(items, cancel, |item| {
@@ -211,11 +215,11 @@ fn run_delete_with(
     // Scan Phase: 再帰列挙で削除対象のファイル数を数え、ユーザに削除規模を提示する。
     // Operation Phase は top-level VFile を 1 単位として `delete_fn` を呼ぶので、
     // Scan の総数とは N の意味が変わる点に注意 (run_delete doc 参照)。
-    let scan_status = scan_delete_count(files, cancel, on_progress)?;
-    if matches!(scan_status, CollectStatus::Cancelled) {
+    if scan_delete_count(files, cancel, on_progress)?.is_cancelled() {
         return Ok(());
     }
     on_progress(Phase::Deleting, 0, Some(files.len()));
+    // 残件数は Progress (processed/total) で別途 UI に届くため、エラー context には載せない。
     process_items(files, Phase::Deleting, cancel, on_progress, |file| {
         delete_fn(Path::new(file.absolute_path())).context("Delete aborted")
     })?;
@@ -535,19 +539,21 @@ fn write_zip_plan(
     let total = plan.files.len();
     on_progress(Phase::Zipping, 0, Some(total));
 
-    if !for_each_until_cancelled(&plan.directories, cancel, |dir_name| {
+    if for_each_until_cancelled(&plan.directories, cancel, |dir_name| {
         writer.add_directory(dir_name, options).with_context(|| {
             format!(
                 "{}: Failed to add directory {dir_name} to zip",
                 zip_path.display()
             )
         })
-    })? {
+    })?
+    .is_cancelled()
+    {
         return Ok(CollectStatus::Cancelled);
     }
     // 大量小ファイル時に read syscall 回数を削減するため BufReader で包む。
     // `std::io::copy` 失敗は I/O 由来の本物のエラー (例: disk full) として扱い `?` で伝播。
-    let copied = process_items(&plan.files, Phase::Zipping, cancel, on_progress, |entry| {
+    if process_items(&plan.files, Phase::Zipping, cancel, on_progress, |entry| {
         writer.start_file(&entry.name, options).with_context(|| {
             format!(
                 "{}: Failed to add {} to zip",
@@ -561,8 +567,9 @@ fn write_zip_plan(
         std::io::copy(&mut reader, &mut writer)
             .with_context(|| format!("{}: Failed to write to zip", entry.src.display()))?;
         Ok(())
-    })?;
-    if !copied {
+    })?
+    .is_cancelled()
+    {
         return Ok(CollectStatus::Cancelled);
     }
     // ZipWriter::finish() は内部の BufWriter を返す。BufWriter::into_inner() で flush を強制し、
@@ -663,16 +670,19 @@ fn move_via_copy_and_remove(
     on_progress(Phase::Moving, 0, Some(total));
     // `run_copy` は冒頭で `ensure_dest_dir` するが、`run_move` の入口でも既に行っているため
     // ここでは plan.directories のみを `create_dir` で順次作成する。
-    if !for_each_until_cancelled(&plan.directories, cancel, |dir| {
+    if for_each_until_cancelled(&plan.directories, cancel, |dir| {
         std::fs::create_dir(dir)
             .with_context(|| format!("{}: Failed to create directory", dir.display()))
-    })? {
+    })?
+    .is_cancelled()
+    {
         return Ok(());
     }
-    if !process_items(&plan.files, Phase::Moving, cancel, on_progress, copy_entry)? {
+    if process_items(&plan.files, Phase::Moving, cancel, on_progress, copy_entry)?.is_cancelled() {
         return Ok(());
     }
     // 全 Copy 完了後に各 root の src を削除する。
+    // この最終ループは末尾なので完走/中断どちらでも後続はなく、戻り値の CollectStatus は捨てる。
     // `Path::is_dir()` は symlink を follow するため、dir-symlink を root に持つケースでリンク先の
     // ディレクトリを誤って `remove_dir_all` 経由で削除しに行ってしまう (現代の `remove_dir_all` は
     // `O_NOFOLLOW` で防御するが、防御深度として呼び出し側でも symlink_metadata で判定を分離する)。
@@ -728,12 +738,15 @@ fn run_copy(
     // ユーザ指定の宛先に応じてコンテナ dir（または宛先パスの親）を一度だけ確保。
     // それ以降の plan.directories は pre-order により親が常に作成済みなので create_dir で十分。
     ensure_destination_dir(exact_path, dest)?;
-    if !for_each_until_cancelled(&plan.directories, cancel, |dir| {
+    if for_each_until_cancelled(&plan.directories, cancel, |dir| {
         std::fs::create_dir(dir)
             .with_context(|| format!("{}: Failed to create directory", dir.display()))
-    })? {
+    })?
+    .is_cancelled()
+    {
         return Ok(());
     }
+    // 末尾の files コピーは完走/中断どちらでも後続がないため、戻り値の CollectStatus は捨てる。
     process_items(&plan.files, Phase::Copying, cancel, on_progress, copy_entry)?;
     Ok(())
 }
@@ -788,10 +801,18 @@ enum CopyEntry {
     },
 }
 
-/// Scan Phase の中断/完走を表す。
+/// cancel 可能なループ（Scan Phase の走査・Operation Phase の処理いずれも）の終了理由。
+/// `Completed` = 全件やり切った / `Cancelled` = Cancel Token により途中で打ち切った。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CollectStatus {
     Completed,
     Cancelled,
+}
+
+impl CollectStatus {
+    fn is_cancelled(self) -> bool {
+        matches!(self, CollectStatus::Cancelled)
+    }
 }
 
 /// `roots` 配下を一度走査して、cancel 可能なまま `CopyPlan` を組み立てる (Scan Phase)。
@@ -1114,18 +1135,18 @@ mod tests {
     }
 
     #[test]
-    fn for_each_until_cancelled_runs_op_for_every_item_and_returns_true() {
+    fn for_each_until_cancelled_runs_op_for_every_item_and_returns_completed() {
         let items = [1, 2, 3];
         let cancel = AtomicBool::new(false);
         let mut seen = Vec::new();
 
-        let completed = for_each_until_cancelled(&items, &cancel, |&n| {
+        let outcome = for_each_until_cancelled(&items, &cancel, |&n| {
             seen.push(n);
             Ok(())
         })
         .expect("no error");
 
-        assert!(completed, "all items processed → true");
+        assert_eq!(outcome, CollectStatus::Completed, "all items processed");
         assert_eq!(seen, vec![1, 2, 3]);
     }
 
@@ -1135,13 +1156,17 @@ mod tests {
         let cancel = AtomicBool::new(true);
         let mut called = false;
 
-        let completed = for_each_until_cancelled(&items, &cancel, |_| {
+        let outcome = for_each_until_cancelled(&items, &cancel, |_| {
             called = true;
             Ok(())
         })
         .expect("preset cancel is not an error");
 
-        assert!(!completed, "cancelled → false");
+        assert_eq!(
+            outcome,
+            CollectStatus::Cancelled,
+            "preset cancel → Cancelled"
+        );
         assert!(!called, "op must not run when cancel is preset");
     }
 
@@ -1167,7 +1192,7 @@ mod tests {
         let cancel = AtomicBool::new(false);
 
         // op が「cancel を立てつつ Err を返す」レースを再現する。
-        let completed = for_each_until_cancelled(&items, &cancel, |&n| {
+        let outcome = for_each_until_cancelled(&items, &cancel, |&n| {
             if n == 2 {
                 cancel.store(true, Ordering::Relaxed);
                 anyhow::bail!("error coincides with cancel");
@@ -1176,7 +1201,11 @@ mod tests {
         })
         .expect("error coinciding with cancel is folded into cancel, not surfaced");
 
-        assert!(!completed, "folded cancel → false");
+        assert_eq!(
+            outcome,
+            CollectStatus::Cancelled,
+            "folded cancel → Cancelled"
+        );
     }
 
     #[test]
@@ -1185,7 +1214,7 @@ mod tests {
         let cancel = AtomicBool::new(false);
         let mut events = Vec::new();
 
-        let completed = process_items(
+        let outcome = process_items(
             &items,
             Phase::Copying,
             &cancel,
@@ -1194,7 +1223,7 @@ mod tests {
         )
         .expect("no error");
 
-        assert!(completed, "all items processed → true");
+        assert_eq!(outcome, CollectStatus::Completed, "all items processed");
         assert_eq!(
             events,
             vec![
