@@ -13,44 +13,56 @@ pub(crate) struct SystemInfoReader {
 
 impl SystemInfoReader {
     pub(crate) fn new() -> Self {
-        let mut system = System::new();
-        system.refresh_cpu_usage();
-        system.refresh_memory();
-        let current = Self::gather(&system);
-        Self {
-            system,
+        let mut reader = Self {
+            system: System::new(),
             throttle: RefreshThrottle::new(),
-            current,
-        }
+            current: Self::gather_static(),
+        };
+        // 初回の動的情報を埋める。CPU 使用率は前回サンプルとの差分で算出されるため、
+        // この初回 refresh 直後の値は不正確（0% 付近）で、最初の tick による 2 回目の
+        // refresh（約1秒後）で正常な値に落ち着く。起動直後の一瞬だけ低めに出る点は許容する。
+        reader.refresh_dynamic();
+        reader
     }
 
     /// 1 tick 進める。スロットルが許せば動的情報（CPU・メモリ・アップタイム）を再取得する。
     /// 静的情報（OS/カーネル/ホスト名）は変化しないので再取得しない。
     pub(crate) fn tick(&mut self) {
         if self.throttle.tick() {
-            self.system.refresh_cpu_usage();
-            self.system.refresh_memory();
-            self.current.cpu_percent = self.system.global_cpu_usage();
-            self.current.mem_used = self.system.used_memory();
-            self.current.mem_total = self.system.total_memory();
-            self.current.uptime_secs = System::uptime();
+            self.refresh_dynamic();
         }
+    }
+
+    /// 動的情報（CPU・メモリ・アップタイム）のみ再取得する。静的情報は触らない。
+    fn refresh_dynamic(&mut self) {
+        self.system.refresh_cpu_usage();
+        self.system.refresh_memory();
+        self.current.cpu_percent = self.system.global_cpu_usage();
+        self.current.mem_used = self.system.used_memory();
+        self.current.mem_total = self.system.total_memory();
+        self.current.uptime_secs = System::uptime();
     }
 
     pub(crate) fn current(&self) -> &SystemInfo {
         &self.current
     }
 
-    fn gather(system: &System) -> SystemInfo {
+    /// 静的情報（OS/カーネル/ホスト名）を取得する。動的フィールドは 0 で初期化し、
+    /// 直後の `refresh_dynamic` で埋める。
+    fn gather_static() -> SystemInfo {
         let os_version = System::os_version().unwrap_or_default();
         // long_os_version 例: "macOS 26.5"。末尾の os_version を除いて製品名 "macOS" を取り出す。
+        // os_version が空のときは strip_suffix("") が全体一致してしまうため、その場合は long をそのまま使う。
         let long = System::long_os_version().unwrap_or_default();
-        let os_name = long
-            .strip_suffix(&os_version)
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or(long.as_str())
-            .to_string();
+        let os_name = if os_version.is_empty() {
+            long.clone()
+        } else {
+            long.strip_suffix(&os_version)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or(long.as_str())
+                .to_string()
+        };
         SystemInfo {
             os_name,
             os_version,
@@ -58,10 +70,10 @@ impl SystemInfoReader {
             kernel_name: System::name().unwrap_or_default(),
             kernel_version: System::kernel_version().unwrap_or_default(),
             hostname: System::host_name().unwrap_or_default(),
-            cpu_percent: system.global_cpu_usage(),
-            mem_used: system.used_memory(),
-            mem_total: system.total_memory(),
-            uptime_secs: System::uptime(),
+            cpu_percent: 0.0,
+            mem_used: 0,
+            mem_total: 0,
+            uptime_secs: 0,
         }
     }
 }
@@ -93,12 +105,12 @@ impl SystemInfo {
         )
     }
 
-    /// ヘッダー内容行に載せる動的情報を空白区切りで整形する。
+    /// ヘッダー内容行に載せる動的情報を整形する。フィールド間はダブルスペース区切り。
     /// 例: `CPU 12%  Mem 8.2/16.0G  up 3h21m`
     pub(crate) fn status_line(&self) -> String {
         format!(
-            "CPU {}%  Mem {}  up {}",
-            self.cpu_percent.round() as u64,
+            "CPU {:.0}%  Mem {}  up {}",
+            self.cpu_percent,
             format_mem(self.mem_used, self.mem_total),
             format_uptime(self.uptime_secs),
         )

@@ -10,7 +10,7 @@ We want to surface host environment stats (OS, kernel, hostname, CPU%, memory, u
 ## Decision
 
 - **Header-resident, not a side panel.** System info renders in the header box (`ui/features/header.rs`): static fields (OS, kernel, hostname) in the box **title**, dynamic fields (CPU, memory, uptime) in the content row's **left zone**, with the right zone reserved for a future clock. No keybinding, no `SidePanel` variant. The header is always visible, which matches "keep system state in view" better than an openable panel.
-- **Synchronous refresh on the main tick.** `os::system_info::SystemInfoReader` holds a reused `sysinfo::System` and refreshes on `AppContext::tick()`. It does **not** use a worker thread. A targeted `RefreshKind` (CPU + memory only, no process enumeration) keeps each refresh sub-millisecond, so blocking the main loop is acceptable.
+- **Synchronous refresh on the main tick.** `os::system_info::SystemInfoReader` holds a reused `sysinfo::System` and refreshes on `AppContext::tick()`. It does **not** use a worker thread. The system is created with `System::new()` (empty — no process enumeration) and only `refresh_cpu_usage()` + `refresh_memory()` are called, keeping each refresh sub-millisecond, so blocking the main loop is acceptable.
 - **~1s throttle, internal to the reader.** A tick counter (`RefreshThrottle`) refreshes the dynamic fields every 4th tick (tick ≈ 250 ms → ≈ 1 s). Static fields are gathered once in `new()` and never re-read. CPU% accuracy needs ≥ ~200 ms between samples, which 1 s comfortably satisfies.
 - **sysinfo hidden behind `os::system_info`.** The crate is confined to that module; the header and `AppContext` see only the `SystemInfo` value type and the reader, so swapping sysinfo later is localized.
 
