@@ -121,17 +121,18 @@ impl SystemInfo {
 const REFRESH_EVERY_N_TICKS: u32 = 4;
 
 /// tick を数えて `REFRESH_EVERY_N_TICKS` ごとに 1 回だけリフレッシュ可否を返す簡易スロットル。
-struct RefreshThrottle {
+/// System Info / Disk Usage が同じ約1秒間隔で再取得するために共有する。
+pub(crate) struct RefreshThrottle {
     ticks: u32,
 }
 
 impl RefreshThrottle {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { ticks: 0 }
     }
 
     /// 1 tick 進める。リフレッシュすべきタイミングなら `true` を返してカウンタをリセットする。
-    fn tick(&mut self) -> bool {
+    pub(crate) fn tick(&mut self) -> bool {
         self.ticks += 1;
         if self.ticks >= REFRESH_EVERY_N_TICKS {
             self.ticks = 0;

@@ -1,4 +1,5 @@
 use crate::component::{Component, FilerComponent, PromptComponent};
+use crate::os::disk_usage::DiskUsageReader;
 use crate::os::system_info::SystemInfoReader;
 use crate::state::SidePanel;
 use anyhow::Result;
@@ -10,6 +11,7 @@ pub struct AppContext {
     pub prompt: PromptComponent,
     pub side_panel: Option<SidePanel>,
     pub system_info: SystemInfoReader,
+    pub disk_usage: DiskUsageReader,
 }
 
 impl AppContext {
@@ -20,6 +22,7 @@ impl AppContext {
             prompt: PromptComponent::new(),
             side_panel: None,
             system_info: SystemInfoReader::new(),
+            disk_usage: DiskUsageReader::new(),
         }
     }
 
@@ -35,6 +38,7 @@ impl AppContext {
         self.filer.tick();
         self.prompt.tick();
         self.system_info.tick();
+        self.disk_usage.tick();
         if let Some(panel) = &mut self.side_panel {
             panel.tick();
         }

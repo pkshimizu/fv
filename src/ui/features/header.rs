@@ -1,12 +1,14 @@
 use crate::app_context::AppContext;
+use crate::os::disk_usage::format_disk_field;
 use crate::ui::widgets::{BorderState, Focus, build_bordered_block};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
+use std::path::Path;
 
 /// ヘッダー枠を描画する。
 /// タイトル（枠線）に静的情報（アプリ名・バージョン ＋ OS/カーネル/ホスト名）を ` | ` 区切りで、
-/// 内容行の左ゾーンに動的情報（CPU/メモリ/アップタイム）を表示する。
+/// 内容行の左ゾーンに動的情報（CPU/メモリ/アップタイム ＋ カレントディレクトリの Disk Usage）を表示する。
 /// 右ゾーンは将来の時刻表示用に空けておく。
 pub fn render_header(frame: &mut Frame, ctx: &AppContext, area: Rect) {
     let info = ctx.system_info.current();
@@ -20,8 +22,11 @@ pub fn render_header(frame: &mut Frame, ctx: &AppContext, area: Rect) {
     let block = build_bordered_block(&title, Focus::Unfocused, BorderState::Normal);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    // 左ゾーン: 動的情報。右ゾーン（時刻）は将来ここに右寄せで追加する。
-    frame.render_widget(Paragraph::new(info.status_line()), inner);
+    // 左ゾーン: 動的情報＋カレントディレクトリの Disk Usage。右ゾーン（時刻）は将来追加する。
+    let current_dir = Path::new(ctx.filer.current_dir_path());
+    let disk_field = format_disk_field(ctx.disk_usage.usage_for(current_dir));
+    let status_line = format!("{}  {disk_field}", info.status_line());
+    frame.render_widget(Paragraph::new(status_line), inner);
 }
 
 #[cfg(test)]
@@ -57,5 +62,8 @@ mod tests {
         assert!(text.contains("CPU "), "body should show CPU: {text:?}");
         assert!(text.contains("Mem "), "body should show Mem: {text:?}");
         assert!(text.contains("up "), "body should show uptime: {text:?}");
+        // カレントディレクトリの Disk Usage も内容行に表示される（値・単位は環境依存だが
+        // `Disk ` ラベルは常に出る。未特定時は `Disk n/a`）。
+        assert!(text.contains("Disk "), "body should show Disk usage: {text:?}");
     }
 }
