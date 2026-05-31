@@ -42,6 +42,10 @@ The opening phase of an Async Job that walks the source tree (or reads the zip a
 **Operation Phase**:
 The main phase that follows Scan Phase — the actual `Copying` / `Moving` / `Zipping` / `Extracting` / `Deleting`. Total is fixed; processed count advances per file.
 
+**Copy Plan**:
+The flat work list a Copy or Move's Scan Phase produces and its Operation Phase executes: each entry is a concrete file copy or directory creation with its **Destination** already resolved (collision-avoided with `_1`, `_2`, … suffixes). A cross-filesystem Move builds the same Copy Plan for its copy-then-remove fallback. Decouples "decide what to do" (Scan) from "do it" (Operation), so the Operation Phase is a uniform per-entry loop regardless of source-tree shape.
+_Avoid_: file list, queue, batch (the last is overloaded with progress-batching).
+
 **Progress**:
 A structured update sent from the worker to the Prompt as `{ phase, processed, total: Option<usize> }`. Rendered as e.g. `Copying 7/1234 files` or `Scanning... 23 files`.
 _Avoid_: progress text, status message.
