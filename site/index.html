@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fv — A fast TUI file manager</title>
+    <meta
+      name="description"
+      content="fv は、ターミナルで完結する軽快なキーボード駆動の TUI ファイルマネージャです。"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="nav__brand" href="#top">fv</a>
+      <nav class="nav__links">
+        <a href="#features" class="t" data-ja="特徴" data-en="Features">特徴</a>
+        <a href="#install" class="t" data-ja="インストール" data-en="Install">インストール</a>
+        <a href="#keys" class="t" data-ja="キー操作" data-en="Keys">キー操作</a>
+        <a href="https://github.com/pkshimizu/fv" class="nav__gh">GitHub</a>
+        <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Switch language">EN</button>
+      </nav>
+    </header>
+
+    <main id="top">
+      <!-- Hero -->
+      <section class="hero">
+        <div class="hero__copy">
+          <p class="hero__eyebrow">Rust · TUI · cross-platform</p>
+          <h1 class="hero__title">fv</h1>
+          <p
+            class="hero__tagline t"
+            data-ja="ターミナルで完結する、軽快なキーボード駆動の TUI ファイルマネージャ。"
+            data-en="A fast, keyboard-driven TUI file manager that lives in your terminal."
+          >
+            ターミナルで完結する、軽快なキーボード駆動の TUI ファイルマネージャ。
+          </p>
+          <div class="hero__cta">
+            <a href="#install" class="btn btn--primary t" data-ja="使ってみる" data-en="Get Started">使ってみる</a>
+            <a href="https://github.com/pkshimizu/fv" class="btn btn--ghost">GitHub →</a>
+          </div>
+        </div>
+
+        <!-- Terminal mockup -->
+        <div class="term" role="img" aria-label="fv のターミナル画面イメージ">
+          <div class="term__bar">
+            <span class="term__dot term__dot--r"></span>
+            <span class="term__dot term__dot--y"></span>
+            <span class="term__dot term__dot--g"></span>
+            <span class="term__title">fv</span>
+          </div>
+          <pre class="term__screen"><span class="l-head">┌─ fv 0.1.0 ──── macOS · CPU 4% · MEM 38% ──────── 12:34 ─┐</span>
+<span class="l-dim">│</span> <span class="l-dir">▸ src/</span>                                            <span class="l-dim">│</span>
+<span class="l-dim">│</span> <span class="l-dir">▸ docs/</span>                                            <span class="l-dim">│</span>
+<span class="l-cur">│ ✓ Cargo.toml              1.2 KB   2026-06-01  rw-r--r-- │</span>
+<span class="l-dim">│</span>   main.rs                 4.8 KB   2026-06-01  rw-r--r-- <span class="l-dim">│</span>
+<span class="l-dim">│</span>   README.md               2.1 KB   2026-06-01  rw-r--r-- <span class="l-dim">│</span>
+<span class="l-dim">│</span>                                                         <span class="l-dim">│</span>
+<span class="l-dim">├──────────────────────────────┬──────────────────────────┤</span>
+<span class="l-dim">│</span> <span class="l-key">c</span> copy  <span class="l-key">m</span> move  <span class="l-key">d</span> delete  <span class="l-dim">│</span> <span class="l-accent">File Info</span>             <span class="l-dim">│</span>
+<span class="l-dim">│</span> <span class="l-key">g</span> grep  <span class="l-key">b</span> bookmark      <span class="l-dim">│</span> text/x-rust · UTF-8     <span class="l-dim">│</span>
+<span class="l-dim">└──────────────────────────────┴──────────────────────────┘</span>
+<span class="l-prompt">$ </span>brew install fv<span class="l-caret">█</span></pre>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section id="features" class="section">
+        <h2 class="section__title t" data-ja="特徴" data-en="Features">特徴</h2>
+        <div class="cards">
+          <article class="card">
+            <h3 class="t" data-ja="ファイル操作" data-en="File operations">ファイル操作</h3>
+            <p class="t" data-ja="コピー・移動・削除・リネーム・ディレクトリ作成・Zip 圧縮/解凍。長時間処理は進捗表示付きの非同期ジョブで実行し、Esc で中断できます。" data-en="Copy, move, delete, rename, mkdir, and zip/unzip. Long operations run as async jobs with progress and can be cancelled with Esc.">コピー・移動・削除・リネーム・ディレクトリ作成・Zip 圧縮/解凍。長時間処理は進捗表示付きの非同期ジョブで実行し、Esc で中断できます。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="シェル / コマンド実行" data-en="Shell &amp; commands">シェル / コマンド実行</h3>
+            <p class="t" data-ja="現在のディレクトリでシェルを起動（h）、任意のコマンドを実行（x）。ファイル操作とコマンドラインを行き来できます。" data-en="Launch a shell in the current directory (h) or run an arbitrary command (x). Move freely between file ops and the command line.">現在のディレクトリでシェルを起動（h）、任意のコマンドを実行（x）。ファイル操作とコマンドラインを行き来できます。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="ファイル情報・属性" data-en="File info &amp; attributes">ファイル情報・属性</h3>
+            <p class="t" data-ja="サイズ・種別・パーミッション・タイムスタンプなどの詳細（i）と属性パネル（a）をサイドパネルで確認できます。" data-en="Inspect size, type, permissions, and timestamps (i) and the attribute panel (a) in a side panel.">サイズ・種別・パーミッション・タイムスタンプなどの詳細（i）と属性パネル（a）をサイドパネルで確認できます。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="Grep 検索" data-en="Grep search">Grep 検索</h3>
+            <p class="t" data-ja="ディレクトリ配下を grep（g）。ヒットしたファイルへサイドパネルから直接ジャンプできます。" data-en="Grep through the current tree (g) and jump straight to matching files from the results panel.">ディレクトリ配下を grep（g）。ヒットしたファイルへサイドパネルから直接ジャンプできます。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="ブックマーク" data-en="Bookmarks">ブックマーク</h3>
+            <p class="t" data-ja="よく使うディレクトリを登録（+）・削除（-）し、ブックマークパネル（b）から素早く移動できます。" data-en="Save (+) and remove (-) frequently used directories and jump to them from the bookmark panel (b).">よく使うディレクトリを登録（+）・削除（-）し、ブックマークパネル（b）から素早く移動できます。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="プレビュー" data-en="Preview">プレビュー</h3>
+            <p class="t" data-ja="テキスト・画像のプレビュー（v）に対応。オーディオファイルは再生・シークも可能です。" data-en="Preview text and images (v). Audio files can be played and seeked right inside the panel.">テキスト・画像のプレビュー（v）に対応。オーディオファイルは再生・シークも可能です。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="ツリー表示" data-en="Directory tree">ツリー表示</h3>
+            <p class="t" data-ja="ディレクトリ構造をツリー（t）で俯瞰し、展開・折りたたみしながら目的の場所へ移動できます。" data-en="Survey the directory structure as a tree (t), expand/collapse nodes, and navigate to any location.">ディレクトリ構造をツリー（t）で俯瞰し、展開・折りたたみしながら目的の場所へ移動できます。</p>
+          </article>
+          <article class="card">
+            <h3 class="t" data-ja="検索・ジャンプ・Yank" data-en="Search, jump &amp; yank">検索・ジャンプ・Yank</h3>
+            <p class="t" data-ja="インクリメンタル検索（f）、ディレクトリジャンプ（j）、選択パスのクリップボードコピー（y）。" data-en="Incremental search (f), directory jump (j), and copy selected paths to the clipboard (y).">インクリメンタル検索（f）、ディレクトリジャンプ（j）、選択パスのクリップボードコピー（y）。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Install -->
+      <section id="install" class="section">
+        <h2 class="section__title t" data-ja="インストール" data-en="Install">インストール</h2>
+        <div class="install">
+          <div class="install__item">
+            <h3>Homebrew</h3>
+            <p class="install__note t" data-ja="macOS (Apple Silicon) / Linux (x86_64)" data-en="macOS (Apple Silicon) / Linux (x86_64)">macOS (Apple Silicon) / Linux (x86_64)</p>
+            <pre class="code"><code>brew tap pkshimizu/tap
+brew install fv</code></pre>
+          </div>
+          <div class="install__item">
+            <h3 class="t" data-ja="GitHub Releases" data-en="GitHub Releases">GitHub Releases</h3>
+            <p class="install__note t" data-ja="お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。" data-en="Download the archive for your platform, extract it, and place fv somewhere on your PATH.">お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。</p>
+            <pre class="code"><code># macOS (Apple Silicon)
+tar xzf fv-aarch64-apple-darwin.tar.gz
+# Linux (x86_64)
+tar xzf fv-x86_64-unknown-linux-gnu.tar.gz
+
+mv fv /usr/local/bin/</code></pre>
+            <p><a class="link" href="https://github.com/pkshimizu/fv/releases">github.com/pkshimizu/fv/releases →</a></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Keybindings -->
+      <section id="keys" class="section">
+        <h2 class="section__title t" data-ja="主要なキー操作" data-en="Key bindings">主要なキー操作</h2>
+        <p class="section__lead t" data-ja="ファイル一覧（メイン画面）での主なキー操作です。" data-en="The main key bindings available in the file list (main screen).">ファイル一覧（メイン画面）での主なキー操作です。</p>
+        <div class="keys">
+          <div class="keys__group">
+            <h3 class="t" data-ja="移動" data-en="Navigation">移動</h3>
+            <table class="kbtable">
+              <tbody>
+                <tr><td><kbd>↑</kbd><kbd>↓</kbd></td><td class="t" data-ja="カーソル移動" data-en="Move cursor">カーソル移動</td></tr>
+                <tr><td><kbd>←</kbd><kbd>→</kbd></td><td class="t" data-ja="先頭 / 末尾へ" data-en="To first / last">先頭 / 末尾へ</td></tr>
+                <tr><td><kbd>Enter</kbd></td><td class="t" data-ja="開く / ディレクトリへ" data-en="Open / enter dir">開く / ディレクトリへ</td></tr>
+                <tr><td><kbd>Backspace</kbd></td><td class="t" data-ja="親ディレクトリへ" data-en="Parent directory">親ディレクトリへ</td></tr>
+                <tr><td><kbd>&lt;</kbd><kbd>&gt;</kbd></td><td class="t" data-ja="履歴を戻る / 進む" data-en="History back / forward">履歴を戻る / 進む</td></tr>
+                <tr><td><kbd>~</kbd></td><td class="t" data-ja="ホームへ" data-en="Home directory">ホームへ</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="keys__group">
+            <h3 class="t" data-ja="ファイル操作" data-en="File operations">ファイル操作</h3>
+            <table class="kbtable">
+              <tbody>
+                <tr><td><kbd>c</kbd></td><td class="t" data-ja="コピー" data-en="Copy">コピー</td></tr>
+                <tr><td><kbd>m</kbd></td><td class="t" data-ja="移動" data-en="Move">移動</td></tr>
+                <tr><td><kbd>d</kbd></td><td class="t" data-ja="削除" data-en="Delete">削除</td></tr>
+                <tr><td><kbd>r</kbd></td><td class="t" data-ja="リネーム" data-en="Rename">リネーム</td></tr>
+                <tr><td><kbd>k</kbd> / <kbd>n</kbd></td><td class="t" data-ja="ディレクトリ / ファイル作成" data-en="Mkdir / new file">ディレクトリ / ファイル作成</td></tr>
+                <tr><td><kbd>p</kbd> / <kbd>u</kbd></td><td class="t" data-ja="Zip 圧縮 / 解凍" data-en="Zip / unzip">Zip 圧縮 / 解凍</td></tr>
+                <tr><td><kbd>y</kbd></td><td class="t" data-ja="パスを Yank" data-en="Yank path">パスを Yank</td></tr>
+                <tr><td><kbd>Space</kbd></td><td class="t" data-ja="選択トグル" data-en="Toggle selection">選択トグル</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="keys__group">
+            <h3 class="t" data-ja="パネル / 検索" data-en="Panels / search">パネル / 検索</h3>
+            <table class="kbtable">
+              <tbody>
+                <tr><td><kbd>i</kbd> / <kbd>a</kbd></td><td class="t" data-ja="ファイル情報 / 属性" data-en="File info / attributes">ファイル情報 / 属性</td></tr>
+                <tr><td><kbd>v</kbd> / <kbd>t</kbd></td><td class="t" data-ja="プレビュー / ツリー" data-en="Preview / tree">プレビュー / ツリー</td></tr>
+                <tr><td><kbd>b</kbd></td><td class="t" data-ja="ブックマーク" data-en="Bookmarks">ブックマーク</td></tr>
+                <tr><td><kbd>g</kbd> / <kbd>f</kbd></td><td class="t" data-ja="Grep / 検索" data-en="Grep / search">Grep / 検索</td></tr>
+                <tr><td><kbd>j</kbd></td><td class="t" data-ja="ジャンプ" data-en="Jump">ジャンプ</td></tr>
+                <tr><td><kbd>h</kbd> / <kbd>x</kbd></td><td class="t" data-ja="シェル / コマンド実行" data-en="Shell / execute">シェル / コマンド実行</td></tr>
+                <tr><td><kbd>o</kbd> / <kbd>?</kbd></td><td class="t" data-ja="設定 / ヘルプ" data-en="Settings / help">設定 / ヘルプ</td></tr>
+                <tr><td><kbd>q</kbd></td><td class="t" data-ja="終了" data-en="Quit">終了</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <p class="footer__lic">
+          <span class="t" data-ja="ライセンス" data-en="License">ライセンス</span>:
+          <a class="link" href="https://github.com/pkshimizu/fv/blob/main/LICENSE">MIT</a>
+        </p>
+        <p>
+          <a class="link" href="https://github.com/pkshimizu/fv">github.com/pkshimizu/fv</a>
+        </p>
+        <p class="footer__copy">© 2026 Kenji Shimizu</p>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        var nodes = document.querySelectorAll(".t");
+        var toggle = document.getElementById("lang-toggle");
+        function apply(lang) {
+          document.documentElement.lang = lang;
+          nodes.forEach(function (n) {
+            var v = n.getAttribute("data-" + lang);
+            if (v !== null) n.textContent = v;
+          });
+          // ボタンには「切り替え先」を表示する。
+          toggle.textContent = lang === "ja" ? "EN" : "日本語";
+          try { localStorage.setItem("fv-lang", lang); } catch (e) {}
+        }
+        var saved = null;
+        try { saved = localStorage.getItem("fv-lang"); } catch (e) {}
+        var initial = saved || ((navigator.language || "").toLowerCase().indexOf("ja") === 0 ? "ja" : "en");
+        apply(initial);
+        toggle.addEventListener("click", function () {
+          apply(document.documentElement.lang === "ja" ? "en" : "ja");
+        });
+      })();
+    </script>
+  </body>
+</html>
