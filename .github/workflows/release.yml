@@ -76,10 +76,60 @@ jobs:
 
       # 単一クレートのため release-plz のタグは v<version> 形式。
       # Cargo.toml のバージョン（= バイナリに埋め込まれた版）からタグを導出する。
-      - name: Upload binary to release
+      # Homebrew の bin.install が素直に扱えるよう、中身を `fv` とした tar.gz で配布する。
+      - name: Package and upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
-          cp "target/${{ matrix.target }}/release/fv" "fv-${{ matrix.target }}"
-          gh release upload "v${version}" "fv-${{ matrix.target }}" --clobber
+          cp "target/${{ matrix.target }}/release/fv" fv
+          tar -czf "fv-${{ matrix.target }}.tar.gz" fv
+          gh release upload "v${version}" "fv-${{ matrix.target }}.tar.gz" --clobber
+
+  # Homebrew tap (pkshimizu/homebrew-tap) の fv.rb を、今回のリリースのバージョンと
+  # 各 tar.gz の sha256 で更新する。別リポジトリへ push するため fine-grained PAT を使う。
+  update-homebrew:
+    name: Update Homebrew formula
+    needs: [release-plz, build]
+    if: needs.release-plz.outputs.releases_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release assets and render formula
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          tag="v${version}"
+          darwin_asset="fv-aarch64-apple-darwin.tar.gz"
+          linux_asset="fv-x86_64-unknown-linux-gnu.tar.gz"
+
+          gh release download "$tag" --repo "${GITHUB_REPOSITORY}" \
+            --pattern "$darwin_asset" --pattern "$linux_asset" --dir dist
+
+          darwin_sha=$(sha256sum "dist/${darwin_asset}" | cut -d' ' -f1)
+          linux_sha=$(sha256sum "dist/${linux_asset}" | cut -d' ' -f1)
+
+          sed -e "s|__VERSION__|${version}|g" \
+              -e "s|__SHA256_DARWIN_ARM64__|${darwin_sha}|g" \
+              -e "s|__SHA256_LINUX_X86_64__|${linux_sha}|g" \
+              .github/homebrew/fv.rb.tmpl > fv.rb
+
+      - name: Push formula to homebrew-tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/pkshimizu/homebrew-tap.git" tap
+          cp fv.rb tap/fv.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "fv.rb に変更なし。push をスキップします。"
+            exit 0
+          fi
+          git add fv.rb
+          git commit -m "fv ${version}"
+          git push
