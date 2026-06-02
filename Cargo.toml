@@ -2,6 +2,9 @@
 name = "fv"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "A fast, keyboard-driven TUI file manager for your terminal"
+repository = "https://github.com/pkshimizu/fv"
 
 [dependencies]
 anyhow = "1.0.102"
