@@ -27,6 +27,14 @@ const DIR_STYLE: Style = Style::new().fg(Color::Green);
 const CHECKED_SYMBOL: &str = "*";
 const BOOKMARK_SYMBOL: &str = "B";
 
+/// プレビュー表示中のファイル移動方向。
+pub enum PreviewMove {
+    /// 次のエントリへ
+    Next,
+    /// 前のエントリへ
+    Prev,
+}
+
 pub struct FilerComponent {
     state: FilerState,
     focused: bool,
@@ -412,7 +420,7 @@ impl FilerComponent {
         let file_name = file.file_name().unwrap_or("(unknown)");
 
         if file.is_dir() {
-            return Some(SidePanel::Preview(PreviewComponent::message(
+            return Some(SidePanel::Preview(PreviewComponent::with_message(
                 file_name,
                 "Cannot preview a directory",
             )));
@@ -427,18 +435,21 @@ impl FilerComponent {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)
         };
         Some(panel.unwrap_or_else(|e| {
-            SidePanel::Preview(PreviewComponent::message(file_name, &format!("{e}")))
+            // 開発者向けにはエラーチェーンをログへ、利用者向けには簡潔な理由をパネルへ。
+            tracing::warn!("Failed to build preview panel for {file_name}: {e:#}");
+            SidePanel::Preview(PreviewComponent::with_message(file_name, e.to_string()))
         }))
     }
 
     /// プレビュー表示中に Cursor File を前後のエントリへ移動し、新しいパネルを返す。
     /// 端で移動できなかった場合は None（パネルを差し替えない）。
-    pub fn navigate_preview(&mut self, next: bool) -> Option<SidePanel> {
+    /// 移動可否は移動前後のカーソル位置の差で判定するため、TableCursor が端で
+    /// クランプする（ラップしない）ことを前提とする。
+    pub fn navigate_preview(&mut self, direction: PreviewMove) -> Option<SidePanel> {
         let before = self.state.file_table_state.selected();
-        if next {
-            self.state.next();
-        } else {
-            self.state.prev();
+        match direction {
+            PreviewMove::Next => self.state.next(),
+            PreviewMove::Prev => self.state.prev(),
         }
         if self.state.file_table_state.selected() == before {
             return None;

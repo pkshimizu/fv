@@ -15,7 +15,7 @@ pub use attribute::AttributeComponent;
 pub use audio_player::AudioPlayerComponent;
 pub use bookmark::BookmarkComponent;
 pub use file_info::FileInfoComponent;
-pub use filer::FilerComponent;
+pub use filer::{FilerComponent, PreviewMove};
 pub use grep::GrepComponent;
 pub use help::HelpComponent;
 pub use image_preview::ImagePreviewComponent;
@@ -27,6 +27,7 @@ pub use tree::TreeComponent;
 use crate::state::{PromptMode, SidePanel};
 use crate::store::StartupDirectory;
 use anyhow::Result;
+use crossterm::event::KeyCode;
 pub use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -82,6 +83,17 @@ pub enum Action {
     PreviewNext,
     /// プレビュー表示中に前のエントリへ移動する
     PreviewPrev,
+}
+
+/// 全プレビュー系サイドパネル（テキスト/画像/音声/メッセージ）で共通のキー操作を解決する。
+/// 該当しないキーは `None` を返し、各パネル固有の処理にフォールバックする。
+pub fn handle_preview_common_key(code: KeyCode) -> Option<Action> {
+    match code {
+        KeyCode::Char('n') => Some(Action::PreviewNext),
+        KeyCode::Char('p') => Some(Action::PreviewPrev),
+        KeyCode::Char('v') | KeyCode::Esc => Some(Action::CloseSidePanel),
+        _ => None,
+    }
 }
 
 /// コンポーネントの共通インターフェース。

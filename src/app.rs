@@ -3,7 +3,7 @@ pub mod async_job;
 use ratatui::DefaultTerminal;
 
 use crate::app_context::AppContext;
-use crate::component::{Action, Component, prompt};
+use crate::component::{Action, Component, PreviewMove, prompt};
 use crate::event::{EventHandler, InputEvent};
 use crate::store::RootStore;
 use crate::ui;
@@ -185,12 +185,12 @@ impl App {
                 }
             }
             Action::PreviewNext => {
-                if let Some(panel) = self.ctx.filer.navigate_preview(true) {
+                if let Some(panel) = self.ctx.filer.navigate_preview(PreviewMove::Next) {
                     self.ctx.side_panel = Some(panel);
                 }
             }
             Action::PreviewPrev => {
-                if let Some(panel) = self.ctx.filer.navigate_preview(false) {
+                if let Some(panel) = self.ctx.filer.navigate_preview(PreviewMove::Prev) {
                     self.ctx.side_panel = Some(panel);
                 }
             }
