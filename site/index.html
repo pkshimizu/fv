@@ -6,7 +6,7 @@
     <title>fv — A fast TUI file manager</title>
     <meta
       name="description"
-      content="fv は、ターミナルで完結する軽快なキーボード駆動の TUI ファイルマネージャです。"
+      content="fv は、ターミナルで完結する軽快なキーボード操作のファイルマネージャです。"
     />
     <link rel="stylesheet" href="./style.css" />
   </head>
@@ -14,9 +14,9 @@
     <header class="nav">
       <a class="nav__brand" href="#top">fv</a>
       <nav class="nav__links">
-        <a href="#features" class="t" data-ja="特徴" data-en="Features">特徴</a>
+        <a href="#highlights" class="t" data-ja="特徴" data-en="Highlights">特徴</a>
+        <a href="#features" class="t" data-ja="機能" data-en="Features">機能</a>
         <a href="#install" class="t" data-ja="インストール" data-en="Install">インストール</a>
-        <a href="#keys" class="t" data-ja="キー操作" data-en="Keys">キー操作</a>
         <a href="https://github.com/pkshimizu/fv" class="nav__gh">GitHub</a>
         <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Switch language">EN</button>
       </nav>
@@ -30,10 +30,10 @@
           <h1 class="hero__title">fv</h1>
           <p
             class="hero__tagline t"
-            data-ja="ターミナルで完結する、軽快なキーボード駆動の TUI ファイルマネージャ。"
-            data-en="A fast, keyboard-driven TUI file manager that lives in your terminal."
+            data-ja="ターミナルで完結する、軽快なキーボード操作のファイルマネージャ。"
+            data-en="A fast, keyboard-operated file manager that lives in your terminal."
           >
-            ターミナルで完結する、軽快なキーボード駆動の TUI ファイルマネージャ。
+            ターミナルで完結する、軽快なキーボード操作のファイルマネージャ。
           </p>
           <div class="hero__cta">
             <a href="#install" class="btn btn--primary t" data-ja="使ってみる" data-en="Get Started">使ってみる</a>
@@ -64,42 +64,114 @@
         </div>
       </section>
 
-      <!-- Features -->
+      <!-- Highlights -->
+      <section id="highlights" class="section">
+        <h2 class="section__title t" data-ja="特徴" data-en="Highlights">特徴</h2>
+        <div class="cards cards--3">
+          <article class="card">
+            <div class="card__icon">▷_</div>
+            <h3 class="t" data-ja="ターミナルで実行" data-en="Runs in your terminal">ターミナルで実行</h3>
+            <p class="t" data-ja="GUI は不要。SSH 先のサーバーでも手元のマシンでも、ターミナルさえあれば同じ操作感でファイルを扱えます。" data-en="No GUI needed. Whether on a remote server over SSH or your local machine, you get the same experience anywhere a terminal runs.">GUI は不要。SSH 先のサーバーでも手元のマシンでも、ターミナルさえあれば同じ操作感でファイルを扱えます。</p>
+          </article>
+          <article class="card">
+            <div class="card__icon">⚡</div>
+            <h3 class="t" data-ja="軽快に動作" data-en="Fast &amp; lightweight">軽快に動作</h3>
+            <p class="t" data-ja="Rust で実装し、起動も操作もキビキビ。大きなディレクトリやファイル操作中もキーボード操作が引っかかりません。" data-en="Built in Rust for snappy startup and response. Navigation stays smooth even in large directories or during file operations.">Rust で実装し、起動も操作もキビキビ。大きなディレクトリやファイル操作中もキーボード操作が引っかかりません。</p>
+          </article>
+          <article class="card">
+            <div class="card__icon">◧</div>
+            <h3 class="t" data-ja="シンプルなUIで豊富な機能" data-en="Simple UI, rich features">シンプルなUIで豊富な機能</h3>
+            <p class="t" data-ja="見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなど必要な機能を凝縮。覚えることは少なく、できることは多い。" data-en="A clean single screen packs in file operations, preview, grep, bookmarks, and more. Little to learn, a lot to do.">見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなど必要な機能を凝縮。覚えることは少なく、できることは多い。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Features (detailed) -->
       <section id="features" class="section">
-        <h2 class="section__title t" data-ja="特徴" data-en="Features">特徴</h2>
-        <div class="cards">
-          <article class="card">
+        <h2 class="section__title t" data-ja="機能" data-en="Features">機能</h2>
+        <p class="section__lead t" data-ja="ファイル一覧を中心に、操作・検索・表示まで、ファイル管理に必要な機能を網羅しています（括弧内はキー）。" data-en="Centered on the file list, fv covers operations, search, and viewing — everything you need to manage files (keys in parentheses).">ファイル一覧を中心に、操作・検索・表示まで、ファイル管理に必要な機能を網羅しています（括弧内はキー）。</p>
+
+        <!-- ファイルリスト -->
+        <div class="feature">
+          <div class="feature__body">
+            <h3 class="t" data-ja="ファイルリスト" data-en="File list">ファイルリスト</h3>
+            <p class="t" data-ja="カーソルでファイル/ディレクトリを移動し、Enter で開く・ディレクトリへ入る、Backspace で親へ戻ります。ディレクトリ履歴の前後移動やホームへの移動にも対応。ヘッダーには現在のパス・ディスク使用量・システム情報・時刻を常時表示します。" data-en="Move the cursor through files and directories, open or enter with Enter, and go to the parent with Backspace. Navigate directory history and jump home. The header always shows the current path, disk usage, system info, and the clock.">カーソルでファイル/ディレクトリを移動し、Enter で開く・ディレクトリへ入る、Backspace で親へ戻ります。ディレクトリ履歴の前後移動やホームへの移動にも対応。ヘッダーには現在のパス・ディスク使用量・システム情報・時刻を常時表示します。</p>
+            <ul class="caps">
+              <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> <span class="t" data-ja="カーソル移動 / 先頭・末尾へ" data-en="Move cursor / to first・last">カーソル移動 / 先頭・末尾へ</span></li>
+              <li><kbd>Enter</kbd> <kbd>Backspace</kbd> <span class="t" data-ja="開く・潜る / 親へ" data-en="Open・enter / parent">開く・潜る / 親へ</span></li>
+              <li><kbd>Space</kbd> <span class="t" data-ja="複数選択（チェック）" data-en="Multi-select (check)">複数選択（チェック）</span></li>
+              <li><kbd>.</kbd> <kbd>s</kbd> <span class="t" data-ja="隠しファイル表示 / 並び替え" data-en="Toggle hidden / sort">隠しファイル表示 / 並び替え</span></li>
+            </ul>
+          </div>
+          <div class="term term--mini" role="img" aria-label="ファイルリストの画面イメージ">
+            <pre class="term__screen"><span class="l-head">~/projects/fv ──────────────────────</span>
+<span class="l-dir">▸ .github/</span>
+<span class="l-dir">▸ src/</span>
+<span class="l-cur">✓ Cargo.toml          1.2 KB  rw-r--r--</span>
+<span>█README.md            2.1 KB  rw-r--r--</span>
+<span>  LICENSE             1.1 KB  rw-r--r--</span></pre>
+          </div>
+        </div>
+
+        <!-- ファイル操作 -->
+        <div class="feature feature--reverse">
+          <div class="feature__body">
             <h3 class="t" data-ja="ファイル操作" data-en="File operations">ファイル操作</h3>
-            <p class="t" data-ja="コピー・移動・削除・リネーム・ディレクトリ作成・Zip 圧縮/解凍。長時間処理は進捗表示付きの非同期ジョブで実行し、Esc で中断できます。" data-en="Copy, move, delete, rename, mkdir, and zip/unzip. Long operations run as async jobs with progress and can be cancelled with Esc.">コピー・移動・削除・リネーム・ディレクトリ作成・Zip 圧縮/解凍。長時間処理は進捗表示付きの非同期ジョブで実行し、Esc で中断できます。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="シェル / コマンド実行" data-en="Shell &amp; commands">シェル / コマンド実行</h3>
-            <p class="t" data-ja="現在のディレクトリでシェルを起動（h）、任意のコマンドを実行（x）。ファイル操作とコマンドラインを行き来できます。" data-en="Launch a shell in the current directory (h) or run an arbitrary command (x). Move freely between file ops and the command line.">現在のディレクトリでシェルを起動（h）、任意のコマンドを実行（x）。ファイル操作とコマンドラインを行き来できます。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="ファイル情報・属性" data-en="File info &amp; attributes">ファイル情報・属性</h3>
-            <p class="t" data-ja="サイズ・種別・パーミッション・タイムスタンプなどの詳細（i）と属性パネル（a）をサイドパネルで確認できます。" data-en="Inspect size, type, permissions, and timestamps (i) and the attribute panel (a) in a side panel.">サイズ・種別・パーミッション・タイムスタンプなどの詳細（i）と属性パネル（a）をサイドパネルで確認できます。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="Grep 検索" data-en="Grep search">Grep 検索</h3>
-            <p class="t" data-ja="ディレクトリ配下を grep（g）。ヒットしたファイルへサイドパネルから直接ジャンプできます。" data-en="Grep through the current tree (g) and jump straight to matching files from the results panel.">ディレクトリ配下を grep（g）。ヒットしたファイルへサイドパネルから直接ジャンプできます。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="ブックマーク" data-en="Bookmarks">ブックマーク</h3>
-            <p class="t" data-ja="よく使うディレクトリを登録（+）・削除（-）し、ブックマークパネル（b）から素早く移動できます。" data-en="Save (+) and remove (-) frequently used directories and jump to them from the bookmark panel (b).">よく使うディレクトリを登録（+）・削除（-）し、ブックマークパネル（b）から素早く移動できます。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="プレビュー" data-en="Preview">プレビュー</h3>
-            <p class="t" data-ja="テキスト・画像のプレビュー（v）に対応。オーディオファイルは再生・シークも可能です。" data-en="Preview text and images (v). Audio files can be played and seeked right inside the panel.">テキスト・画像のプレビュー（v）に対応。オーディオファイルは再生・シークも可能です。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="ツリー表示" data-en="Directory tree">ツリー表示</h3>
-            <p class="t" data-ja="ディレクトリ構造をツリー（t）で俯瞰し、展開・折りたたみしながら目的の場所へ移動できます。" data-en="Survey the directory structure as a tree (t), expand/collapse nodes, and navigate to any location.">ディレクトリ構造をツリー（t）で俯瞰し、展開・折りたたみしながら目的の場所へ移動できます。</p>
-          </article>
-          <article class="card">
-            <h3 class="t" data-ja="検索・ジャンプ・Yank" data-en="Search, jump &amp; yank">検索・ジャンプ・Yank</h3>
-            <p class="t" data-ja="インクリメンタル検索（f）、ディレクトリジャンプ（j）、選択パスのクリップボードコピー（y）。" data-en="Incremental search (f), directory jump (j), and copy selected paths to the clipboard (y).">インクリメンタル検索（f）、ディレクトリジャンプ（j）、選択パスのクリップボードコピー（y）。</p>
-          </article>
+            <p class="t" data-ja="コピー・移動・削除・リネーム・ディレクトリ/ファイル作成に加え、Zip の圧縮・解凍にも対応。コピーや移動などの長時間処理は進捗表示付きの非同期ジョブとして実行され、Esc でいつでも中断できます。選択中のパスはクリップボードへコピー（Yank）できます。" data-en="Copy, move, delete, rename, and create directories/files, plus zip compression and extraction. Long operations like copy and move run as async jobs with progress and can be cancelled anytime with Esc. Selected paths can be copied to the clipboard (Yank).">コピー・移動・削除・リネーム・ディレクトリ/ファイル作成に加え、Zip の圧縮・解凍にも対応。コピーや移動などの長時間処理は進捗表示付きの非同期ジョブとして実行され、Esc でいつでも中断できます。選択中のパスはクリップボードへコピー（Yank）できます。</p>
+            <ul class="caps">
+              <li><kbd>c</kbd> <kbd>m</kbd> <kbd>d</kbd> <span class="t" data-ja="コピー / 移動 / 削除" data-en="Copy / move / delete">コピー / 移動 / 削除</span></li>
+              <li><kbd>r</kbd> <kbd>k</kbd> <kbd>n</kbd> <span class="t" data-ja="リネーム / ディレクトリ作成 / ファイル作成" data-en="Rename / mkdir / new file">リネーム / ディレクトリ作成 / ファイル作成</span></li>
+              <li><kbd>p</kbd> <kbd>u</kbd> <span class="t" data-ja="Zip 圧縮 / 解凍" data-en="Zip / unzip">Zip 圧縮 / 解凍</span></li>
+              <li><kbd>y</kbd> <span class="t" data-ja="パスをクリップボードへ（Yank）" data-en="Yank path to clipboard">パスをクリップボードへ（Yank）</span></li>
+            </ul>
+          </div>
+          <div class="term term--mini" role="img" aria-label="非同期コピーの進捗イメージ">
+            <pre class="term__screen"><span class="l-accent">Copying...</span>
+<span class="l-dir">[■■■■■■■■□□]</span> 812 / 1024 files
+src/component/filer.rs
+<span class="l-dim">Esc</span> <span>to cancel</span></pre>
+          </div>
+        </div>
+
+        <!-- 検索・表示 -->
+        <div class="feature">
+          <div class="feature__body">
+            <h3 class="t" data-ja="検索・表示" data-en="Search &amp; view">検索・表示</h3>
+            <p class="t" data-ja="テキスト・画像・オーディオのプレビュー（オーディオは再生/シーク対応）、ディレクトリ構造のツリー表示、配下を検索してヒットへ飛べる Grep、入力中に絞り込むインクリメンタル検索、ディレクトリへ一気に移動する Jump を備えます。ファイル情報・属性のパネルも開けます。" data-en="Preview text, images, and audio (with play/seek), view the directory tree, grep through the tree and jump to matches, filter incrementally as you type, and jump straight to a directory. File info and attribute panels are available too.">テキスト・画像・オーディオのプレビュー（オーディオは再生/シーク対応）、ディレクトリ構造のツリー表示、配下を検索してヒットへ飛べる Grep、入力中に絞り込むインクリメンタル検索、ディレクトリへ一気に移動する Jump を備えます。ファイル情報・属性のパネルも開けます。</p>
+            <ul class="caps">
+              <li><kbd>v</kbd> <kbd>t</kbd> <span class="t" data-ja="プレビュー / ツリー表示" data-en="Preview / tree">プレビュー / ツリー表示</span></li>
+              <li><kbd>g</kbd> <kbd>f</kbd> <kbd>j</kbd> <span class="t" data-ja="Grep / 検索 / ジャンプ" data-en="Grep / search / jump">Grep / 検索 / ジャンプ</span></li>
+              <li><kbd>i</kbd> <kbd>a</kbd> <span class="t" data-ja="ファイル情報 / 属性" data-en="File info / attributes">ファイル情報 / 属性</span></li>
+            </ul>
+          </div>
+          <div class="term term--mini" role="img" aria-label="ツリーとプレビューの画面イメージ">
+            <pre class="term__screen"><span class="l-dim">Tree ───────────┬─ Preview ──────────</span>
+<span class="l-dir">▾ src/</span>           <span class="l-dim">│</span> fn main() {
+<span class="l-dir">  ▾ component/</span>   <span class="l-dim">│</span>   App::new()
+<span>    filer.rs</span>    <span class="l-dim">│</span>      .run()?;
+<span>  main.rs</span>        <span class="l-dim">│</span> }
+<span class="l-dir">▸ docs/</span>          <span class="l-dim">│</span> <span class="l-accent">text/x-rust</span></pre>
+          </div>
+        </div>
+
+        <!-- その他 -->
+        <div class="feature feature--reverse">
+          <div class="feature__body">
+            <h3 class="t" data-ja="その他" data-en="More">その他</h3>
+            <p class="t" data-ja="よく使うディレクトリをブックマークに登録して素早く移動。現在のディレクトリでシェルを起動したり、任意のコマンドを実行することもできます。設定パネルやヘルプもキー一発で開けます。" data-en="Bookmark frequently used directories for quick jumps. Launch a shell in the current directory or run an arbitrary command. The settings panel and help are a single keystroke away.">よく使うディレクトリをブックマークに登録して素早く移動。現在のディレクトリでシェルを起動したり、任意のコマンドを実行することもできます。設定パネルやヘルプもキー一発で開けます。</p>
+            <ul class="caps">
+              <li><kbd>b</kbd> <kbd>+</kbd> <kbd>-</kbd> <span class="t" data-ja="ブックマーク 表示 / 追加 / 削除" data-en="Bookmarks show / add / remove">ブックマーク 表示 / 追加 / 削除</span></li>
+              <li><kbd>h</kbd> <kbd>x</kbd> <span class="t" data-ja="シェル起動 / コマンド実行" data-en="Shell / execute command">シェル起動 / コマンド実行</span></li>
+              <li><kbd>o</kbd> <kbd>?</kbd> <kbd>q</kbd> <span class="t" data-ja="設定 / ヘルプ / 終了" data-en="Settings / help / quit">設定 / ヘルプ / 終了</span></li>
+            </ul>
+          </div>
+          <div class="term term--mini" role="img" aria-label="ブックマークの画面イメージ">
+            <pre class="term__screen"><span class="l-accent">Bookmarks</span>
+<span class="l-cur">█ ~/projects/fv</span>
+<span>  ~/.config</span>
+<span>  ~/work/reports</span>
+<span class="l-dim">Enter</span> <span>to jump  </span><span class="l-key">-</span> <span>remove</span></pre>
+          </div>
         </div>
       </section>
 
@@ -123,57 +195,6 @@ tar xzf fv-x86_64-unknown-linux-gnu.tar.gz
 
 mv fv /usr/local/bin/</code></pre>
             <p><a class="link" href="https://github.com/pkshimizu/fv/releases">github.com/pkshimizu/fv/releases →</a></p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Keybindings -->
-      <section id="keys" class="section">
-        <h2 class="section__title t" data-ja="主要なキー操作" data-en="Key bindings">主要なキー操作</h2>
-        <p class="section__lead t" data-ja="ファイル一覧（メイン画面）での主なキー操作です。" data-en="The main key bindings available in the file list (main screen).">ファイル一覧（メイン画面）での主なキー操作です。</p>
-        <div class="keys">
-          <div class="keys__group">
-            <h3 class="t" data-ja="移動" data-en="Navigation">移動</h3>
-            <table class="kbtable">
-              <tbody>
-                <tr><td><kbd>↑</kbd><kbd>↓</kbd></td><td class="t" data-ja="カーソル移動" data-en="Move cursor">カーソル移動</td></tr>
-                <tr><td><kbd>←</kbd><kbd>→</kbd></td><td class="t" data-ja="先頭 / 末尾へ" data-en="To first / last">先頭 / 末尾へ</td></tr>
-                <tr><td><kbd>Enter</kbd></td><td class="t" data-ja="開く / ディレクトリへ" data-en="Open / enter dir">開く / ディレクトリへ</td></tr>
-                <tr><td><kbd>Backspace</kbd></td><td class="t" data-ja="親ディレクトリへ" data-en="Parent directory">親ディレクトリへ</td></tr>
-                <tr><td><kbd>&lt;</kbd><kbd>&gt;</kbd></td><td class="t" data-ja="履歴を戻る / 進む" data-en="History back / forward">履歴を戻る / 進む</td></tr>
-                <tr><td><kbd>~</kbd></td><td class="t" data-ja="ホームへ" data-en="Home directory">ホームへ</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="keys__group">
-            <h3 class="t" data-ja="ファイル操作" data-en="File operations">ファイル操作</h3>
-            <table class="kbtable">
-              <tbody>
-                <tr><td><kbd>c</kbd></td><td class="t" data-ja="コピー" data-en="Copy">コピー</td></tr>
-                <tr><td><kbd>m</kbd></td><td class="t" data-ja="移動" data-en="Move">移動</td></tr>
-                <tr><td><kbd>d</kbd></td><td class="t" data-ja="削除" data-en="Delete">削除</td></tr>
-                <tr><td><kbd>r</kbd></td><td class="t" data-ja="リネーム" data-en="Rename">リネーム</td></tr>
-                <tr><td><kbd>k</kbd> / <kbd>n</kbd></td><td class="t" data-ja="ディレクトリ / ファイル作成" data-en="Mkdir / new file">ディレクトリ / ファイル作成</td></tr>
-                <tr><td><kbd>p</kbd> / <kbd>u</kbd></td><td class="t" data-ja="Zip 圧縮 / 解凍" data-en="Zip / unzip">Zip 圧縮 / 解凍</td></tr>
-                <tr><td><kbd>y</kbd></td><td class="t" data-ja="パスを Yank" data-en="Yank path">パスを Yank</td></tr>
-                <tr><td><kbd>Space</kbd></td><td class="t" data-ja="選択トグル" data-en="Toggle selection">選択トグル</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="keys__group">
-            <h3 class="t" data-ja="パネル / 検索" data-en="Panels / search">パネル / 検索</h3>
-            <table class="kbtable">
-              <tbody>
-                <tr><td><kbd>i</kbd> / <kbd>a</kbd></td><td class="t" data-ja="ファイル情報 / 属性" data-en="File info / attributes">ファイル情報 / 属性</td></tr>
-                <tr><td><kbd>v</kbd> / <kbd>t</kbd></td><td class="t" data-ja="プレビュー / ツリー" data-en="Preview / tree">プレビュー / ツリー</td></tr>
-                <tr><td><kbd>b</kbd></td><td class="t" data-ja="ブックマーク" data-en="Bookmarks">ブックマーク</td></tr>
-                <tr><td><kbd>g</kbd> / <kbd>f</kbd></td><td class="t" data-ja="Grep / 検索" data-en="Grep / search">Grep / 検索</td></tr>
-                <tr><td><kbd>j</kbd></td><td class="t" data-ja="ジャンプ" data-en="Jump">ジャンプ</td></tr>
-                <tr><td><kbd>h</kbd> / <kbd>x</kbd></td><td class="t" data-ja="シェル / コマンド実行" data-en="Shell / execute">シェル / コマンド実行</td></tr>
-                <tr><td><kbd>o</kbd> / <kbd>?</kbd></td><td class="t" data-ja="設定 / ヘルプ" data-en="Settings / help">設定 / ヘルプ</td></tr>
-                <tr><td><kbd>q</kbd></td><td class="t" data-ja="終了" data-en="Quit">終了</td></tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </section>
