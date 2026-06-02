@@ -40,11 +40,13 @@ impl ImagePreviewComponent {
 
 impl Component for ImagePreviewComponent {
     fn keymap(&self) -> &'static str {
-        "v/Esc: Close"
+        "n/p: Next/Prev  v/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
+            KeyCode::Char('n') => Ok(Action::PreviewNext),
+            KeyCode::Char('p') => Ok(Action::PreviewPrev),
             KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
             _ => Ok(Action::None),
         }

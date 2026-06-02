@@ -23,11 +23,20 @@ impl PreviewComponent {
         let text_output = TextOutputState::with_lines(preview.lines);
         Ok(Self { title, text_output })
     }
+
+    /// プレビューできないファイル（ディレクトリ・バイナリ・読み込み失敗等）に対して、
+    /// 理由メッセージをサイドパネル内に表示するためのコンポーネントを作る。
+    pub fn message(file_name: &str, message: &str) -> Self {
+        Self {
+            title: format!("Preview - {file_name}"),
+            text_output: TextOutputState::with_lines(vec![message.to_string()]),
+        }
+    }
 }
 
 impl Component for PreviewComponent {
     fn keymap(&self) -> &'static str {
-        "↑↓: Scroll  ←→: Top/Bottom  v/Esc: Close"
+        "↑↓: Scroll  ←→: Top/Bottom  n/p: Next/Prev  v/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
@@ -35,6 +44,8 @@ impl Component for PreviewComponent {
             return Ok(Action::None);
         }
         match event.code {
+            KeyCode::Char('n') => Ok(Action::PreviewNext),
+            KeyCode::Char('p') => Ok(Action::PreviewPrev),
             KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
             _ => Ok(Action::None),
         }

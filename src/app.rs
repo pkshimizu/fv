@@ -184,6 +184,16 @@ impl App {
                     self.ctx.side_panel = Some(*panel);
                 }
             }
+            Action::PreviewNext => {
+                if let Some(panel) = self.ctx.filer.navigate_preview(true) {
+                    self.ctx.side_panel = Some(panel);
+                }
+            }
+            Action::PreviewPrev => {
+                if let Some(panel) = self.ctx.filer.navigate_preview(false) {
+                    self.ctx.side_panel = Some(panel);
+                }
+            }
             Action::OpenFile(path) => {
                 open::that(path)?;
             }

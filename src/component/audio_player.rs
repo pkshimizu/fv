@@ -81,7 +81,7 @@ impl AudioPlayerComponent {
 
 impl Component for AudioPlayerComponent {
     fn keymap(&self) -> &'static str {
-        "Space: Play/Pause  ←→: Seek  v/Esc: Close"
+        "Space: Play/Pause  ←→: Seek  n/p: Next/Prev  v/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
@@ -98,6 +98,8 @@ impl Component for AudioPlayerComponent {
                 self.seek_backward();
                 Ok(Action::None)
             }
+            KeyCode::Char('n') => Ok(Action::PreviewNext),
+            KeyCode::Char('p') => Ok(Action::PreviewPrev),
             KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
             _ => Ok(Action::None),
         }

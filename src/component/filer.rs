@@ -397,15 +397,28 @@ impl FilerComponent {
     }
 
     fn show_preview(&self) -> Result<Action> {
-        let Some(file) = self.state.selected_file() else {
-            return Ok(Action::None);
-        };
-        if file.is_dir() {
-            return Ok(Action::None);
+        match self.build_preview_panel() {
+            Some(panel) => Ok(Action::ShowSidePanel(Box::new(panel))),
+            None => Ok(Action::None),
         }
-        let path = file.absolute_path();
+    }
+
+    /// Cursor File に対応するプレビューパネルを組み立てる。
+    /// ディレクトリ・対象外（バイナリ）・読み込み失敗は、その旨のメッセージを表示する
+    /// パネルを返す（プレビュー不可でも常にパネルを返し、n/p で移動を続けられる）。
+    /// Cursor File が存在しない（空ディレクトリ等）場合のみ None。
+    fn build_preview_panel(&self) -> Option<SidePanel> {
+        let file = self.state.selected_file()?;
         let file_name = file.file_name().unwrap_or("(unknown)");
 
+        if file.is_dir() {
+            return Some(SidePanel::Preview(PreviewComponent::message(
+                file_name,
+                "Cannot preview a directory",
+            )));
+        }
+
+        let path = file.absolute_path();
         let panel = if is_audio_file(path) {
             AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
         } else if is_image_file(path) {
@@ -413,12 +426,24 @@ impl FilerComponent {
         } else {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)
         };
-        match panel {
-            Ok(p) => Ok(Action::ShowSidePanel(Box::new(p))),
-            Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
-                message: format!("Failed to preview: {e}"),
-            }))),
+        Some(panel.unwrap_or_else(|e| {
+            SidePanel::Preview(PreviewComponent::message(file_name, &format!("{e}")))
+        }))
+    }
+
+    /// プレビュー表示中に Cursor File を前後のエントリへ移動し、新しいパネルを返す。
+    /// 端で移動できなかった場合は None（パネルを差し替えない）。
+    pub fn navigate_preview(&mut self, next: bool) -> Option<SidePanel> {
+        let before = self.state.file_table_state.selected();
+        if next {
+            self.state.next();
+        } else {
+            self.state.prev();
         }
+        if self.state.file_table_state.selected() == before {
+            return None;
+        }
+        self.build_preview_panel()
     }
 
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {

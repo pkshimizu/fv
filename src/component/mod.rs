@@ -78,6 +78,10 @@ pub enum Action {
     NavigateBack,
     /// ディレクトリ履歴を一つ進む
     NavigateForward,
+    /// プレビュー表示中に次のエントリへ移動する
+    PreviewNext,
+    /// プレビュー表示中に前のエントリへ移動する
+    PreviewPrev,
 }
 
 /// コンポーネントの共通インターフェース。
