@@ -30,6 +30,13 @@ jobs:
           # release-plz が直近のリリースタグ（v0.1.0 等）を認識できるよう、タグも取得する。
           fetch-tags: true
 
+      # release-plz は cargo package（--verify でコンパイル）を実行するため、
+      # ビルドに必要なシステム依存（rodio/alsa-sys 用の ALSA）を入れておく。
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
