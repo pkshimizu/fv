@@ -415,7 +415,7 @@ impl FilerComponent {
     /// ディレクトリ・対象外（バイナリ）・読み込み失敗は、その旨のメッセージを表示する
     /// パネルを返す（プレビュー不可でも常にパネルを返し、n/p で移動を続けられる）。
     /// Cursor File が存在しない（空ディレクトリ等）場合のみ None。
-    fn build_preview_panel(&self) -> Option<SidePanel> {
+    pub fn build_preview_panel(&self) -> Option<SidePanel> {
         let file = self.state.selected_file()?;
         let file_name = file.file_name().unwrap_or("(unknown)");
 
@@ -441,20 +441,17 @@ impl FilerComponent {
         }))
     }
 
-    /// プレビュー表示中に Cursor File を前後のエントリへ移動し、新しいパネルを返す。
-    /// 端で移動できなかった場合は None（パネルを差し替えない）。
+    /// プレビュー表示中に Cursor File を前後のエントリへ移動する。実際に移動できたら true。
+    /// パネルの再生成は呼び出し側（App）がスロットル/アイドルに応じてまとめて行う。
     /// 移動可否は移動前後のカーソル位置の差で判定するため、TableCursor が端で
     /// クランプする（ラップしない）ことを前提とする。
-    pub fn navigate_preview(&mut self, direction: PreviewMove) -> Option<SidePanel> {
+    pub fn move_preview_cursor(&mut self, direction: PreviewMove) -> bool {
         let before = self.state.file_table_state.selected();
         match direction {
             PreviewMove::Next => self.state.next(),
             PreviewMove::Prev => self.state.prev(),
         }
-        if self.state.file_table_state.selected() == before {
-            return None;
-        }
-        self.build_preview_panel()
+        self.state.file_table_state.selected() != before
     }
 
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {
