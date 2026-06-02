@@ -36,9 +36,6 @@ jobs:
       - name: Run release-plz
         id: release-plz
         uses: MarcoIeni/release-plz-action@v0.5
-        # 判断理由を確認するため verbose ログを有効化する。
-        with:
-          verbose: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
