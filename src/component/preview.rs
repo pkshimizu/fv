@@ -1,11 +1,16 @@
-use crate::component::{Action, Component};
+use crate::component::{Action, Component, handle_preview_common_key};
 use crate::fs::text_preview::TextPreview;
 use crate::state::TextOutputState;
 use crate::ui::widgets::render_text_output;
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::Rect;
+
+/// プレビューパネルのタイトル文字列を組み立てる。
+fn preview_title(file_name: &str) -> String {
+    format!("Preview - {file_name}")
+}
 
 pub struct PreviewComponent {
     title: String,
@@ -16,28 +21,37 @@ impl PreviewComponent {
     pub fn new(path: &str, file_name: &str) -> Result<Self> {
         let preview = TextPreview::from_file(path)?;
         let title = if preview.truncated {
-            format!("Preview - {file_name} (truncated)")
+            format!("{} (truncated)", preview_title(file_name))
         } else {
-            format!("Preview - {file_name}")
+            preview_title(file_name)
         };
         let text_output = TextOutputState::with_lines(preview.lines);
         Ok(Self { title, text_output })
+    }
+
+    /// プレビューできないファイル（ディレクトリ・バイナリ・読み込み失敗等）に対して、
+    /// 理由メッセージをサイドパネル内に表示するためのコンポーネントを作る。
+    pub fn with_message(file_name: &str, text: impl Into<String>) -> Self {
+        Self {
+            title: preview_title(file_name),
+            text_output: TextOutputState::with_lines(vec![text.into()]),
+        }
     }
 }
 
 impl Component for PreviewComponent {
     fn keymap(&self) -> &'static str {
-        "↑↓: Scroll  ←→: Top/Bottom  v/Esc: Close"
+        "↑↓: Scroll  ←→: Top/Bottom  n/p: Next/Prev  v/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         if self.text_output.handle_scroll_key(event.code) {
             return Ok(Action::None);
         }
-        match event.code {
-            KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
-            _ => Ok(Action::None),
+        if let Some(action) = handle_preview_common_key(event.code) {
+            return Ok(action);
         }
+        Ok(Action::None)
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {

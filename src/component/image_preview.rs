@@ -1,7 +1,7 @@
-use crate::component::{Action, Component};
+use crate::component::{Action, Component, handle_preview_common_key};
 use crate::ui::widgets::build_focused_block;
 use anyhow::{Context, Result, bail};
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -40,14 +40,11 @@ impl ImagePreviewComponent {
 
 impl Component for ImagePreviewComponent {
     fn keymap(&self) -> &'static str {
-        "v/Esc: Close"
+        "n/p: Next/Prev  v/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
-        match event.code {
-            KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
-            _ => Ok(Action::None),
-        }
+        Ok(handle_preview_common_key(event.code).unwrap_or(Action::None))
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {

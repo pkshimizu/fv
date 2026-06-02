@@ -1,4 +1,4 @@
-use crate::component::{Action, Component};
+use crate::component::{Action, Component, handle_preview_common_key};
 use crate::fs::file_info::{format_duration, get_media_duration};
 use crate::ui::widgets::build_focused_block;
 use anyhow::{Context, Result};
@@ -81,26 +81,22 @@ impl AudioPlayerComponent {
 
 impl Component for AudioPlayerComponent {
     fn keymap(&self) -> &'static str {
-        "Space: Play/Pause  ←→: Seek  v/Esc: Close"
+        "Space: Play/Pause  ←→: Seek  n/p: Next/Prev  v/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
-        match event.code {
-            KeyCode::Char(' ') => {
-                self.toggle_play_pause();
-                Ok(Action::None)
-            }
-            KeyCode::Right => {
-                self.seek_forward();
-                Ok(Action::None)
-            }
-            KeyCode::Left => {
-                self.seek_backward();
-                Ok(Action::None)
-            }
-            KeyCode::Char('v') | KeyCode::Esc => Ok(Action::CloseSidePanel),
-            _ => Ok(Action::None),
+        // n/p（移動）・v/Esc（クローズ）は全プレビュー共通。
+        if let Some(action) = handle_preview_common_key(event.code) {
+            return Ok(action);
         }
+        // オーディオ固有のキー（再生/一時停止・シーク）。
+        match event.code {
+            KeyCode::Char(' ') => self.toggle_play_pause(),
+            KeyCode::Right => self.seek_forward(),
+            KeyCode::Left => self.seek_backward(),
+            _ => {}
+        }
+        Ok(Action::None)
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {

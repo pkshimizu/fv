@@ -27,6 +27,14 @@ const DIR_STYLE: Style = Style::new().fg(Color::Green);
 const CHECKED_SYMBOL: &str = "*";
 const BOOKMARK_SYMBOL: &str = "B";
 
+/// プレビュー表示中のファイル移動方向。
+pub enum PreviewMove {
+    /// 次のエントリへ
+    Next,
+    /// 前のエントリへ
+    Prev,
+}
+
 pub struct FilerComponent {
     state: FilerState,
     focused: bool,
@@ -397,15 +405,28 @@ impl FilerComponent {
     }
 
     fn show_preview(&self) -> Result<Action> {
-        let Some(file) = self.state.selected_file() else {
-            return Ok(Action::None);
-        };
-        if file.is_dir() {
-            return Ok(Action::None);
+        match self.build_preview_panel() {
+            Some(panel) => Ok(Action::ShowSidePanel(Box::new(panel))),
+            None => Ok(Action::None),
         }
-        let path = file.absolute_path();
+    }
+
+    /// Cursor File に対応するプレビューパネルを組み立てる。
+    /// ディレクトリ・対象外（バイナリ）・読み込み失敗は、その旨のメッセージを表示する
+    /// パネルを返す（プレビュー不可でも常にパネルを返し、n/p で移動を続けられる）。
+    /// Cursor File が存在しない（空ディレクトリ等）場合のみ None。
+    fn build_preview_panel(&self) -> Option<SidePanel> {
+        let file = self.state.selected_file()?;
         let file_name = file.file_name().unwrap_or("(unknown)");
 
+        if file.is_dir() {
+            return Some(SidePanel::Preview(PreviewComponent::with_message(
+                file_name,
+                "Cannot preview a directory",
+            )));
+        }
+
+        let path = file.absolute_path();
         let panel = if is_audio_file(path) {
             AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
         } else if is_image_file(path) {
@@ -413,12 +434,27 @@ impl FilerComponent {
         } else {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)
         };
-        match panel {
-            Ok(p) => Ok(Action::ShowSidePanel(Box::new(p))),
-            Err(e) => Ok(Action::SetPromptMode(Box::new(PromptMode::Error {
-                message: format!("Failed to preview: {e}"),
-            }))),
+        Some(panel.unwrap_or_else(|e| {
+            // 開発者向けにはエラーチェーンをログへ、利用者向けには簡潔な理由をパネルへ。
+            tracing::warn!("Failed to build preview panel for {file_name}: {e:#}");
+            SidePanel::Preview(PreviewComponent::with_message(file_name, e.to_string()))
+        }))
+    }
+
+    /// プレビュー表示中に Cursor File を前後のエントリへ移動し、新しいパネルを返す。
+    /// 端で移動できなかった場合は None（パネルを差し替えない）。
+    /// 移動可否は移動前後のカーソル位置の差で判定するため、TableCursor が端で
+    /// クランプする（ラップしない）ことを前提とする。
+    pub fn navigate_preview(&mut self, direction: PreviewMove) -> Option<SidePanel> {
+        let before = self.state.file_table_state.selected();
+        match direction {
+            PreviewMove::Next => self.state.next(),
+            PreviewMove::Prev => self.state.prev(),
         }
+        if self.state.file_table_state.selected() == before {
+            return None;
+        }
+        self.build_preview_panel()
     }
 
     fn build_file_table(&self, block: Block<'static>, store: &RootStore) -> Table<'static> {
