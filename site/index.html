@@ -15,8 +15,8 @@
       <a class="nav__brand" href="#top">fv</a>
       <nav class="nav__links">
         <a href="#highlights" class="t" data-ja="特徴" data-en="Highlights">特徴</a>
-        <a href="#features" class="t" data-ja="機能" data-en="Features">機能</a>
         <a href="#install" class="t" data-ja="インストール" data-en="Install">インストール</a>
+        <a href="#features" class="t" data-ja="機能" data-en="Features">機能</a>
         <a href="https://github.com/pkshimizu/fv" class="nav__gh">GitHub</a>
         <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Switch language">EN</button>
       </nav>
@@ -83,6 +83,30 @@
             <h3 class="t" data-ja="シンプルなUIで豊富な機能" data-en="Simple UI, rich features">シンプルなUIで豊富な機能</h3>
             <p class="t" data-ja="見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなど必要な機能を凝縮。覚えることは少なく、できることは多い。" data-en="A clean single screen packs in file operations, preview, grep, bookmarks, and more. Little to learn, a lot to do.">見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなど必要な機能を凝縮。覚えることは少なく、できることは多い。</p>
           </article>
+        </div>
+      </section>
+
+      <!-- Install -->
+      <section id="install" class="section">
+        <h2 class="section__title t" data-ja="インストール" data-en="Install">インストール</h2>
+        <div class="install">
+          <div class="install__item">
+            <h3>Homebrew</h3>
+            <p class="install__note t" data-ja="macOS (Apple Silicon) / Linux (x86_64)" data-en="macOS (Apple Silicon) / Linux (x86_64)">macOS (Apple Silicon) / Linux (x86_64)</p>
+            <pre class="code"><code>brew tap pkshimizu/tap
+brew install fv</code></pre>
+          </div>
+          <div class="install__item">
+            <h3 class="t" data-ja="GitHub Releases" data-en="GitHub Releases">GitHub Releases</h3>
+            <p class="install__note t" data-ja="お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。" data-en="Download the archive for your platform, extract it, and place fv somewhere on your PATH.">お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。</p>
+            <pre class="code"><code># macOS (Apple Silicon)
+tar xzf fv-aarch64-apple-darwin.tar.gz
+# Linux (x86_64)
+tar xzf fv-x86_64-unknown-linux-gnu.tar.gz
+
+mv fv /usr/local/bin/</code></pre>
+            <p><a class="link" href="https://github.com/pkshimizu/fv/releases">github.com/pkshimizu/fv/releases →</a></p>
+          </div>
         </div>
       </section>
 
@@ -175,29 +199,6 @@ src/component/filer.rs
         </div>
       </section>
 
-      <!-- Install -->
-      <section id="install" class="section">
-        <h2 class="section__title t" data-ja="インストール" data-en="Install">インストール</h2>
-        <div class="install">
-          <div class="install__item">
-            <h3>Homebrew</h3>
-            <p class="install__note t" data-ja="macOS (Apple Silicon) / Linux (x86_64)" data-en="macOS (Apple Silicon) / Linux (x86_64)">macOS (Apple Silicon) / Linux (x86_64)</p>
-            <pre class="code"><code>brew tap pkshimizu/tap
-brew install fv</code></pre>
-          </div>
-          <div class="install__item">
-            <h3 class="t" data-ja="GitHub Releases" data-en="GitHub Releases">GitHub Releases</h3>
-            <p class="install__note t" data-ja="お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。" data-en="Download the archive for your platform, extract it, and place fv somewhere on your PATH.">お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。</p>
-            <pre class="code"><code># macOS (Apple Silicon)
-tar xzf fv-aarch64-apple-darwin.tar.gz
-# Linux (x86_64)
-tar xzf fv-x86_64-unknown-linux-gnu.tar.gz
-
-mv fv /usr/local/bin/</code></pre>
-            <p><a class="link" href="https://github.com/pkshimizu/fv/releases">github.com/pkshimizu/fv/releases →</a></p>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer class="footer">
