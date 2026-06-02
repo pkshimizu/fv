@@ -182,10 +182,12 @@ jobs:
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet; then
+          # 先に stage してから差分判定する。git diff（作業ツリー）は未追跡ファイルを
+          # 検知しないため、初回の新規 fv.rb が push されない不具合を避ける。
+          git add fv.rb
+          if git diff --cached --quiet; then
             echo "fv.rb に変更なし。push をスキップします。"
             exit 0
           fi
-          git add fv.rb
           git commit -m "fv ${version}"
           git push
