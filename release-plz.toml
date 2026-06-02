@@ -7,6 +7,11 @@
 # 処理対象外にしてしまう（リリース PR もリリースも作られない）。crates.io 公開だけを
 # 止めて GitHub Release は出すには、Cargo.toml ではなくこちら（release-plz.toml）で設定する。
 publish = false
+# git タグからバージョンを判定する（cargo レジストリを参照しない）。
+# これが無いと、未公開パッケージでは初回リリース後に「最後のリリース版」を
+# レジストリから取得できず、コミットからの bump を計算できないため
+# 2 回目以降のリリース PR が作成されない。
+git_only = true
 # リリースの起点はリリース PR のマージ。push のたびに自動リリースしない。
 release_always = false
 # GitHub Release を作成する。
