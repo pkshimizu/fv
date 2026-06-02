@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # release-plz が直近のリリースタグ（v0.1.0 等）を認識できるよう、タグも取得する。
+          fetch-tags: true
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -34,6 +36,9 @@ jobs:
       - name: Run release-plz
         id: release-plz
         uses: MarcoIeni/release-plz-action@v0.5
+        # 判断理由を確認するため verbose ログを有効化する。
+        with:
+          verbose: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
