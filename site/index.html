@@ -41,27 +41,13 @@
           </div>
         </div>
 
-        <!-- Terminal mockup -->
-        <div class="term" role="img" aria-label="fv のターミナル画面イメージ">
-          <div class="term__bar">
-            <span class="term__dot term__dot--r"></span>
-            <span class="term__dot term__dot--y"></span>
-            <span class="term__dot term__dot--g"></span>
-            <span class="term__title">fv</span>
-          </div>
-          <pre class="term__screen"><span class="l-head">┌─ fv 0.1.0 ──── macOS · CPU 4% · MEM 38% ──────── 12:34 ─┐</span>
-<span class="l-dim">│</span> <span class="l-dir">▸ src/</span>                                            <span class="l-dim">│</span>
-<span class="l-dim">│</span> <span class="l-dir">▸ docs/</span>                                            <span class="l-dim">│</span>
-<span class="l-cur">│ ✓ Cargo.toml              1.2 KB   2026-06-01  rw-r--r-- │</span>
-<span class="l-dim">│</span>   main.rs                 4.8 KB   2026-06-01  rw-r--r-- <span class="l-dim">│</span>
-<span class="l-dim">│</span>   README.md               2.1 KB   2026-06-01  rw-r--r-- <span class="l-dim">│</span>
-<span class="l-dim">│</span>                                                         <span class="l-dim">│</span>
-<span class="l-dim">├──────────────────────────────┬──────────────────────────┤</span>
-<span class="l-dim">│</span> <span class="l-key">c</span> copy  <span class="l-key">m</span> move  <span class="l-key">d</span> delete  <span class="l-dim">│</span> <span class="l-accent">File Info</span>             <span class="l-dim">│</span>
-<span class="l-dim">│</span> <span class="l-key">g</span> grep  <span class="l-key">b</span> bookmark      <span class="l-dim">│</span> text/x-rust · UTF-8     <span class="l-dim">│</span>
-<span class="l-dim">└──────────────────────────────┴──────────────────────────┘</span>
-<span class="l-prompt">$ </span>brew install fv<span class="l-caret">█</span></pre>
-        </div>
+        <!-- Screenshot / demo -->
+        <img
+          class="hero__shot"
+          src="./images/hero-demo.gif"
+          alt="fv の操作デモ：ファイル一覧の移動・プレビュー・ツリー表示"
+          loading="lazy"
+        />
       </section>
 
       <!-- Highlights -->
@@ -127,14 +113,7 @@ mv fv /usr/local/bin/</code></pre>
               <li><kbd>.</kbd> <kbd>s</kbd> <span class="t" data-ja="隠しファイル表示 / 並び替え" data-en="Toggle hidden / sort">隠しファイル表示 / 並び替え</span></li>
             </ul>
           </div>
-          <div class="term term--mini" role="img" aria-label="ファイルリストの画面イメージ">
-            <pre class="term__screen"><span class="l-head">~/projects/fv ──────────────────────</span>
-<span class="l-dir">▸ .github/</span>
-<span class="l-dir">▸ src/</span>
-<span class="l-cur">✓ Cargo.toml          1.2 KB  rw-r--r--</span>
-<span>█README.md            2.1 KB  rw-r--r--</span>
-<span>  LICENSE             1.1 KB  rw-r--r--</span></pre>
-          </div>
+          <img class="feature__shot" src="./images/feature-filelist.png" alt="fv のファイル一覧（カーソル移動と複数選択）" loading="lazy" />
         </div>
 
         <!-- ファイル操作 -->
@@ -149,12 +128,7 @@ mv fv /usr/local/bin/</code></pre>
               <li><kbd>y</kbd> <span class="t" data-ja="パスをクリップボードへ（Yank）" data-en="Yank path to clipboard">パスをクリップボードへ（Yank）</span></li>
             </ul>
           </div>
-          <div class="term term--mini" role="img" aria-label="非同期コピーの進捗イメージ">
-            <pre class="term__screen"><span class="l-accent">Copying...</span>
-<span class="l-dir">[■■■■■■■■□□]</span> 812 / 1024 files
-src/component/filer.rs
-<span class="l-dim">Esc</span> <span>to cancel</span></pre>
-          </div>
+          <img class="feature__shot" src="./images/feature-operations.png" alt="fv のコピー操作プロンプト" loading="lazy" />
         </div>
 
         <!-- 検索・表示 -->
@@ -168,14 +142,7 @@ src/component/filer.rs
               <li><kbd>i</kbd> <kbd>a</kbd> <span class="t" data-ja="ファイル情報 / 属性" data-en="File info / attributes">ファイル情報 / 属性</span></li>
             </ul>
           </div>
-          <div class="term term--mini" role="img" aria-label="ツリーとプレビューの画面イメージ">
-            <pre class="term__screen"><span class="l-dim">Tree ───────────┬─ Preview ──────────</span>
-<span class="l-dir">▾ src/</span>           <span class="l-dim">│</span> fn main() {
-<span class="l-dir">  ▾ component/</span>   <span class="l-dim">│</span>   App::new()
-<span>    filer.rs</span>    <span class="l-dim">│</span>      .run()?;
-<span>  main.rs</span>        <span class="l-dim">│</span> }
-<span class="l-dir">▸ docs/</span>          <span class="l-dim">│</span> <span class="l-accent">text/x-rust</span></pre>
-          </div>
+          <img class="feature__shot" src="./images/feature-view.png" alt="fv のプレビュー（コードを横に表示）" loading="lazy" />
         </div>
 
         <!-- その他 -->
@@ -189,13 +156,7 @@ src/component/filer.rs
               <li><kbd>o</kbd> <kbd>?</kbd> <kbd>q</kbd> <span class="t" data-ja="設定 / ヘルプ / 終了" data-en="Settings / help / quit">設定 / ヘルプ / 終了</span></li>
             </ul>
           </div>
-          <div class="term term--mini" role="img" aria-label="ブックマークの画面イメージ">
-            <pre class="term__screen"><span class="l-accent">Bookmarks</span>
-<span class="l-cur">█ ~/projects/fv</span>
-<span>  ~/.config</span>
-<span>  ~/work/reports</span>
-<span class="l-dim">Enter</span> <span>to jump  </span><span class="l-key">-</span> <span>remove</span></pre>
-          </div>
+          <img class="feature__shot" src="./images/feature-misc.png" alt="fv のブックマークパネル" loading="lazy" />
         </div>
       </section>
 

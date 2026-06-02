@@ -237,9 +237,23 @@ a { color: inherit; }
 .caps li { font-size: 14px; color: var(--text); }
 .caps .t { color: var(--muted); }
 
-/* Mini terminal for feature illustrations */
-.term--mini { box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35); }
-.term--mini .term__screen { font-size: 12px; padding: 14px; }
+/* Screenshots（実キャプチャ） */
+.hero__shot {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.feature__shot {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+}
 
 kbd {
   font-family: var(--mono);
