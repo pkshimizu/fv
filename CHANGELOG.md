@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/pkshimizu/fv/compare/v0.1.1...v0.1.2) - 2026-06-02
+
+### Added
+
+- macOS バイナリを Developer ID 署名・公証する
+
+### Other
+
+- README.md を作成する
+
 ## [0.1.1](https://github.com/pkshimizu/fv/compare/v0.1.0...v0.1.1) - 2026-06-02
 
 ### Added
