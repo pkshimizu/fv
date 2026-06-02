@@ -83,6 +83,53 @@ jobs:
       - name: Build (release)
         run: cargo build --release --target ${{ matrix.target }}
 
+      # macOS バイナリを Developer ID で署名し公証する（Gatekeeper 警告の回避）。
+      - name: Import Developer ID certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_pw="$(openssl rand -base64 24)"
+          cert="$RUNNER_TEMP/cert.p12"
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$cert"
+          security create-keychain -p "$keychain_pw" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_pw" "$keychain"
+          security import "$cert" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_pw" "$keychain"
+          # codesign が新しいキーチェーンを参照できるよう検索リストへ追加する。
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | sed 's/"//g')
+          rm -f "$cert"
+
+      - name: Sign binary (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          bin="target/${{ matrix.target }}/release/fv"
+          codesign --force --timestamp --options runtime --sign "$MACOS_SIGN_IDENTITY" "$bin"
+          codesign --verify --strict --verbose=2 "$bin"
+
+      - name: Notarize binary (macOS)
+        if: runner.os == 'macOS'
+        env:
+          AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+          AC_API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
+          AC_API_KEY_P8_BASE64: ${{ secrets.AC_API_KEY_P8_BASE64 }}
+        run: |
+          bin="target/${{ matrix.target }}/release/fv"
+          key="$RUNNER_TEMP/AuthKey.p8"
+          echo "$AC_API_KEY_P8_BASE64" | base64 --decode > "$key"
+          # 素のバイナリを zip にして提出する。
+          ditto -c -k "$bin" "$RUNNER_TEMP/fv-notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/fv-notarize.zip" \
+            --key "$key" --key-id "$AC_API_KEY_ID" --issuer "$AC_API_ISSUER_ID" \
+            --wait
+          rm -f "$key"
+          # 素の実行ファイルは stapler 非対応のため staple はしない（公証チケットはオンライン照合される）。
+
       # 単一クレートのため release-plz のタグは v<version> 形式。
       # Cargo.toml のバージョン（= バイナリに埋め込まれた版）からタグを導出する。
       # Homebrew の bin.install が素直に扱えるよう、中身を `fv` とした tar.gz で配布する。
