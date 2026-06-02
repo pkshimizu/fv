@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/pkshimizu/fv/compare/v0.1.0...v0.1.1) - 2026-06-02
+
+### Added
+
+- ヘルプ表示をカテゴリ別に分けて表示する
+
+### Fixed
+
+- release-plz ジョブに libasound2-dev を追加
+- release-plz に git_only を設定しリリースPRが作られない問題を修正
+
+### Other
+
+- release-plz の診断のため verbose とタグ取得を有効化
+- ヘルプ生成のレビュー指摘を反映
+- 機能セクションのリード文から「（括弧内はキー）」を削除
+- LP のモックアップを実スクリーンキャプチャに差し替える
+- インストールセクションを特徴と機能の間に移動する
+- LP の文言・構成を調整する
+- プロジェクトのランディングページを作成する
+- Homebrew でインストールできるようにする
+
 ## [0.1.0](https://github.com/pkshimizu/fv/releases/tag/v0.1.0) - 2026-06-01
 
 ### Added
