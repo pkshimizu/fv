@@ -6,39 +6,66 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
-// キーバインド一覧。FilerComponent::handle_event のキーバインドと同期すること。
-const KEY_BINDINGS: &[(&str, &str)] = &[
-    ("Backspace", "Go to parent directory"),
-    ("Space", "Toggle check mark"),
-    (".", "Toggle dotfiles visibility"),
-    ("a", "Show file attributes"),
-    ("b", "Show bookmarks"),
-    ("c", "Copy files"),
-    ("d", "Delete files"),
-    ("f", "Search files"),
-    ("g", "Grep in files"),
-    ("h", "Launch shell"),
-    ("i", "Show file info"),
-    ("j", "Jump to directory"),
-    ("k", "Create directory"),
-    ("m", "Move files"),
-    ("n", "Create file"),
-    ("o", "Settings"),
-    ("p", "Zip files"),
-    ("r", "Rename file"),
-    ("s", "Sort files"),
-    ("t", "Show directory tree"),
-    ("u", "Unzip file"),
-    ("v", "Preview file"),
-    ("x", "Execute command"),
-    ("y", "Yank paths to clipboard"),
-    ("<", "Go back in directory history"),
-    (">", "Go forward in directory history"),
-    ("~", "Go to home directory"),
-    ("+", "Add bookmark"),
-    ("-", "Remove bookmark"),
-    ("?", "Show this help"),
-    ("q", "Quit"),
+// キーバインド一覧をカテゴリ別に保持する。各要素は (カテゴリ名, そのカテゴリの項目).
+// FilerComponent::handle_event のキーバインドと同期すること。
+const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
+    (
+        "Navigation",
+        &[
+            ("Backspace", "Go to parent directory"),
+            ("<", "Go back in directory history"),
+            (">", "Go forward in directory history"),
+            ("~", "Go to home directory"),
+            ("j", "Jump to directory"),
+            ("g", "Grep in files"),
+        ],
+    ),
+    (
+        "Selection & display",
+        &[
+            ("Space", "Toggle check mark"),
+            (".", "Toggle dotfiles visibility"),
+            ("s", "Sort files"),
+            ("f", "Search files"),
+        ],
+    ),
+    (
+        "File operations",
+        &[
+            ("c", "Copy files"),
+            ("m", "Move files"),
+            ("d", "Delete files"),
+            ("r", "Rename file"),
+            ("k", "Create directory"),
+            ("n", "Create file"),
+            ("p", "Zip files"),
+            ("u", "Unzip file"),
+            ("x", "Execute command"),
+            ("y", "Yank paths to clipboard"),
+        ],
+    ),
+    (
+        "Panels & views",
+        &[
+            ("a", "Show file attributes"),
+            ("i", "Show file info"),
+            ("t", "Show directory tree"),
+            ("v", "Preview file"),
+            ("h", "Launch shell"),
+        ],
+    ),
+    (
+        "Bookmarks",
+        &[
+            ("b", "Show bookmarks"),
+            ("+", "Add bookmark"),
+            ("-", "Remove bookmark"),
+        ],
+    ),
+    (
+        "App",
+        &[("o", "Settings"), ("?", "Show this help"), ("q", "Quit")],
+    ),
 ];
 
 pub struct HelpComponent {
@@ -47,11 +74,27 @@ pub struct HelpComponent {
 
 impl HelpComponent {
     pub fn new() -> Self {
-        let key_width = KEY_BINDINGS.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
-        let lines = KEY_BINDINGS
+        // キー列の幅は全カテゴリ共通で揃える（説明の開始位置をパネル全体で統一する）。
+        let key_width = KEY_BINDINGS
             .iter()
-            .map(|(key, desc)| format!("  {key:<key_width$}  {desc}"))
-            .collect();
+            .flat_map(|(_, entries)| entries.iter())
+            .map(|(key, _)| key.len())
+            .max()
+            .unwrap_or(0);
+
+        let mut lines = Vec::new();
+        for (index, (category, entries)) in KEY_BINDINGS.iter().enumerate() {
+            // カテゴリ間は空行で区切る。
+            if index > 0 {
+                lines.push(String::new());
+            }
+            // 見出しは左詰め、項目は字下げして「キー  説明」を整列。
+            lines.push((*category).to_string());
+            for (key, desc) in *entries {
+                lines.push(format!("  {key:<key_width$}  {desc}"));
+            }
+        }
+
         Self {
             text_output: TextOutputState::with_lines(lines),
         }
