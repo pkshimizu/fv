@@ -3,7 +3,7 @@ use crate::component::{
     ImagePreviewComponent, PreviewComponent, TreeComponent,
 };
 use crate::fs::VFile;
-use crate::fs::file_info::{is_audio_file, is_image_file};
+use crate::fs::file_info::{is_audio_file, is_image_file, is_markdown_file};
 use crate::state::{
     ConfirmAction, FileAction, FileActionCandidateType, FilerState, OperationTargets, PromptMode,
     SelectAction, SidePanel, SortKey, TextAction,
@@ -431,6 +431,8 @@ impl FilerComponent {
             AudioPlayerComponent::new(path, file_name).map(SidePanel::AudioPlayer)
         } else if is_image_file(path) {
             ImagePreviewComponent::new(path, file_name, &self.picker).map(SidePanel::ImagePreview)
+        } else if is_markdown_file(path) {
+            PreviewComponent::new_markdown(path, file_name).map(SidePanel::Preview)
         } else {
             PreviewComponent::new(path, file_name).map(SidePanel::Preview)
         };

@@ -84,32 +84,40 @@ impl FileKindLabel {
     }
 }
 
-/// 拡張子ベースで画像ファイルかどうかを判定する。
+/// 拡張子が指定リストのいずれかに（大文字小文字を無視して）一致するか判定する。
 /// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
-/// 軽量な事前判定としてこちらを使用する。
-pub fn is_image_file(path: &str) -> bool {
-    const IMAGE_EXTS: &[&str] = &[
-        "png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "tif", "ico",
-    ];
+/// 各 `is_*_file` はこの軽量な拡張子ベースの事前判定を使用する。
+fn has_extension(path: &str, exts: &[&str]) -> bool {
     let ext = Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("");
-    IMAGE_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
+    exts.iter().any(|a| ext.eq_ignore_ascii_case(a))
+}
+
+/// 拡張子ベースで画像ファイルかどうかを判定する。
+pub fn is_image_file(path: &str) -> bool {
+    has_extension(
+        path,
+        &[
+            "png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff", "tif", "ico",
+        ],
+    )
 }
 
 /// 拡張子ベースで音声ファイルかどうかを判定する。
-/// detect_file_kind (infer クレート) はファイルI/Oが発生するため、
-/// 軽量な事前判定としてこちらを使用する。
 pub fn is_audio_file(path: &str) -> bool {
-    const AUDIO_EXTS: &[&str] = &[
-        "mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "aiff", "aif", "opus",
-    ];
-    let ext = Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
-    AUDIO_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
+    has_extension(
+        path,
+        &[
+            "mp3", "wav", "flac", "ogg", "aac", "m4a", "wma", "aiff", "aif", "opus",
+        ],
+    )
+}
+
+/// 拡張子ベースでマークダウンファイルかどうかを判定する。
+pub fn is_markdown_file(path: &str) -> bool {
+    has_extension(path, &["md", "markdown"])
 }
 
 fn detect_file_kind(path: &str) -> DetectedFile {
@@ -309,4 +317,25 @@ fn count_dir_entries(path: &str) -> Result<usize> {
         .context("Failed to read directory")?
         .count();
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_markdown_file_matches_md_extensions_case_insensitively() {
+        assert!(is_markdown_file("/a/notes.md"));
+        assert!(is_markdown_file("/a/README.MD"));
+        assert!(is_markdown_file("/a/doc.markdown"));
+        assert!(is_markdown_file("/a/doc.Markdown"));
+    }
+
+    #[test]
+    fn is_markdown_file_rejects_non_markdown() {
+        assert!(!is_markdown_file("/a/notes.txt"));
+        assert!(!is_markdown_file("/a/image.png"));
+        assert!(!is_markdown_file("/a/Makefile"));
+        assert!(!is_markdown_file("/a/mdfile"));
+    }
 }
