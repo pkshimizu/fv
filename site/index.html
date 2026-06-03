@@ -1,202 +1,306 @@
-<!doctype html>
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>fv — A fast TUI file manager</title>
-    <meta
-      name="description"
-      content="fv は、ターミナルで完結する軽快なキーボード操作のファイルマネージャです。"
-    />
-    <link rel="stylesheet" href="./style.css" />
-  </head>
-  <body>
-    <header class="nav">
-      <a class="nav__brand" href="#top">fv</a>
-      <nav class="nav__links">
-        <a href="#highlights" class="t" data-ja="特徴" data-en="Highlights">特徴</a>
-        <a href="#install" class="t" data-ja="インストール" data-en="Install">インストール</a>
-        <a href="#features" class="t" data-ja="機能" data-en="Features">機能</a>
-        <a href="https://github.com/pkshimizu/fv" class="nav__gh">GitHub</a>
-        <button id="lang-toggle" class="lang-toggle" type="button" aria-label="Switch language">EN</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>fv — a fast, keyboard-driven terminal file manager</title>
+  <meta name="description" content="fv is a fast, keyboard-driven file manager that lives in your terminal. Built in Rust." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Geist:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&family=Spline+Sans+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============ Header ============ -->
+  <header class="site-header" id="siteHeader">
+    <div class="wrap nav">
+      <a href="#top" class="brand"><span class="caret">$</span>fv</a>
+
+      <nav class="nav-links">
+        <a class="nav-link" href="#features"    data-en="Features"  data-ja="特徴">Features</a>
+        <a class="nav-link" href="#install"     data-en="Install"   data-ja="インストール">Install</a>
+        <a class="nav-link" href="#capabilities" data-en="Reference" data-ja="機能">Reference</a>
       </nav>
-    </header>
 
-    <main id="top">
-      <!-- Hero -->
-      <section class="hero">
-        <div class="hero__copy">
-          <p class="hero__eyebrow">Rust · TUI · cross-platform</p>
-          <h1 class="hero__title">fv</h1>
-          <p
-            class="hero__tagline t"
-            data-ja="ターミナルで完結する、軽快なキーボード操作のファイルマネージャ。"
-            data-en="A fast, keyboard-operated file manager that lives in your terminal."
-          >
-            ターミナルで完結する、軽快なキーボード操作のファイルマネージャ。
-          </p>
-          <div class="hero__cta">
-            <a href="#install" class="btn btn--primary t" data-ja="使ってみる" data-en="Get Started">使ってみる</a>
-            <a href="https://github.com/pkshimizu/fv" class="btn btn--ghost">GitHub →</a>
-          </div>
+      <div class="nav-right">
+        <a class="gh-link" href="https://github.com/pkshimizu/fv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.5A11.5 11.5 0 0 0 23.5 12C23.5 5.7 18.3.5 12 .5Z"/></svg>
+          <span>GitHub</span>
+        </a>
+
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" data-lang="en">EN</button>
+          <button type="button" data-lang="ja">日本語</button>
         </div>
-
-        <!-- Screenshot / demo -->
-        <img
-          class="hero__shot"
-          src="./images/hero-demo.gif"
-          alt="fv の操作デモ：ファイル一覧の移動・プレビュー・ツリー表示"
-          loading="lazy"
-        />
-      </section>
-
-      <!-- Highlights -->
-      <section id="highlights" class="section">
-        <h2 class="section__title t" data-ja="特徴" data-en="Highlights">特徴</h2>
-        <div class="cards cards--3">
-          <article class="card">
-            <div class="card__icon">▷_</div>
-            <h3 class="t" data-ja="ターミナルで実行" data-en="Runs in your terminal">ターミナルで実行</h3>
-            <p class="t" data-ja="GUI は不要。SSH 先のサーバーでも手元のマシンでも、ターミナルさえあれば同じ操作感でファイルを扱えます。" data-en="No GUI needed. Whether on a remote server over SSH or your local machine, you get the same experience anywhere a terminal runs.">GUI は不要。SSH 先のサーバーでも手元のマシンでも、ターミナルさえあれば同じ操作感でファイルを扱えます。</p>
-          </article>
-          <article class="card">
-            <div class="card__icon">⚡</div>
-            <h3 class="t" data-ja="軽快に動作" data-en="Fast &amp; lightweight">軽快に動作</h3>
-            <p class="t" data-ja="Rust で実装し、起動も操作もキビキビ。大きなディレクトリやファイル操作中もキーボード操作が引っかかりません。" data-en="Built in Rust for snappy startup and response. Navigation stays smooth even in large directories or during file operations.">Rust で実装し、起動も操作もキビキビ。大きなディレクトリやファイル操作中もキーボード操作が引っかかりません。</p>
-          </article>
-          <article class="card">
-            <div class="card__icon">◧</div>
-            <h3 class="t" data-ja="シンプルなUIで豊富な機能" data-en="Simple UI, rich features">シンプルなUIで豊富な機能</h3>
-            <p class="t" data-ja="見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなど必要な機能を凝縮。覚えることは少なく、できることは多い。" data-en="A clean single screen packs in file operations, preview, grep, bookmarks, and more. Little to learn, a lot to do.">見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなど必要な機能を凝縮。覚えることは少なく、できることは多い。</p>
-          </article>
-        </div>
-      </section>
-
-      <!-- Install -->
-      <section id="install" class="section">
-        <h2 class="section__title t" data-ja="インストール" data-en="Install">インストール</h2>
-        <div class="install">
-          <div class="install__item">
-            <h3>Homebrew</h3>
-            <p class="install__note t" data-ja="macOS (Apple Silicon) / Linux (x86_64)" data-en="macOS (Apple Silicon) / Linux (x86_64)">macOS (Apple Silicon) / Linux (x86_64)</p>
-            <pre class="code"><code>brew tap pkshimizu/tap
-brew install fv</code></pre>
-          </div>
-          <div class="install__item">
-            <h3 class="t" data-ja="GitHub Releases" data-en="GitHub Releases">GitHub Releases</h3>
-            <p class="install__note t" data-ja="お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。" data-en="Download the archive for your platform, extract it, and place fv somewhere on your PATH.">お使いのプラットフォームのアーカイブをダウンロードし、展開して fv を PATH の通った場所に置きます。</p>
-            <pre class="code"><code># macOS (Apple Silicon)
-tar xzf fv-aarch64-apple-darwin.tar.gz
-# Linux (x86_64)
-tar xzf fv-x86_64-unknown-linux-gnu.tar.gz
-
-mv fv /usr/local/bin/</code></pre>
-            <p><a class="link" href="https://github.com/pkshimizu/fv/releases">github.com/pkshimizu/fv/releases →</a></p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Features (detailed) -->
-      <section id="features" class="section">
-        <h2 class="section__title t" data-ja="機能" data-en="Features">機能</h2>
-        <p class="section__lead t" data-ja="ファイル一覧を中心に、操作・検索・表示まで、ファイル管理に必要な機能を網羅しています。" data-en="Centered on the file list, fv covers operations, search, and viewing — everything you need to manage files.">ファイル一覧を中心に、操作・検索・表示まで、ファイル管理に必要な機能を網羅しています。</p>
-
-        <!-- ファイルリスト -->
-        <div class="feature">
-          <div class="feature__body">
-            <h3 class="t" data-ja="ファイルリスト" data-en="File list">ファイルリスト</h3>
-            <p class="t" data-ja="カーソルでファイル/ディレクトリを移動し、Enter で開く・ディレクトリへ入る、Backspace で親へ戻ります。ディレクトリ履歴の前後移動やホームへの移動にも対応。ヘッダーには現在のパス・ディスク使用量・システム情報・時刻を常時表示します。" data-en="Move the cursor through files and directories, open or enter with Enter, and go to the parent with Backspace. Navigate directory history and jump home. The header always shows the current path, disk usage, system info, and the clock.">カーソルでファイル/ディレクトリを移動し、Enter で開く・ディレクトリへ入る、Backspace で親へ戻ります。ディレクトリ履歴の前後移動やホームへの移動にも対応。ヘッダーには現在のパス・ディスク使用量・システム情報・時刻を常時表示します。</p>
-            <ul class="caps">
-              <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> <span class="t" data-ja="カーソル移動 / 先頭・末尾へ" data-en="Move cursor / to first・last">カーソル移動 / 先頭・末尾へ</span></li>
-              <li><kbd>Enter</kbd> <kbd>Backspace</kbd> <span class="t" data-ja="開く・潜る / 親へ" data-en="Open・enter / parent">開く・潜る / 親へ</span></li>
-              <li><kbd>Space</kbd> <span class="t" data-ja="複数選択（チェック）" data-en="Multi-select (check)">複数選択（チェック）</span></li>
-              <li><kbd>.</kbd> <kbd>s</kbd> <span class="t" data-ja="隠しファイル表示 / 並び替え" data-en="Toggle hidden / sort">隠しファイル表示 / 並び替え</span></li>
-            </ul>
-          </div>
-          <img class="feature__shot" src="./images/feature-filelist.png" alt="fv のファイル一覧（カーソル移動と複数選択）" loading="lazy" />
-        </div>
-
-        <!-- ファイル操作 -->
-        <div class="feature feature--reverse">
-          <div class="feature__body">
-            <h3 class="t" data-ja="ファイル操作" data-en="File operations">ファイル操作</h3>
-            <p class="t" data-ja="コピー・移動・削除・リネーム・ディレクトリ/ファイル作成に加え、Zip の圧縮・解凍にも対応。コピーや移動などの長時間処理は進捗表示付きの非同期ジョブとして実行され、Esc でいつでも中断できます。選択中のパスはクリップボードへコピー（Yank）できます。" data-en="Copy, move, delete, rename, and create directories/files, plus zip compression and extraction. Long operations like copy and move run as async jobs with progress and can be cancelled anytime with Esc. Selected paths can be copied to the clipboard (Yank).">コピー・移動・削除・リネーム・ディレクトリ/ファイル作成に加え、Zip の圧縮・解凍にも対応。コピーや移動などの長時間処理は進捗表示付きの非同期ジョブとして実行され、Esc でいつでも中断できます。選択中のパスはクリップボードへコピー（Yank）できます。</p>
-            <ul class="caps">
-              <li><kbd>c</kbd> <kbd>m</kbd> <kbd>d</kbd> <span class="t" data-ja="コピー / 移動 / 削除" data-en="Copy / move / delete">コピー / 移動 / 削除</span></li>
-              <li><kbd>r</kbd> <kbd>k</kbd> <kbd>n</kbd> <span class="t" data-ja="リネーム / ディレクトリ作成 / ファイル作成" data-en="Rename / mkdir / new file">リネーム / ディレクトリ作成 / ファイル作成</span></li>
-              <li><kbd>p</kbd> <kbd>u</kbd> <span class="t" data-ja="Zip 圧縮 / 解凍" data-en="Zip / unzip">Zip 圧縮 / 解凍</span></li>
-              <li><kbd>y</kbd> <span class="t" data-ja="パスをクリップボードへ（Yank）" data-en="Yank path to clipboard">パスをクリップボードへ（Yank）</span></li>
-            </ul>
-          </div>
-          <img class="feature__shot" src="./images/feature-operations.png" alt="fv のコピー操作プロンプト" loading="lazy" />
-        </div>
-
-        <!-- 検索・表示 -->
-        <div class="feature">
-          <div class="feature__body">
-            <h3 class="t" data-ja="検索・表示" data-en="Search &amp; view">検索・表示</h3>
-            <p class="t" data-ja="テキスト・画像・オーディオのプレビュー（オーディオは再生/シーク対応）、ディレクトリ構造のツリー表示、配下を検索してヒットへ飛べる Grep、入力中に絞り込むインクリメンタル検索、ディレクトリへ一気に移動する Jump を備えます。ファイル情報・属性のパネルも開けます。" data-en="Preview text, images, and audio (with play/seek), view the directory tree, grep through the tree and jump to matches, filter incrementally as you type, and jump straight to a directory. File info and attribute panels are available too.">テキスト・画像・オーディオのプレビュー（オーディオは再生/シーク対応）、ディレクトリ構造のツリー表示、配下を検索してヒットへ飛べる Grep、入力中に絞り込むインクリメンタル検索、ディレクトリへ一気に移動する Jump を備えます。ファイル情報・属性のパネルも開けます。</p>
-            <ul class="caps">
-              <li><kbd>v</kbd> <kbd>t</kbd> <span class="t" data-ja="プレビュー / ツリー表示" data-en="Preview / tree">プレビュー / ツリー表示</span></li>
-              <li><kbd>g</kbd> <kbd>f</kbd> <kbd>j</kbd> <span class="t" data-ja="Grep / 検索 / ジャンプ" data-en="Grep / search / jump">Grep / 検索 / ジャンプ</span></li>
-              <li><kbd>i</kbd> <kbd>a</kbd> <span class="t" data-ja="ファイル情報 / 属性" data-en="File info / attributes">ファイル情報 / 属性</span></li>
-            </ul>
-          </div>
-          <img class="feature__shot" src="./images/feature-view.png" alt="fv のプレビュー（コードを横に表示）" loading="lazy" />
-        </div>
-
-        <!-- その他 -->
-        <div class="feature feature--reverse">
-          <div class="feature__body">
-            <h3 class="t" data-ja="その他" data-en="More">その他</h3>
-            <p class="t" data-ja="よく使うディレクトリをブックマークに登録して素早く移動。現在のディレクトリでシェルを起動したり、任意のコマンドを実行することもできます。設定パネルやヘルプもキー一発で開けます。" data-en="Bookmark frequently used directories for quick jumps. Launch a shell in the current directory or run an arbitrary command. The settings panel and help are a single keystroke away.">よく使うディレクトリをブックマークに登録して素早く移動。現在のディレクトリでシェルを起動したり、任意のコマンドを実行することもできます。設定パネルやヘルプもキー一発で開けます。</p>
-            <ul class="caps">
-              <li><kbd>b</kbd> <kbd>+</kbd> <kbd>-</kbd> <span class="t" data-ja="ブックマーク 表示 / 追加 / 削除" data-en="Bookmarks show / add / remove">ブックマーク 表示 / 追加 / 削除</span></li>
-              <li><kbd>h</kbd> <kbd>x</kbd> <span class="t" data-ja="シェル起動 / コマンド実行" data-en="Shell / execute command">シェル起動 / コマンド実行</span></li>
-              <li><kbd>o</kbd> <kbd>?</kbd> <kbd>q</kbd> <span class="t" data-ja="設定 / ヘルプ / 終了" data-en="Settings / help / quit">設定 / ヘルプ / 終了</span></li>
-            </ul>
-          </div>
-          <img class="feature__shot" src="./images/feature-misc.png" alt="fv のブックマークパネル" loading="lazy" />
-        </div>
-      </section>
-
-    </main>
-
-    <footer class="footer">
-      <div class="footer__inner">
-        <p class="footer__lic">
-          <span class="t" data-ja="ライセンス" data-en="License">ライセンス</span>:
-          <a class="link" href="https://github.com/pkshimizu/fv/blob/main/LICENSE">MIT</a>
-        </p>
-        <p>
-          <a class="link" href="https://github.com/pkshimizu/fv">github.com/pkshimizu/fv</a>
-        </p>
-        <p class="footer__copy">© 2026 Kenji Shimizu</p>
       </div>
-    </footer>
+    </div>
+  </header>
 
-    <script>
-      (function () {
-        var nodes = document.querySelectorAll(".t");
-        var toggle = document.getElementById("lang-toggle");
-        function apply(lang) {
-          document.documentElement.lang = lang;
-          nodes.forEach(function (n) {
-            var v = n.getAttribute("data-" + lang);
-            if (v !== null) n.textContent = v;
-          });
-          // ボタンには「切り替え先」を表示する。
-          toggle.textContent = lang === "ja" ? "EN" : "日本語";
-          try { localStorage.setItem("fv-lang", lang); } catch (e) {}
-        }
-        var saved = null;
-        try { saved = localStorage.getItem("fv-lang"); } catch (e) {}
-        var initial = saved || ((navigator.language || "").toLowerCase().indexOf("ja") === 0 ? "ja" : "en");
-        apply(initial);
-        toggle.addEventListener("click", function () {
-          apply(document.documentElement.lang === "ja" ? "en" : "ja");
-        });
-      })();
-    </script>
-  </body>
+  <main id="top">
+
+    <!-- ============ Hero ============ -->
+    <section class="hero">
+      <div class="wrap hero-inner">
+        <span class="eyebrow reveal">
+          <span class="dot"></span>
+          <span data-en="Rust-powered terminal file manager" data-ja="Rust 製のターミナルファイルマネージャ">Rust-powered terminal file manager</span>
+        </span>
+
+        <div>
+          <h1 class="reveal" style="--d:60ms;"><span class="caret">$ </span>fv</h1>
+        </div>
+
+        <p class="hero-tagline reveal" style="--d:120ms;"
+           data-en="A fast, keyboard-driven file manager that lives in your terminal."
+           data-ja="ターミナルで完結する、軽快なキーボード操作のファイルマネージャ。">
+          A fast, keyboard-driven file manager that lives in your terminal.
+        </p>
+
+        <div class="hero-cta reveal" style="--d:180ms;">
+          <a href="#install" class="btn btn-primary" data-en="Get Started" data-ja="はじめる">Get Started</a>
+          <a href="https://github.com/pkshimizu/fv" target="_blank" rel="noopener" class="btn btn-ghost">
+            <span>GitHub</span><span aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <!-- Hero demo: 実機キャプチャ（site/images/hero-demo.gif） -->
+        <div class="terminal reveal" style="--d:240ms;">
+          <div class="term-bar">
+            <div class="term-dots"><i></i><i></i><i></i></div>
+            <span class="term-title">fv</span>
+          </div>
+          <img class="hero-shot" src="images/hero-demo.gif"
+               alt="fv in action: navigating files, previewing, and running operations in the terminal" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Value props (3) ============ -->
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker" data-en="Why fv" data-ja="特徴">Why fv</span>
+          <h2 data-en="Built for people who live in the terminal."
+              data-ja="ターミナルで生きる人のために。">Built for people who live in the terminal.</h2>
+        </div>
+
+        <div class="vp-grid">
+          <div class="vp-card reveal">
+            <div class="vp-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2"/><path d="m6 9 3 3-3 3"/><path d="M12 15h5"/></svg>
+            </div>
+            <h3 data-en="Runs in your terminal" data-ja="ターミナルで実行">Runs in your terminal</h3>
+            <p data-en="No GUI needed—same experience over SSH or locally, anywhere a terminal runs."
+               data-ja="GUI 不要。SSH 先でも手元でも、ターミナルさえあれば同じ操作感。">No GUI needed—same experience over SSH or locally, anywhere a terminal runs.</p>
+          </div>
+
+          <div class="vp-card reveal" style="--d:90ms;">
+            <div class="vp-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13l0-8Z"/></svg>
+            </div>
+            <h3 data-en="Fast &amp; lightweight" data-ja="軽快に動作">Fast &amp; lightweight</h3>
+            <p data-en="Built in Rust. Snappy startup and navigation, even in large directories."
+               data-ja="Rust 製で起動も操作もキビキビ。大きなディレクトリでも快適。">Built in Rust. Snappy startup and navigation, even in large directories.</p>
+          </div>
+
+          <div class="vp-card reveal" style="--d:180ms;">
+            <div class="vp-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/></svg>
+            </div>
+            <h3 data-en="Simple UI, rich features" data-ja="シンプルなUIで豊富な機能">Simple UI, rich features</h3>
+            <p data-en="A clean single screen packs in file ops, preview, grep, bookmarks, and more."
+               data-ja="見やすい一画面に、ファイル操作・プレビュー・grep・ブックマークなどを凝縮。">A clean single screen packs in file ops, preview, grep, bookmarks, and more.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Install ============ -->
+    <section id="install">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <span class="kicker" data-en="Install" data-ja="インストール">Install</span>
+          <h2 data-en="Up and running in seconds." data-ja="数秒でセットアップ完了。">Up and running in seconds.</h2>
+          <p data-en="Install with Homebrew, or grab a prebuilt archive from GitHub Releases."
+             data-ja="Homebrew で導入するか、GitHub Releases からビルド済みアーカイブを取得してください。">Install with Homebrew, or grab a prebuilt archive from GitHub Releases.</p>
+        </div>
+
+        <div class="install-grid">
+          <!-- Homebrew -->
+          <div class="install-card reveal">
+            <div class="ic-head">
+              <h3>Homebrew</h3>
+              <span class="ic-tag">macOS · Linux</span>
+            </div>
+            <p data-en="macOS (Apple Silicon) and Linux (x86_64). The macOS build is signed &amp; notarized."
+               data-ja="macOS（Apple Silicon）と Linux（x86_64）に対応。macOS ビルドは署名・公証済みです。">macOS (Apple Silicon) and Linux (x86_64). The macOS build is signed &amp; notarized.</p>
+            <div class="grow"></div>
+            <div class="code-block" data-copy="brew tap pkshimizu/tap&#10;brew install fv">
+              <button class="copy-btn" type="button" data-en="Copy" data-ja="コピー">Copy</button>
+<pre><span class="pmt">$ </span>brew tap pkshimizu/tap
+<span class="pmt">$ </span>brew install fv</pre>
+            </div>
+          </div>
+
+          <!-- Releases -->
+          <div class="install-card reveal" style="--d:90ms;">
+            <div class="ic-head">
+              <h3 data-en="GitHub Releases" data-ja="GitHub Releases">GitHub Releases</h3>
+              <span class="ic-tag" data-en="Manual" data-ja="手動">Manual</span>
+            </div>
+            <p data-en="Download the archive for your platform, extract it, and put the fv binary on your PATH."
+               data-ja="プラットフォーム別のアーカイブをダウンロードして展開し、fv を PATH に配置してください。">Download the archive for your platform, extract it, and put the fv binary on your PATH.</p>
+            <div class="grow"></div>
+            <div class="code-block" data-copy="tar -xzf fv-*.tar.gz&#10;sudo mv fv /usr/local/bin/">
+              <button class="copy-btn" type="button" data-en="Copy" data-ja="コピー">Copy</button>
+<pre><span class="cmt"># download from releases, then</span>
+<span class="pmt">$ </span>tar -xzf fv-*.tar.gz
+<span class="pmt">$ </span>sudo mv fv /usr/local/bin/</pre>
+            </div>
+            <a class="rel-link" href="https://github.com/pkshimizu/fv/releases" target="_blank" rel="noopener">
+              <span data-en="View all releases" data-ja="リリース一覧を見る">View all releases</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Capabilities (4 categories) ============ -->
+    <section id="capabilities">
+      <div class="wrap">
+        <div class="section-head center reveal">
+          <span class="kicker" data-en="Reference" data-ja="機能">Reference</span>
+          <h2 data-en="Everything, one keystroke away." data-ja="すべての操作が、キー1つで。">Everything, one keystroke away.</h2>
+          <p data-en="A complete map of fv's keybindings, grouped by what you're doing."
+             data-ja="fv のキーバインドを、操作カテゴリ別に網羅。">A complete map of fv's keybindings, grouped by what you're doing.</p>
+        </div>
+
+        <div class="feat-grid">
+
+          <!-- Category 1 -->
+          <div class="feat-card reveal">
+            <div class="fc-head">
+              <span class="fc-num">01</span>
+              <div>
+                <h3 data-en="File list &amp; navigation" data-ja="ファイルリスト / ナビゲーション">File list &amp; navigation</h3>
+                <div class="fc-sub" data-en="Move around the filesystem" data-ja="ファイルシステムを移動">Move around the filesystem</div>
+              </div>
+            </div>
+            <div class="key-list">
+              <div class="key-row"><div class="keys"><kbd>↑</kbd><kbd>↓</kbd></div><div class="desc" data-en="Move the cursor" data-ja="カーソル移動">Move the cursor</div></div>
+              <div class="key-row"><div class="keys"><kbd>Enter</kbd></div><div class="desc" data-en="Open file / enter directory" data-ja="開く・ディレクトリへ">Open file / enter directory</div></div>
+              <div class="key-row"><div class="keys"><kbd>Backspace</kbd></div><div class="desc" data-en="Go to parent directory" data-ja="親ディレクトリへ">Go to parent directory</div></div>
+              <div class="key-row"><div class="keys"><kbd>&lt;</kbd><kbd>&gt;</kbd></div><div class="desc" data-en="History back / forward" data-ja="履歴を戻る／進む">History back / forward</div></div>
+              <div class="key-row"><div class="keys"><kbd>~</kbd></div><div class="desc" data-en="Jump to home" data-ja="ホームへ">Jump to home</div></div>
+              <div class="key-row"><div class="keys"><kbd>j</kbd></div><div class="desc" data-en="Jump to path" data-ja="ジャンプ">Jump to path</div></div>
+              <div class="key-row"><div class="keys"><kbd>Space</kbd></div><div class="desc" data-en="Toggle multi-select" data-ja="複数選択">Toggle multi-select</div></div>
+              <div class="key-row"><div class="keys"><kbd>.</kbd></div><div class="desc" data-en="Toggle hidden files" data-ja="隠しファイル表示">Toggle hidden files</div></div>
+              <div class="key-row"><div class="keys"><kbd>s</kbd></div><div class="desc" data-en="Change sort order" data-ja="並び替え">Change sort order</div></div>
+            </div>
+          </div>
+
+          <!-- Category 2 -->
+          <div class="feat-card reveal" style="--d:80ms;">
+            <div class="fc-head">
+              <span class="fc-num">02</span>
+              <div>
+                <h3 data-en="File operations" data-ja="ファイル操作">File operations</h3>
+                <div class="fc-sub" data-en="Create, move, and transform" data-ja="作成・移動・変換">Create, move, and transform</div>
+              </div>
+            </div>
+            <div class="key-list">
+              <div class="key-row"><div class="keys"><kbd>c</kbd></div><div class="desc" data-en="Copy" data-ja="コピー">Copy</div></div>
+              <div class="key-row"><div class="keys"><kbd>m</kbd></div><div class="desc" data-en="Move" data-ja="移動">Move</div></div>
+              <div class="key-row"><div class="keys"><kbd>d</kbd></div><div class="desc" data-en="Delete" data-ja="削除">Delete</div></div>
+              <div class="key-row"><div class="keys"><kbd>r</kbd></div><div class="desc" data-en="Rename" data-ja="リネーム">Rename</div></div>
+              <div class="key-row"><div class="keys"><kbd>k</kbd></div><div class="desc" data-en="Make directory" data-ja="ディレクトリ作成">Make directory</div></div>
+              <div class="key-row"><div class="keys"><kbd>n</kbd></div><div class="desc" data-en="New file" data-ja="ファイル作成">New file</div></div>
+              <div class="key-row"><div class="keys"><kbd>p</kbd></div><div class="desc" data-en="Compress to Zip" data-ja="Zip 圧縮">Compress to Zip</div></div>
+              <div class="key-row"><div class="keys"><kbd>u</kbd></div><div class="desc" data-en="Unzip / extract" data-ja="解凍">Unzip / extract</div></div>
+              <div class="key-row"><div class="keys"><kbd>x</kbd></div><div class="desc" data-en="Run a command" data-ja="コマンド実行">Run a command</div></div>
+              <div class="key-row"><div class="keys"><kbd>y</kbd></div><div class="desc" data-en="Yank path to clipboard" data-ja="パスをクリップボードへ（Yank）">Yank path to clipboard</div></div>
+            </div>
+            <p class="feat-note"
+               data-en="Copy, move, delete and zip run asynchronously with a progress indicator—press Esc to cancel."
+               data-ja="コピー／移動／削除／Zip は進捗表示付きの非同期実行。Esc で中断できます。">Copy, move, delete and zip run asynchronously with a progress indicator—press Esc to cancel.</p>
+          </div>
+
+          <!-- Category 3 -->
+          <div class="feat-card reveal" style="--d:80ms;">
+            <div class="fc-head">
+              <span class="fc-num">03</span>
+              <div>
+                <h3 data-en="Search &amp; preview" data-ja="検索・プレビュー">Search &amp; preview</h3>
+                <div class="fc-sub" data-en="Find and inspect without leaving" data-ja="移動せずに探して確認">Find and inspect without leaving</div>
+              </div>
+            </div>
+            <div class="key-list">
+              <div class="key-row"><div class="keys"><kbd>f</kbd></div><div class="desc" data-en="Incremental search" data-ja="インクリメンタル検索">Incremental search</div></div>
+              <div class="key-row"><div class="keys"><kbd>g</kbd></div><div class="desc" data-en="Grep — jump to hits" data-ja="Grep（ヒットへジャンプ）">Grep — jump to hits</div></div>
+              <div class="key-row"><div class="keys"><kbd>v</kbd></div><div class="desc" data-en="Preview text / image / audio (n · p to switch files)" data-ja="プレビュー（テキスト/画像/音声）、n・p で前後へ切替">Preview text / image / audio (n · p to switch files)</div></div>
+              <div class="key-row"><div class="keys"><kbd>t</kbd></div><div class="desc" data-en="Tree view" data-ja="ツリー表示">Tree view</div></div>
+              <div class="key-row"><div class="keys"><kbd>i</kbd></div><div class="desc" data-en="File info" data-ja="ファイル情報">File info</div></div>
+              <div class="key-row"><div class="keys"><kbd>a</kbd></div><div class="desc" data-en="Attributes" data-ja="属性">Attributes</div></div>
+            </div>
+          </div>
+
+          <!-- Category 4 -->
+          <div class="feat-card reveal" style="--d:80ms;">
+            <div class="fc-head">
+              <span class="fc-num">04</span>
+              <div>
+                <h3 data-en="More" data-ja="その他">More</h3>
+                <div class="fc-sub" data-en="Bookmarks, shell, and config" data-ja="ブックマーク・シェル・設定">Bookmarks, shell, and config</div>
+              </div>
+            </div>
+            <div class="key-list">
+              <div class="key-row"><div class="keys"><kbd>b</kbd><kbd>+</kbd><kbd>-</kbd></div><div class="desc" data-en="Show / add / remove bookmarks" data-ja="ブックマーク表示・追加・削除">Show / add / remove bookmarks</div></div>
+              <div class="key-row"><div class="keys"><kbd>h</kbd></div><div class="desc" data-en="Launch a shell" data-ja="シェル起動">Launch a shell</div></div>
+              <div class="key-row"><div class="keys"><kbd>o</kbd></div><div class="desc" data-en="Settings" data-ja="設定">Settings</div></div>
+              <div class="key-row"><div class="keys"><kbd>?</kbd></div><div class="desc" data-en="Help" data-ja="ヘルプ">Help</div></div>
+              <div class="key-row"><div class="keys"><kbd>q</kbd></div><div class="desc" data-en="Quit" data-ja="終了">Quit</div></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- feature screenshots（実機キャプチャ） -->
+        <div class="shots reveal">
+          <div class="shot has-img">
+            <img src="images/feature-view.png"
+                 alt="Preview pane showing file content (text / image / audio)" />
+          </div>
+          <div class="shot has-img">
+            <img src="images/feature-misc.png" alt="Bookmarks side panel" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============ Footer ============ -->
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <span class="brand"><span class="caret">$</span>fv</span>
+        <span class="tag" data-en="A terminal file manager, built in Rust."
+              data-ja="Rust 製のターミナルファイルマネージャ。">A terminal file manager, built in Rust.</span>
+      </div>
+      <nav class="footer-links">
+        <a class="lic" href="https://github.com/pkshimizu/fv/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/pkshimizu/fv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.5A11.5 11.5 0 0 0 23.5 12C23.5 5.7 18.3.5 12 .5Z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
 </html>
