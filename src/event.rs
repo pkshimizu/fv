@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use crossterm::event::{self, Event, KeyEvent};
+use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 
 enum AppEvent {
@@ -45,8 +45,11 @@ impl EventHandler {
                     thread::sleep(tick_rate);
                     continue;
                 }
+                // Release/Repeat を報告する端末（kitty キーボードプロトコル、ttyd、
+                // Windows など）でキーが二重処理されるのを防ぐため、Press のみ通す。
                 if event::poll(tick_rate).unwrap_or(false)
                     && let Ok(Event::Key(event)) = event::read()
+                    && event.kind == KeyEventKind::Press
                     && key_tx.send(AppEvent::Key(event)).is_err()
                 {
                     break;
