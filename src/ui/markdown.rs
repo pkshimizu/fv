@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span, Text};
 ///
 /// `tui_markdown::from_str` は入力を借用した `Text<'_>` を返すため、
 /// コンポーネントに保持できるよう各 Span を所有文字列へコピーして 'static 化する。
-pub fn render(source: &str) -> Vec<Line<'static>> {
+pub fn to_lines(source: &str) -> Vec<Line<'static>> {
     into_owned_lines(tui_markdown::from_str(source))
 }
 
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn render_produces_owned_styled_lines_for_heading() {
-        let lines = render("# Title\n\nbody text\n");
+        let lines = to_lines("# Title\n\nbody text\n");
         // 少なくとも見出し行と本文行が生成される。
         assert!(lines.len() >= 2);
         let heading = &lines[0];
@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn render_handles_lists_and_code_without_panicking() {
-        let lines = render("- item one\n- item two\n\n```\ncode\n```\n");
+        let lines = to_lines("- item one\n- item two\n\n```\ncode\n```\n");
         assert!(!lines.is_empty());
     }
 }

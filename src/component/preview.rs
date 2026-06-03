@@ -1,6 +1,7 @@
 use crate::component::{Action, Component, handle_preview_common_key};
 use crate::fs::text_preview::TextPreview;
 use crate::state::TextOutputState;
+use crate::ui::markdown;
 use crate::ui::widgets::render_text_output;
 use anyhow::Result;
 use crossterm::event::KeyEvent;
@@ -12,6 +13,15 @@ fn preview_title(file_name: &str) -> String {
     format!("Preview - {file_name}")
 }
 
+/// プレビューのタイトルを組み立てる。truncated 時は `(truncated)` を付与する。
+fn build_title(file_name: &str, truncated: bool) -> String {
+    if truncated {
+        format!("{} (truncated)", preview_title(file_name))
+    } else {
+        preview_title(file_name)
+    }
+}
+
 pub struct PreviewComponent {
     title: String,
     text_output: TextOutputState,
@@ -20,11 +30,7 @@ pub struct PreviewComponent {
 impl PreviewComponent {
     pub fn new(path: &str, file_name: &str) -> Result<Self> {
         let preview = TextPreview::from_file(path)?;
-        let title = if preview.truncated {
-            format!("{} (truncated)", preview_title(file_name))
-        } else {
-            preview_title(file_name)
-        };
+        let title = build_title(file_name, preview.truncated);
         let text_output = TextOutputState::with_lines(preview.lines);
         Ok(Self { title, text_output })
     }
@@ -33,13 +39,9 @@ impl PreviewComponent {
     /// 読み込み上限・バイナリ判定はテキストプレビューと同じ `TextPreview` を流用する。
     pub fn new_markdown(path: &str, file_name: &str) -> Result<Self> {
         let preview = TextPreview::from_file(path)?;
-        let title = if preview.truncated {
-            format!("{} (truncated)", preview_title(file_name))
-        } else {
-            preview_title(file_name)
-        };
+        let title = build_title(file_name, preview.truncated);
         let source = preview.lines.join("\n");
-        let lines = crate::ui::markdown::render(&source);
+        let lines = markdown::to_lines(&source);
         let text_output = TextOutputState::with_styled_lines(lines);
         Ok(Self { title, text_output })
     }
