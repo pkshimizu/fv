@@ -29,6 +29,21 @@ impl PreviewComponent {
         Ok(Self { title, text_output })
     }
 
+    /// マークダウンファイル（`.md` / `.markdown`）をレンダリングしてプレビューする。
+    /// 読み込み上限・バイナリ判定はテキストプレビューと同じ `TextPreview` を流用する。
+    pub fn new_markdown(path: &str, file_name: &str) -> Result<Self> {
+        let preview = TextPreview::from_file(path)?;
+        let title = if preview.truncated {
+            format!("{} (truncated)", preview_title(file_name))
+        } else {
+            preview_title(file_name)
+        };
+        let source = preview.lines.join("\n");
+        let lines = crate::ui::markdown::render(&source);
+        let text_output = TextOutputState::with_styled_lines(lines);
+        Ok(Self { title, text_output })
+    }
+
     /// プレビューできないファイル（ディレクトリ・バイナリ・読み込み失敗等）に対して、
     /// 理由メッセージをサイドパネル内に表示するためのコンポーネントを作る。
     pub fn with_message(file_name: &str, text: impl Into<String>) -> Self {

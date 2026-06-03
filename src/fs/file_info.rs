@@ -112,6 +112,16 @@ pub fn is_audio_file(path: &str) -> bool {
     AUDIO_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
 }
 
+/// 拡張子ベースでマークダウンファイルかどうかを判定する。
+pub fn is_markdown_file(path: &str) -> bool {
+    const MARKDOWN_EXTS: &[&str] = &["md", "markdown"];
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    MARKDOWN_EXTS.iter().any(|a| ext.eq_ignore_ascii_case(a))
+}
+
 fn detect_file_kind(path: &str) -> DetectedFile {
     let Some(infer_type) = infer::get_from_path(path).ok().flatten() else {
         return DetectedFile {
@@ -309,4 +319,25 @@ fn count_dir_entries(path: &str) -> Result<usize> {
         .context("Failed to read directory")?
         .count();
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_markdown_file_matches_md_extensions_case_insensitively() {
+        assert!(is_markdown_file("/a/notes.md"));
+        assert!(is_markdown_file("/a/README.MD"));
+        assert!(is_markdown_file("/a/doc.markdown"));
+        assert!(is_markdown_file("/a/doc.Markdown"));
+    }
+
+    #[test]
+    fn is_markdown_file_rejects_non_markdown() {
+        assert!(!is_markdown_file("/a/notes.txt"));
+        assert!(!is_markdown_file("/a/image.png"));
+        assert!(!is_markdown_file("/a/Makefile"));
+        assert!(!is_markdown_file("/a/mdfile"));
+    }
 }

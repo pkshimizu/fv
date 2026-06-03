@@ -18,7 +18,7 @@ browsing, file operations, preview, search, and more on a single, clean screen �
 - **File operations** — copy, move, delete, rename, create files/directories, and zip/unzip.
   Long operations run as cancellable async jobs with progress.
 - **Shell & commands** — launch a shell in the current directory or run an arbitrary command.
-- **Preview** — text, images, and audio (with play/seek) in a side panel.
+- **Preview** — text, rendered Markdown, images, and audio (with play/seek) in a side panel.
 - **Search & view** — grep through the tree, incremental search, directory jump, and a directory tree view.
 - **File info & attributes** — inspect size, type, permissions, and timestamps.
 - **Bookmarks** — save frequently used directories and jump to them quickly.

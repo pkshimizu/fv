@@ -1,9 +1,9 @@
 use crossterm::event::KeyCode;
-use unicode_width::UnicodeWidthStr;
+use ratatui::text::Line;
 
 #[derive(Debug)]
 pub struct TextOutputState {
-    pub lines: Vec<String>,
+    pub lines: Vec<Line<'static>>,
     pub scroll_offset: u16,
     pub visible_height: u16,
     pub visible_width: u16,
@@ -12,7 +12,13 @@ pub struct TextOutputState {
 }
 
 impl TextOutputState {
+    /// プレーンテキスト行から構築する。各行はスタイルなしの `Line` に変換される。
     pub fn with_lines(lines: Vec<String>) -> Self {
+        Self::with_styled_lines(lines.into_iter().map(Line::from).collect())
+    }
+
+    /// スタイル付きの `Line` から構築する（マークダウン等のレンダリング結果用）。
+    pub fn with_styled_lines(lines: Vec<Line<'static>>) -> Self {
         Self {
             lines,
             scroll_offset: 0,
@@ -117,7 +123,7 @@ impl TextOutputState {
     }
 }
 
-fn visual_lines(visible_width: u16, line: &str) -> u32 {
+fn visual_lines(visible_width: u16, line: &Line) -> u32 {
     if visible_width == 0 {
         return 1;
     }
