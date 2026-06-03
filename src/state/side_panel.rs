@@ -21,6 +21,24 @@ pub enum SidePanel {
     Help(HelpComponent),
 }
 
+impl SidePanel {
+    /// プレビュー系パネルかどうか（n/p によるファイル切り替え後の再生成対象の判定に使う）。
+    /// 対象は テキスト（プレビュー不可メッセージを含む `Preview`）/ 画像 / 音声。
+    /// 新しいバリアント追加時にコンパイルエラーで気付けるよう、ワイルドカードを使わず全列挙する。
+    pub fn is_preview(&self) -> bool {
+        match self {
+            SidePanel::Preview(_) | SidePanel::AudioPlayer(_) | SidePanel::ImagePreview(_) => true,
+            SidePanel::Bookmark(_)
+            | SidePanel::Grep(_)
+            | SidePanel::FileInfo(_)
+            | SidePanel::Attribute(_)
+            | SidePanel::Settings(_)
+            | SidePanel::Tree(_)
+            | SidePanel::Help(_) => false,
+        }
+    }
+}
+
 impl Component for SidePanel {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match self {

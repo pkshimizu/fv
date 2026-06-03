@@ -11,12 +11,23 @@ use anyhow::{Context, Result};
 use crossterm::execute;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use std::io::stdout;
+use std::time::{Duration, Instant};
+
+/// プレビューの n/p 連打時、再生成を最大この間隔に抑える（連打のフリーズ緩和）。
+/// 単発操作はこの間隔を超えているため即時再生成され、入力停止後はアイドルで確実に最終位置を再生成する。
+/// 「入力停止後の追従」は `EventHandler::next_event` のタイムアウト（現状 100ms）でアイドルを
+/// 検知することに依存する。その値を変えると停止後の追従遅延も変わる点に注意。
+const PREVIEW_REBUILD_THROTTLE: Duration = Duration::from_millis(120);
 
 pub struct App {
     ctx: AppContext,
     store: RootStore,
     event_handler: EventHandler,
     skip_history_add: bool,
+    /// プレビューのカーソルが動いたが、まだパネルを再生成していない。
+    preview_dirty: bool,
+    /// 直近でプレビューパネルを再生成した時刻（スロットル判定用）。
+    last_preview_build: Instant,
 }
 
 impl App {
@@ -26,6 +37,8 @@ impl App {
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
             skip_history_add: false,
+            preview_dirty: false,
+            last_preview_build: Instant::now(),
         })
     }
 
@@ -127,6 +140,30 @@ impl App {
         self.ctx.prompt.set_error(message);
     }
 
+    /// プレビューの n/p 移動で生じた再生成を、スロットル/アイドルに応じて 1 回だけ反映する。
+    /// 連打中はカーソル移動のみ蓄積し、ここで間引いて再生成することでフリーズを防ぐ。
+    /// `idle` が true（入力が一定時間届かず `next_event` がタイムアウトした）のときは
+    /// スロットルを無視して必ず再生成し、連打停止後に最終位置へ確実に追従させる。
+    fn flush_preview_rebuild(&mut self, idle: bool) {
+        if !self.preview_dirty {
+            return;
+        }
+        if !idle && self.last_preview_build.elapsed() < PREVIEW_REBUILD_THROTTLE {
+            return;
+        }
+        self.preview_dirty = false;
+        self.last_preview_build = Instant::now();
+        // プレビューパネルが開いているときだけ差し替える（閉じられていれば何もしない）。
+        if self
+            .ctx
+            .side_panel
+            .as_ref()
+            .is_some_and(|panel| panel.is_preview())
+        {
+            self.ctx.side_panel = self.ctx.filer.build_preview_panel();
+        }
+    }
+
     /// Action を処理する
     fn handle_action(&mut self, action: Action, terminal: &mut DefaultTerminal) -> Result<()> {
         match action {
@@ -141,6 +178,8 @@ impl App {
             }
             Action::CloseSidePanel => {
                 self.ctx.side_panel = None;
+                // パネルを閉じたら未反映のプレビュー移動は破棄する（再オープン誤動作の防止）。
+                self.preview_dirty = false;
             }
             Action::NavigateTo(path) => {
                 self.ctx.side_panel = None;
@@ -185,13 +224,15 @@ impl App {
                 }
             }
             Action::PreviewNext => {
-                if let Some(panel) = self.ctx.filer.navigate_preview(PreviewMove::Next) {
-                    self.ctx.side_panel = Some(panel);
+                // カーソルを動かすのみ。実際のパネル再生成は run ループで
+                // スロットル/アイドルに応じてまとめて行う（連打時のフリーズ緩和）。
+                if self.ctx.filer.move_preview_cursor(PreviewMove::Next) {
+                    self.preview_dirty = true;
                 }
             }
             Action::PreviewPrev => {
-                if let Some(panel) = self.ctx.filer.navigate_preview(PreviewMove::Prev) {
-                    self.ctx.side_panel = Some(panel);
+                if self.ctx.filer.move_preview_cursor(PreviewMove::Prev) {
+                    self.preview_dirty = true;
                 }
             }
             Action::OpenFile(path) => {
@@ -253,7 +294,9 @@ impl App {
             terminal.draw(|frame| ui::render_main_view(frame, &mut self.ctx, &self.store))?;
 
             // イベントを取得して処理
-            match self.event_handler.next_event()? {
+            let event = self.event_handler.next_event()?;
+            let idle = matches!(event, InputEvent::None);
+            match event {
                 InputEvent::Key(key) => {
                     let action = if self.ctx.prompt.is_active() {
                         self.ctx.prompt.handle_event(key)?
@@ -273,6 +316,10 @@ impl App {
                 }
                 InputEvent::None => {}
             }
+
+            // プレビューの n/p 移動を反映する。入力が落ち着いた（アイドル）か、前回再生成から
+            // 一定時間経過したときに 1 回だけ再生成し、連打時のフルリビルド連発を防ぐ。
+            self.flush_preview_rebuild(idle);
 
             // コンポーネントのtick処理（非同期結果の受信等）
             self.ctx.tick();
