@@ -22,13 +22,20 @@ pub enum SidePanel {
 }
 
 impl SidePanel {
-    /// プレビュー系パネル（テキスト/画像/音声/メッセージ）かどうか。
-    /// n/p によるファイル切り替え後の再生成対象を判定するのに使う。
+    /// プレビュー系パネルかどうか（n/p によるファイル切り替え後の再生成対象の判定に使う）。
+    /// 対象は テキスト（プレビュー不可メッセージを含む `Preview`）/ 画像 / 音声。
+    /// 新しいバリアント追加時にコンパイルエラーで気付けるよう、ワイルドカードを使わず全列挙する。
     pub fn is_preview(&self) -> bool {
-        matches!(
-            self,
-            SidePanel::Preview(_) | SidePanel::AudioPlayer(_) | SidePanel::ImagePreview(_)
-        )
+        match self {
+            SidePanel::Preview(_) | SidePanel::AudioPlayer(_) | SidePanel::ImagePreview(_) => true,
+            SidePanel::Bookmark(_)
+            | SidePanel::Grep(_)
+            | SidePanel::FileInfo(_)
+            | SidePanel::Attribute(_)
+            | SidePanel::Settings(_)
+            | SidePanel::Tree(_)
+            | SidePanel::Help(_) => false,
+        }
     }
 }
 

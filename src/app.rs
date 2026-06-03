@@ -15,6 +15,8 @@ use std::time::{Duration, Instant};
 
 /// プレビューの n/p 連打時、再生成を最大この間隔に抑える（連打のフリーズ緩和）。
 /// 単発操作はこの間隔を超えているため即時再生成され、入力停止後はアイドルで確実に最終位置を再生成する。
+/// 「入力停止後の追従」は `EventHandler::next_event` のタイムアウト（現状 100ms）でアイドルを
+/// 検知することに依存する。その値を変えると停止後の追従遅延も変わる点に注意。
 const PREVIEW_REBUILD_THROTTLE: Duration = Duration::from_millis(120);
 
 pub struct App {
@@ -140,6 +142,8 @@ impl App {
 
     /// プレビューの n/p 移動で生じた再生成を、スロットル/アイドルに応じて 1 回だけ反映する。
     /// 連打中はカーソル移動のみ蓄積し、ここで間引いて再生成することでフリーズを防ぐ。
+    /// `idle` が true（入力が一定時間届かず `next_event` がタイムアウトした）のときは
+    /// スロットルを無視して必ず再生成し、連打停止後に最終位置へ確実に追従させる。
     fn flush_preview_rebuild(&mut self, idle: bool) {
         if !self.preview_dirty {
             return;
@@ -174,6 +178,8 @@ impl App {
             }
             Action::CloseSidePanel => {
                 self.ctx.side_panel = None;
+                // パネルを閉じたら未反映のプレビュー移動は破棄する（再オープン誤動作の防止）。
+                self.preview_dirty = false;
             }
             Action::NavigateTo(path) => {
                 self.ctx.side_panel = None;
