@@ -104,6 +104,18 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | `?` | Show help |
 | `q` | Quit |
 
+## Environment variables
+
+| Variable | Description |
+| --- | --- |
+| `FV_IMAGE_PROTOCOL` | Override the image preview protocol instead of auto-detecting it. Accepts `halfblocks`, `sixel`, `kitty`, or `iterm2` (case-insensitive). Unset or unrecognized values fall back to auto-detection. |
+
+Some terminals (e.g. ttyd / xterm.js-based ones) report graphics protocols they cannot actually render, which leaves the image preview blank. In that case, set `FV_IMAGE_PROTOCOL=halfblocks` to force a protocol that renders everywhere:
+
+```bash
+FV_IMAGE_PROTOCOL=halfblocks fv
+```
+
 ## License
 
 Licensed under the [MIT License](LICENSE).
