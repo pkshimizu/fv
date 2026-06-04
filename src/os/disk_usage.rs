@@ -2,7 +2,7 @@
 //! sysinfo 依存の I/O（`DiskUsageReader`）と、ディレクトリ→ボリューム照合・整形の
 //! 純粋ロジックを分離し、後者をユニットテスト可能にする。
 
-use crate::os::{RefreshThrottle, format_used_total};
+use crate::os::{REFRESH_INTERVAL, RefreshThrottle, format_used_total};
 use std::path::{Path, PathBuf};
 use sysinfo::Disks;
 
@@ -44,13 +44,13 @@ pub(crate) fn resolve(dir: &Path, volumes: &[Volume]) -> Option<DiskUsage> {
         })
 }
 
-/// sysinfo の `Disks` を保持し、約1秒ごとに容量を再取得する。
+/// sysinfo の `Disks` を保持し、約5秒ごとに容量を再取得する。
 /// 呼び出し側（ヘッダー）は sysinfo を直接触らず、本 reader 越しにカレントディレクトリの
 /// `DiskUsage` を読む。System Info reader と同型。
 pub(crate) struct DiskUsageReader {
     disks: Disks,
     /// `disks` から変換済みのボリューム一覧。`tick()` のリフレッシュ時にのみ再構築し、
-    /// 毎フレーム呼ばれる `usage_for` ではこれを参照するだけにする（確保を約1秒に1回へ）。
+    /// 毎フレーム呼ばれる `usage_for` ではこれを参照するだけにする（確保を約5秒に1回へ）。
     volumes: Vec<Volume>,
     throttle: RefreshThrottle,
 }
@@ -62,7 +62,7 @@ impl DiskUsageReader {
         Self {
             disks,
             volumes,
-            throttle: RefreshThrottle::new(),
+            throttle: RefreshThrottle::new(REFRESH_INTERVAL),
         }
     }
 

@@ -90,11 +90,11 @@ An animated glyph shown next to an in-flight asynchronous operation — director
 _Avoid_: spinner (that names the glyph, not the concept), progress, loading flag.
 
 **System Info**:
-The live host-environment readout shown in the header — OS, kernel, hostname (the unchanging facts, in the header box title) plus CPU load, memory use, and uptime (the changing figures, refreshed about once a second). It is ambient, always-on context about the machine fv runs on, not about any file or operation. Distinct from file metadata (which describes the **Cursor File**) and from **Progress** (which describes an in-flight Async Job).
+The live host-environment readout shown in the header — OS, kernel, hostname (the unchanging facts, in the header box title) plus CPU load, memory use, and uptime (the changing figures, refreshed about every 5 seconds). It is ambient, always-on context about the machine fv runs on, not about any file or operation. Distinct from file metadata (which describes the **Cursor File**) and from **Progress** (which describes an in-flight Async Job).
 _Avoid_: system status, machine info, stats bar.
 
 **Disk Usage**:
-The used and total capacity (with a derived usage percentage) of the storage volume that contains the Filer's current directory, shown compactly in the header beside the dynamic **System Info** figures — e.g. `Disk 120.0/500.0G (24%)` in `used/total (percent)` form. Recomputed on the same ~1s throttle as System Info, so it reflects the current directory after navigation and tracks space changes from file operations. Unlike System Info — which is host-wide and tied to no location — Disk Usage is **directory-dependent**: it follows the current directory and changes when that directory moves between volumes. Only capacity is surfaced here; the volume's filesystem type and mount point are not shown.
+The used and total capacity (with a derived usage percentage) of the storage volume that contains the Filer's current directory, shown compactly in the header beside the dynamic **System Info** figures — e.g. `Disk 120.0/500.0G (24%)` in `used/total (percent)` form. Recomputed on the same ~5s throttle as System Info, so it reflects the current directory after navigation and tracks space changes from file operations. Unlike System Info — which is host-wide and tied to no location — Disk Usage is **directory-dependent**: it follows the current directory and changes when that directory moves between volumes. Only capacity is surfaced here; the volume's filesystem type and mount point are not shown.
 _Avoid_: drive (implies a Windows drive letter / physical device, not the mounted volume), free space (the figure is used/total — free is derived), volume info.
 
 **Clock**:
