@@ -1,10 +1,10 @@
 //! ホスト環境のシステム情報（OS・カーネル・ホスト名・CPU・メモリ・アップタイム）。
 //! `sysinfo` クレートをこのモジュールに閉じ込め、表示用の `SystemInfo` 値型として公開する。
 
-use crate::os::{RefreshThrottle, format_used_total};
+use crate::os::{REFRESH_INTERVAL, RefreshThrottle, format_used_total};
 use sysinfo::System;
 
-/// `sysinfo::System` を保持し、静的情報を 1 回・動的情報を約1秒ごとに取得する。
+/// `sysinfo::System` を保持し、静的情報を 1 回・動的情報を約5秒ごとに取得する。
 /// 呼び出し側（AppContext / ヘッダー）は sysinfo を直接触らず、本 reader 越しに `SystemInfo` を読む。
 pub(crate) struct SystemInfoReader {
     system: System,
@@ -16,17 +16,17 @@ impl SystemInfoReader {
     pub(crate) fn new() -> Self {
         let mut reader = Self {
             system: System::new(),
-            throttle: RefreshThrottle::new(),
+            throttle: RefreshThrottle::new(REFRESH_INTERVAL),
             current: Self::gather_static(),
         };
         // 初回の動的情報を埋める。CPU 使用率は前回サンプルとの差分で算出されるため、
         // この初回 refresh 直後の値は不正確（0% 付近）で、最初の tick による 2 回目の
-        // refresh（約1秒後）で正常な値に落ち着く。起動直後の一瞬だけ低めに出る点は許容する。
+        // refresh（約5秒後）で正常な値に落ち着く。起動直後の数秒だけ低めに出る点は許容する。
         reader.refresh_dynamic();
         reader
     }
 
-    /// 1 tick 進める。スロットルが許せば動的情報（CPU・メモリ・アップタイム）を再取得する。
+    /// メインループの tick ごとに呼ぶ。スロットルが許せば動的情報（CPU・メモリ・アップタイム）を再取得する。
     /// 静的情報（OS/カーネル/ホスト名）は変化しないので再取得しない。
     pub(crate) fn tick(&mut self) {
         if self.throttle.tick() {
