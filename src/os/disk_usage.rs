@@ -66,7 +66,7 @@ impl DiskUsageReader {
         }
     }
 
-    /// 1 tick 進める。スロットルが許せばボリューム一覧の容量を再取得する。
+    /// メインループの tick ごとに呼ぶ。スロットルが許せばボリューム一覧の容量を再取得する。
     pub(crate) fn tick(&mut self) {
         if self.throttle.tick() {
             self.disks.refresh(true);

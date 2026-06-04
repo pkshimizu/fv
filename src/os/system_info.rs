@@ -26,7 +26,7 @@ impl SystemInfoReader {
         reader
     }
 
-    /// 1 tick 進める。スロットルが許せば動的情報（CPU・メモリ・アップタイム）を再取得する。
+    /// メインループの tick ごとに呼ぶ。スロットルが許せば動的情報（CPU・メモリ・アップタイム）を再取得する。
     /// 静的情報（OS/カーネル/ホスト名）は変化しないので再取得しない。
     pub(crate) fn tick(&mut self) {
         if self.throttle.tick() {

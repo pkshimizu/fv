@@ -29,15 +29,17 @@ impl RefreshThrottle {
         }
     }
 
-    /// 1 tick 進める。前回リフレッシュから `interval` 以上経過していれば `true` を返し、
+    /// 現在時刻で判定する。前回リフレッシュから `interval` 以上経過していれば `true` を返し、
     /// 基準時刻をリセットする。
     pub(crate) fn tick(&mut self) -> bool {
         self.tick_at(Instant::now())
     }
 
     /// `tick` の本体。現在時刻を引数で受け取り、時間依存ロジックを決定的にテスト可能にする。
+    /// `saturating_duration_since` を使い、万一 `now < last`（時刻巻き戻り等）でも panic せず
+    /// `Duration::ZERO` 扱いとする。
     fn tick_at(&mut self, now: Instant) -> bool {
-        if now.duration_since(self.last) >= self.interval {
+        if now.saturating_duration_since(self.last) >= self.interval {
             self.last = now;
             true
         } else {
