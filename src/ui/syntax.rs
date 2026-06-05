@@ -21,8 +21,14 @@ static SYNTAX_SET: LazyLock<SyntaxSet> = LazyLock::new(SyntaxSet::load_defaults_
 
 /// 配色テーマ。tui-markdown のコードブロックと同じ `base16-ocean.dark` を使い、
 /// md 内コードとソースファイル単体で配色を一貫させる。
-static THEME: LazyLock<Theme> =
-    LazyLock::new(|| ThemeSet::load_defaults().themes["base16-ocean.dark"].clone());
+/// `base16-ocean.dark` は syntect 同梱の組み込みテーマだが、万一不在でもパニックさせず
+/// 既定テーマ（無装飾）へフォールバックする。
+static THEME: LazyLock<Theme> = LazyLock::new(|| {
+    ThemeSet::load_defaults()
+        .themes
+        .remove("base16-ocean.dark")
+        .unwrap_or_default()
+});
 
 /// 行群を構文ハイライトして `'static` なスタイル付き行へ変換する。
 /// ファイル種別を特定できなければ `None` を返す（呼び出し側はプレーン表示にフォールバックする）。
@@ -69,7 +75,10 @@ fn highlight_line(
 fn find_syntax(file_name: &str, first_line: Option<&str>) -> Option<&'static SyntaxReference> {
     let syntax_set = &SYNTAX_SET;
     let path = Path::new(file_name);
-    // 拡張子で照合。拡張子が無いファイル（Makefile / Dockerfile 等）はファイル名トークンで照合する。
+    // 構文を引くトークン: まず拡張子、無ければファイル名そのもの。
+    // syntect の `find_syntax_by_extension` は各構文の拡張子リストとの一致を見るが、
+    // 一部の拡張子なしファイル名（Makefile 等）も拡張子トークンとして登録されているため、
+    // ファイル名を渡すとそれらに一致する。登録のない名前は次の先頭行判定に委ねる。
     let token = path
         .extension()
         .and_then(|e| e.to_str())
