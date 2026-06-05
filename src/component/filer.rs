@@ -572,6 +572,9 @@ impl Component for FilerComponent {
             KeyCode::Char('g') => Ok(self.prompt_grep()),
             KeyCode::Char('j') => Ok(self.prompt_jump()),
             KeyCode::Char('h') => Ok(Action::LaunchShell),
+            KeyCode::Char('e') => Ok(Action::OpenInFileManager(
+                self.state.current_dir.absolute_path().to_string(),
+            )),
             KeyCode::Char(' ') => {
                 self.state.toggle_checked_file();
                 self.state.next();

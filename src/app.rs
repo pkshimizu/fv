@@ -238,6 +238,9 @@ impl App {
             Action::OpenFile(path) => {
                 open::that(path)?;
             }
+            Action::OpenInFileManager(path) => {
+                open::that(path)?;
+            }
             Action::Yank(paths) => {
                 if let Err(e) = crate::os::clipboard::write_paths(&paths) {
                     tracing::warn!("yank failed: {e:#}");
