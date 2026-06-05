@@ -236,10 +236,11 @@ impl App {
                 }
             }
             Action::OpenFile(path) => {
-                open::that(path)?;
+                open::that(&path).with_context(|| format!("ファイルを開けませんでした: {path}"))?;
             }
             Action::OpenInFileManager(path) => {
-                open::that(path)?;
+                open::that(&path)
+                    .with_context(|| format!("ファイルマネージャで開けませんでした: {path}"))?;
             }
             Action::Yank(paths) => {
                 if let Err(e) = crate::os::clipboard::write_paths(&paths) {
