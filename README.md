@@ -88,6 +88,7 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | `a` / `i` | Show file attributes / info |
 | `t` / `v` | Show directory tree / preview file |
 | `h` | Launch shell |
+| `e` | Open in file manager |
 
 ### Bookmarks
 
