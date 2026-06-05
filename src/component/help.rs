@@ -52,6 +52,7 @@ const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
             ("t", "Show directory tree"),
             ("v", "Preview file"),
             ("h", "Launch shell"),
+            ("e", "Open in file manager"),
         ],
     ),
     (

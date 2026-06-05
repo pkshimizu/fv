@@ -51,6 +51,8 @@ pub enum Action {
     AddBookmark(String),
     /// ファイルを外部アプリケーションで開く
     OpenFile(String),
+    /// 現在のディレクトリを OS のデフォルトファイルマネージャで開く
+    OpenInFileManager(String),
     /// Operation Targets の絶対パスをクリップボードへ書き出す（Yank）
     Yank(Vec<String>),
     /// ブックマーク一覧を表示する

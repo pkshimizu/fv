@@ -101,6 +101,12 @@ _Avoid_: drive (implies a Windows drive letter / physical device, not the mounte
 The current wall-clock time shown at the right edge of the header content row (`YYYY-MM-DD HH:MM:SS`, local time zone). Advances its seconds via the ~250ms redraw, not a throttled refresh — reading the system clock is cheap, so unlike **System Info** and **Disk Usage** it holds no reader state. Where System Info reports facts about the host environment (CPU, memory, …), the Clock reports only what time it is now, tied to no machine, file, or operation. Omitted when the terminal is too narrow to fit it.
 _Avoid_: timer, time, clock widget.
 
+### External handoff
+
+**Open in File Manager**:
+Handing the Filer's **current directory** off to the host OS's default graphical file manager (Finder, Explorer, …) so the user can continue in the GUI — for drag-and-drop or app integration the TUI doesn't offer. It always targets the current directory, never the **Cursor File** (revealing a specific file in the GUI is a separate, future capability). Distinct from the other two "leave for an external tool" gestures: opening the Cursor File *with its associated application* (the Enter key on a file), and launching an interactive **shell** in the current directory. The GUI app is launched and fv keeps running — unlike the shell handoff, the TUI is not suspended.
+_Avoid_: open (ambiguous — Enter on a file opens it with its associated app, and Enter on a directory navigates into it), reveal (that is the future per-file capability, not this), explorer (OS-specific).
+
 ### Preview
 
 **Syntax Highlighting**:
