@@ -101,6 +101,16 @@ _Avoid_: drive (implies a Windows drive letter / physical device, not the mounte
 The current wall-clock time shown at the right edge of the header content row (`YYYY-MM-DD HH:MM:SS`, local time zone). Advances its seconds via the ~250ms redraw, not a throttled refresh — reading the system clock is cheap, so unlike **System Info** and **Disk Usage** it holds no reader state. Where System Info reports facts about the host environment (CPU, memory, …), the Clock reports only what time it is now, tied to no machine, file, or operation. Omitted when the terminal is too narrow to fit it.
 _Avoid_: timer, time, clock widget.
 
+### Preview
+
+**Syntax Highlighting**:
+Colouring a text file's preview according to the programming or markup language it is written in, so structure (keywords, strings, comments, …) is visible at a glance. The language is inferred from the file (its extension, name, or first line); when no language can be determined the preview shows uncoloured plain text. It **colours the raw text in place** — every original line and character stays exactly where it is, only the colour changes. This is what distinguishes it from **Markdown Rendering**, which transforms structure. The colour scheme is fixed and shared with the code blocks inside **Markdown Rendering**, so the same language looks the same whether viewed as a standalone source file or as a fenced code block.
+_Avoid_: colouring, formatting, theming, code formatting.
+
+**Markdown Rendering**:
+Displaying a Markdown file as its *rendered* result — headings, lists, emphasis, and highlighted code blocks — rather than its raw source. Unlike **Syntax Highlighting**, which leaves the text verbatim and only adds colour, rendering **transforms the structure** (a `# Title` line becomes a styled heading, list markers become bullets). Reserved for Markdown files; other text files receive Syntax Highlighting instead.
+_Avoid_: markdown preview (ambiguous — the panel is just the Preview), markdown formatting.
+
 ### Example dialogues
 
 #### On Selection

@@ -2,6 +2,7 @@ use crate::component::{Action, Component, handle_preview_common_key};
 use crate::fs::text_preview::TextPreview;
 use crate::state::TextOutputState;
 use crate::ui::markdown;
+use crate::ui::syntax;
 use crate::ui::widgets::render_text_output;
 use anyhow::Result;
 use crossterm::event::KeyEvent;
@@ -31,7 +32,11 @@ impl PreviewComponent {
     pub fn new(path: &str, file_name: &str) -> Result<Self> {
         let preview = TextPreview::from_file(path)?;
         let title = build_title(file_name, preview.truncated);
-        let text_output = TextOutputState::with_lines(preview.lines);
+        // ファイル種別を特定できればシンタックスハイライトし、できなければプレーン表示にフォールバックする。
+        let text_output = match syntax::to_lines(&preview.lines, file_name) {
+            Some(lines) => TextOutputState::with_styled_lines(lines),
+            None => TextOutputState::with_lines(preview.lines),
+        };
         Ok(Self { title, text_output })
     }
 
