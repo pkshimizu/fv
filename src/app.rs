@@ -277,8 +277,9 @@ impl App {
             Action::ShowSettings => {
                 if self.ctx.side_panel.is_none() {
                     let startup_dir = self.store.settings.startup_directory().clone();
+                    let current_dir = self.ctx.filer.current_dir_path().to_string();
                     self.ctx.side_panel = Some(crate::state::SidePanel::Settings(
-                        crate::component::SettingsComponent::new(&startup_dir),
+                        crate::component::SettingsComponent::new(&startup_dir, &current_dir),
                     ));
                 }
             }

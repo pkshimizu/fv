@@ -7,46 +7,37 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Paragraph, Wrap};
 
 /// Specific Directory 選択肢のインデックス（`StartupDirectory::LABELS` の末尾）。
 const SPECIFIC_INDEX: usize = 3;
-
-/// 設定パネル内のフォーカス対象。
-#[derive(PartialEq, Eq)]
-enum Focus {
-    /// Startup Directory のラジオ行。
-    Options,
-    /// Specific Directory のパス入力フィールド。
-    Path,
-}
 
 pub struct SettingsComponent {
     /// 初期値のインデックス
     initial_option: usize,
     /// 選択中のオプションインデックス
     selected_option: usize,
-    /// Specific Directory のパス入力バッファ。ラジオを他へ切り替えても保持し、
-    /// 戻したときに入力中の内容が消えないようにする。
+    /// Specific Directory のパス入力バッファ。選択肢を切り替えても保持し、戻したときに
+    /// 入力中の内容が消えないようにする。保存済みの Specific パスが無い場合は
+    /// 既定値として Filer のカレントディレクトリを入れておく。
     path: String,
     /// 初期パス（dirty 判定用）。
     initial_path: String,
-    focus: Focus,
 }
 
 impl SettingsComponent {
-    pub fn new(startup_dir: &StartupDirectory) -> Self {
+    pub fn new(startup_dir: &StartupDirectory, current_dir: &str) -> Self {
         let index = startup_dir.index();
+        // 保存済みの Specific パスがあればそれを、無ければカレントディレクトリを既定値にする。
         let path = match startup_dir {
             StartupDirectory::SpecificDirectory(p) => p.clone(),
-            _ => String::new(),
+            _ => current_dir.to_string(),
         };
         Self {
             initial_option: index,
             selected_option: index,
             initial_path: path.clone(),
             path,
-            focus: Focus::Options,
         }
     }
 
@@ -78,55 +69,42 @@ impl SettingsComponent {
             Action::CloseSidePanel
         }
     }
-
-    fn handle_options_key(&mut self, code: KeyCode) -> Action {
-        match code {
-            KeyCode::Char('o') | KeyCode::Esc => return self.save_or_close(),
-            KeyCode::Left => {
-                self.selected_option = self.selected_option.saturating_sub(1);
-            }
-            KeyCode::Right if self.selected_option + 1 < StartupDirectory::LABELS.len() => {
-                self.selected_option += 1;
-            }
-            // Specific 選択時のみパス入力へフォーカスを移す。
-            KeyCode::Down if self.is_specific_selected() => {
-                self.focus = Focus::Path;
-            }
-            _ => {}
-        }
-        Action::None
-    }
-
-    fn handle_path_key(&mut self, code: KeyCode) -> Action {
-        match code {
-            // Esc は既存どおり保存して閉じる（`o` はパス文字として入力されるため対象外）。
-            KeyCode::Esc => return self.save_or_close(),
-            KeyCode::Up | KeyCode::Enter => self.focus = Focus::Options,
-            KeyCode::Backspace => {
-                self.path.pop();
-            }
-            KeyCode::Char(c) => self.path.push(c),
-            _ => {}
-        }
-        Action::None
-    }
 }
 
 impl Component for SettingsComponent {
     fn keymap(&self) -> &'static str {
-        match self.focus {
-            Focus::Options if self.is_specific_selected() => {
-                "←→: Select  ↓: Edit path  o/Esc: Save & Close"
-            }
-            Focus::Options => "←→: Select  o/Esc: Save & Close",
-            Focus::Path => "Type to edit path  ↑/Enter: Back  Esc: Save & Close",
+        if self.is_specific_selected() {
+            // Specific 選択中は文字キーがパス入力に使われるため、保存は Enter / Esc。
+            "←→: Select  Type: Edit path  Enter/Esc: Save & Close"
+        } else {
+            "←→: Select  Enter/o/Esc: Save & Close"
         }
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
-        let action = match self.focus {
-            Focus::Options => self.handle_options_key(event.code),
-            Focus::Path => self.handle_path_key(event.code),
+        let specific = self.is_specific_selected();
+        let action = match event.code {
+            // Specific 編集中は 'o' をパス文字として入力するため、保存は Enter / Esc で行う。
+            KeyCode::Char('o') if !specific => self.save_or_close(),
+            KeyCode::Enter | KeyCode::Esc => self.save_or_close(),
+            KeyCode::Left => {
+                self.selected_option = self.selected_option.saturating_sub(1);
+                Action::None
+            }
+            KeyCode::Right if self.selected_option + 1 < StartupDirectory::LABELS.len() => {
+                self.selected_option += 1;
+                Action::None
+            }
+            // Specific 選択中はそのままパスを編集できる（フォーカス移動は不要）。
+            KeyCode::Char(c) if specific => {
+                self.path.push(c);
+                Action::None
+            }
+            KeyCode::Backspace if specific => {
+                self.path.pop();
+                Action::None
+            }
+            _ => Action::None,
         };
         Ok(action)
     }
@@ -140,11 +118,10 @@ impl Component for SettingsComponent {
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD);
 
-        let mut spans: Vec<Span> = vec![Span::styled(" Startup Directory: ", label_style)];
+        // 横幅の狭いサイドパネルに収まるよう、選択肢は 1 行 1 項目の縦リストで表示する。
+        let mut lines: Vec<Line> =
+            vec![Line::from(Span::styled(" Startup Directory:", label_style))];
         for (i, label) in StartupDirectory::LABELS.iter().enumerate() {
-            if i > 0 {
-                spans.push(Span::raw("  "));
-            }
             let selected = i == self.selected_option;
             let marker = if selected { "[*]" } else { "[ ]" };
             let style = if selected {
@@ -152,26 +129,23 @@ impl Component for SettingsComponent {
             } else {
                 Style::default()
             };
-            spans.push(Span::styled(format!("{marker} {label}"), style));
+            lines.push(Line::from(Span::styled(
+                format!("  {marker} {label}"),
+                style,
+            )));
         }
-        let mut lines = vec![Line::from(spans)];
 
-        // Specific Directory 選択時のみパス入力フィールドを表示する。
+        // Specific Directory 選択時のみ、その直下にパス入力フィールドを表示する。
+        // 選択中は常に編集可能なので、末尾にカーソル（反転スペース）を表示する。
         if self.is_specific_selected() {
-            let mut path_spans: Vec<Span> = vec![
-                Span::styled(" Path: ", label_style),
+            let path_spans: Vec<Span> = vec![
+                Span::styled("    Path: ", label_style),
                 Span::raw(self.path.clone()),
+                Span::styled(" ", Style::default().add_modifier(Modifier::REVERSED)),
             ];
-            // フォーカス中はカーソル（反転スペース）を末尾に表示する。
-            if self.focus == Focus::Path {
-                path_spans.push(Span::styled(
-                    " ",
-                    Style::default().add_modifier(Modifier::REVERSED),
-                ));
-            }
             lines.push(Line::from(path_spans));
         }
 
-        frame.render_widget(Paragraph::new(lines), inner);
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
     }
 }
