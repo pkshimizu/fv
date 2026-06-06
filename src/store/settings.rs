@@ -28,13 +28,28 @@ impl StartupDirectory {
         "Specific Directory",
     ];
 
+    /// `LABELS` 上で Specific Directory（パスを持つ唯一の選択肢）が占める位置。
+    pub const SPECIFIC_INDEX: usize = 3;
+
     /// この値が `LABELS` 上で占める位置（ラジオの初期選択位置）。
     pub fn index(&self) -> usize {
         match self {
             StartupDirectory::CurrentDirectory => 0,
             StartupDirectory::HomeDirectory => 1,
             StartupDirectory::LastDirectory => 2,
-            StartupDirectory::SpecificDirectory(_) => 3,
+            StartupDirectory::SpecificDirectory(_) => Self::SPECIFIC_INDEX,
+        }
+    }
+
+    /// `LABELS` 上の選択位置から値を再構成する（`index()` の逆変換）。
+    /// Specific の場合のみ `path` を載せ、未知のインデックスは既定（Current）に倒す。
+    /// 並び順の知識（`LABELS` / `index` / 本関数）をこのモジュール内に閉じ込めるための入口。
+    pub fn from_index(index: usize, path: &str) -> Self {
+        match index {
+            1 => StartupDirectory::HomeDirectory,
+            2 => StartupDirectory::LastDirectory,
+            Self::SPECIFIC_INDEX => StartupDirectory::SpecificDirectory(path.to_string()),
+            _ => StartupDirectory::CurrentDirectory,
         }
     }
 }
@@ -114,6 +129,27 @@ mod tests {
         );
         // index() が指す位置に対応するラベルが存在する。
         assert_eq!(StartupDirectory::LABELS.len(), 4);
+    }
+
+    #[test]
+    fn from_index_is_inverse_of_index() {
+        // from_index と index が往復で一致する（並び順の二重管理を防ぐ）。
+        for i in 0..StartupDirectory::LABELS.len() {
+            assert_eq!(StartupDirectory::from_index(i, "/p").index(), i);
+        }
+    }
+
+    #[test]
+    fn specific_index_points_at_last_label() {
+        // SPECIFIC_INDEX は LABELS の末尾を指す。
+        assert_eq!(
+            StartupDirectory::SPECIFIC_INDEX,
+            StartupDirectory::LABELS.len() - 1
+        );
+        assert!(matches!(
+            StartupDirectory::from_index(StartupDirectory::SPECIFIC_INDEX, "/p"),
+            StartupDirectory::SpecificDirectory(_)
+        ));
     }
 
     #[test]

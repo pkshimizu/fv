@@ -9,9 +9,6 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
-/// Specific Directory 選択肢のインデックス（`StartupDirectory::LABELS` の末尾）。
-const SPECIFIC_INDEX: usize = 3;
-
 pub struct SettingsComponent {
     /// 初期値のインデックス
     initial_option: usize,
@@ -42,7 +39,7 @@ impl SettingsComponent {
     }
 
     fn is_specific_selected(&self) -> bool {
-        self.selected_option == SPECIFIC_INDEX
+        self.selected_option == StartupDirectory::SPECIFIC_INDEX
     }
 
     fn is_dirty(&self) -> bool {
@@ -54,12 +51,8 @@ impl SettingsComponent {
     }
 
     fn to_startup_directory(&self) -> StartupDirectory {
-        match self.selected_option {
-            1 => StartupDirectory::HomeDirectory,
-            2 => StartupDirectory::LastDirectory,
-            SPECIFIC_INDEX => StartupDirectory::SpecificDirectory(self.path.clone()),
-            _ => StartupDirectory::CurrentDirectory,
-        }
+        // 並び順 → 値の対応は store 側 `from_index` に一元化している。
+        StartupDirectory::from_index(self.selected_option, &self.path)
     }
 
     fn save_or_close(&self) -> Action {
@@ -96,7 +89,8 @@ impl Component for SettingsComponent {
                 Action::None
             }
             // Specific 選択中はそのままパスを編集できる（フォーカス移動は不要）。
-            KeyCode::Char(c) if specific => {
+            // 制御文字（改行・タブ等）はパスに混入させない。
+            KeyCode::Char(c) if specific && !c.is_control() => {
                 self.path.push(c);
                 Action::None
             }
@@ -140,7 +134,7 @@ impl Component for SettingsComponent {
         if self.is_specific_selected() {
             let path_spans: Vec<Span> = vec![
                 Span::styled("    Path: ", label_style),
-                Span::raw(self.path.clone()),
+                Span::raw(self.path.as_str()),
                 Span::styled(" ", Style::default().add_modifier(Modifier::REVERSED)),
             ];
             lines.push(Line::from(path_spans));
