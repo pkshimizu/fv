@@ -12,25 +12,30 @@ pub enum StartupDirectory {
     CurrentDirectory,
     HomeDirectory,
     LastDirectory,
+    /// 任意の固定ディレクトリ。保持するパスは入力されたままの文字列で、
+    /// `~` 展開や存在確認は起動時の解決（`App::resolve_startup_directory`）で行う。
+    SpecificDirectory(String),
 }
 
 impl StartupDirectory {
-    pub const ALL: &'static [StartupDirectory] = &[
-        StartupDirectory::CurrentDirectory,
-        StartupDirectory::HomeDirectory,
-        StartupDirectory::LastDirectory,
+    /// 設定 UI のラジオに並べる選択肢ラベル（表示順）。配列のインデックスが
+    /// `index()` および選択位置に対応する。`SpecificDirectory` はパスを持つため
+    /// 値の一覧（`&[StartupDirectory]`）ではなくラベル一覧で表現する。
+    pub const LABELS: &'static [&'static str] = &[
+        "Current Directory",
+        "Home Directory",
+        "Last Directory",
+        "Specific Directory",
     ];
 
-    pub fn label(&self) -> &'static str {
-        match self {
-            StartupDirectory::CurrentDirectory => "Current Directory",
-            StartupDirectory::HomeDirectory => "Home Directory",
-            StartupDirectory::LastDirectory => "Last Directory",
-        }
-    }
-
+    /// この値が `LABELS` 上で占める位置（ラジオの初期選択位置）。
     pub fn index(&self) -> usize {
-        Self::ALL.iter().position(|d| d == self).unwrap_or(0)
+        match self {
+            StartupDirectory::CurrentDirectory => 0,
+            StartupDirectory::HomeDirectory => 1,
+            StartupDirectory::LastDirectory => 2,
+            StartupDirectory::SpecificDirectory(_) => 3,
+        }
     }
 }
 
@@ -91,5 +96,38 @@ impl SettingsStore {
     pub fn set_startup_directory(&mut self, dir: StartupDirectory) -> Result<()> {
         self.settings.startup_directory = dir;
         self.save()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_matches_label_position() {
+        assert_eq!(StartupDirectory::CurrentDirectory.index(), 0);
+        assert_eq!(StartupDirectory::HomeDirectory.index(), 1);
+        assert_eq!(StartupDirectory::LastDirectory.index(), 2);
+        assert_eq!(
+            StartupDirectory::SpecificDirectory("/anything".to_string()).index(),
+            3
+        );
+        // index() が指す位置に対応するラベルが存在する。
+        assert_eq!(StartupDirectory::LABELS.len(), 4);
+    }
+
+    #[test]
+    fn specific_directory_round_trips_through_json_with_its_path() {
+        let dir = StartupDirectory::SpecificDirectory("/projects/ws".to_string());
+        let json = serde_json::to_string(&dir).unwrap();
+        let restored: StartupDirectory = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, dir);
+    }
+
+    #[test]
+    fn legacy_unit_variant_json_still_parses() {
+        // 既存 settings.json（ユニットバリアントの文字列表現）が引き続き読める。
+        let restored: StartupDirectory = serde_json::from_str("\"HomeDirectory\"").unwrap();
+        assert_eq!(restored, StartupDirectory::HomeDirectory);
     }
 }

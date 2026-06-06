@@ -19,6 +19,18 @@ use std::time::{Duration, Instant};
 /// 検知することに依存する。その値を変えると停止後の追従遅延も変わる点に注意。
 const PREVIEW_REBUILD_THROTTLE: Duration = Duration::from_millis(120);
 
+/// 先頭の `~` をホームディレクトリへ展開する。`~` 単体・`~/...` のみ対応し、
+/// `~user` 形式や展開不能時は入力をそのまま `PathBuf` として返す。
+fn expand_tilde(path: &str) -> std::path::PathBuf {
+    if let Some(rest) = path.strip_prefix('~')
+        && (rest.is_empty() || rest.starts_with('/'))
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.join(rest.trim_start_matches('/'));
+    }
+    std::path::PathBuf::from(path)
+}
+
 pub struct App {
     ctx: AppContext,
     store: RootStore,
@@ -63,6 +75,12 @@ impl App {
                 .filter(|p| std::path::Path::new(p).is_dir())
                 .map(std::path::PathBuf::from)
                 .or_else(dirs::home_dir),
+            // 指定パスを `~` 展開して解決。存在するディレクトリならそれを使い、
+            // 存在しなければ None（= カレントディレクトリ）にフォールバックする。
+            StartupDirectory::SpecificDirectory(path) => {
+                let resolved = expand_tilde(path);
+                resolved.is_dir().then_some(resolved)
+            }
         }
     }
 
@@ -354,5 +372,38 @@ impl App {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_tilde_leaves_absolute_path_unchanged() {
+        assert_eq!(
+            expand_tilde("/tmp/foo"),
+            std::path::PathBuf::from("/tmp/foo")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_expands_bare_tilde_to_home() {
+        if let Some(home) = dirs::home_dir() {
+            assert_eq!(expand_tilde("~"), home);
+        }
+    }
+
+    #[test]
+    fn expand_tilde_expands_tilde_slash_prefix() {
+        if let Some(home) = dirs::home_dir() {
+            assert_eq!(expand_tilde("~/projects"), home.join("projects"));
+        }
+    }
+
+    #[test]
+    fn expand_tilde_leaves_tilde_user_form_unexpanded() {
+        // ~user 形式は非対応。そのまま返す（存在しなければ起動時にフォールバック）。
+        assert_eq!(expand_tilde("~bob/x"), std::path::PathBuf::from("~bob/x"));
     }
 }
