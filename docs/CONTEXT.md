@@ -11,7 +11,7 @@ The file currently highlighted in the Filer (returned by `FilerState::selected_f
 _Avoid_: selected file, current file, focused file.
 
 **Checked Paths**:
-The set of paths the user has explicitly marked with the spacebar in the Filer (`FilerState::checked_paths`). Forms a multi-selection that persists across cursor movement.
+The set of paths the user has explicitly marked in the Filer (`FilerState::checked_paths`). Forms a multi-selection that persists across cursor movement. Marked one at a time with the spacebar; `Shift`+`A` selects all displayed files at once, or clears the set when any are already checked.
 _Avoid_: selected paths, marked files, tagged paths.
 
 **Operation Targets**:

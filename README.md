@@ -66,6 +66,7 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | Key | Action |
 | --- | --- |
 | `Space` | Toggle check mark |
+| `Shift`+`A` | Select all / clear selection |
 | `.` | Toggle dotfiles visibility |
 | `s` | Sort files |
 | `f` | Search files |

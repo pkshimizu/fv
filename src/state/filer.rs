@@ -283,6 +283,23 @@ impl FilerState {
         }
     }
 
+    /// 全選択とクリアを切り替える。チェック済みが 1 件以上あればクリア、
+    /// 0 件なら表示中（current_dir_files）のすべてを Checked Paths に加える。
+    pub fn toggle_check_all(&mut self) {
+        if self.checked_paths.is_empty() {
+            self.check_all_files();
+        } else {
+            self.clear_checked_paths();
+        }
+    }
+
+    /// 表示中（current_dir_files）のすべてのファイルを Checked Paths に加える。
+    fn check_all_files(&mut self) {
+        for file in &self.current_dir_files {
+            self.checked_paths.insert(file.absolute_path().to_string());
+        }
+    }
+
     /// Checked Paths をすべて解除する。
     pub fn clear_checked_paths(&mut self) {
         self.checked_paths.clear();
@@ -763,6 +780,37 @@ mod tests {
         state.clear_checked_paths();
 
         // チェックが消えたので Cursor File へフォールスルーする。
+        assert_eq!(
+            state.operation_targets(),
+            Some(OperationTargets::Cursor(VFile::new("/a/a.txt")))
+        );
+    }
+
+    #[test]
+    fn toggle_check_all_selects_every_displayed_file_when_none_checked() {
+        let mut state = state_with(&["/a/a.txt", "/a/b.txt", "/a/c.txt"], Some(0));
+
+        state.toggle_check_all();
+
+        assert_eq!(
+            state.operation_targets(),
+            Some(OperationTargets::Checked(vec![
+                VFile::new("/a/a.txt"),
+                VFile::new("/a/b.txt"),
+                VFile::new("/a/c.txt"),
+            ]))
+        );
+    }
+
+    #[test]
+    fn toggle_check_all_clears_when_any_file_is_checked() {
+        let mut state = state_with(&["/a/a.txt", "/a/b.txt", "/a/c.txt"], Some(0));
+        // 1 件でもチェック済みならクリアする。
+        state.checked_paths.insert("/a/b.txt".to_string());
+
+        state.toggle_check_all();
+
+        // クリアされ、Cursor File へフォールスルーする。
         assert_eq!(
             state.operation_targets(),
             Some(OperationTargets::Cursor(VFile::new("/a/a.txt")))
