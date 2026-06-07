@@ -295,9 +295,11 @@ impl FilerState {
 
     /// 表示中（current_dir_files）のすべてのファイルを Checked Paths に加える。
     fn check_all_files(&mut self) {
-        for file in &self.current_dir_files {
-            self.checked_paths.insert(file.absolute_path().to_string());
-        }
+        self.checked_paths.extend(
+            self.current_dir_files
+                .iter()
+                .map(|file| file.absolute_path().to_string()),
+        );
     }
 
     /// Checked Paths をすべて解除する。
