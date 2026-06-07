@@ -580,6 +580,10 @@ impl Component for FilerComponent {
                 self.state.next();
                 Ok(Action::None)
             }
+            KeyCode::Char('A') => {
+                self.state.toggle_check_all();
+                Ok(Action::None)
+            }
             KeyCode::Char('.') => {
                 self.state.toggle_show_dot_file();
                 Ok(Action::None)

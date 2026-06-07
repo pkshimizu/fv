@@ -24,6 +24,7 @@ const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
         "Selection & display",
         &[
             ("Space", "Toggle check mark"),
+            ("shift + a", "Select all / clear selection"),
             (".", "Toggle dotfiles visibility"),
             ("s", "Sort files"),
             ("f", "Search files"),
