@@ -137,14 +137,16 @@ pub enum Action {
 
 ## Agent skills
 
-### Issue tracker
+開発フローは `za` プラグインのスキルで回す: `za:plan` → `za:issue` → `za:fix-issue`
+→ `za:pr` → `za:review`。各スキルは `docs/` 配下のルールを参照する。
 
-Issues live in this repo's GitHub Issues (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+| ドキュメント | 役割 |
+|--------------|------|
+| `docs/CONTEXT.md`            | ドメイン文脈・用語（Single-context layout） |
+| `docs/PLAN.md`               | 実装プラン作成ルール（`za:plan`） |
+| `docs/ISSUE.md`              | issue 作成ルール・コミット規約（`za:issue` / `za:fix-issue` / `za:review`） |
+| `docs/PR.md`                 | PR 作成ルール（`za:pr`） |
+| `docs/review-perspectives/`  | レビュー観点ごとの md（`za:review`） |
 
-### Triage labels
-
-Five canonical triage roles mapped to default label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context layout — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Issues は GitHub Issues（`gh` CLI）で管理する。issue・PR ともテンプレートは
+`.github/ISSUE_TEMPLATE/` と `.github/pull_request_template.md` を用いる。
