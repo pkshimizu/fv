@@ -19,7 +19,7 @@ browsing, file operations, preview, search, and more on a single, clean screen �
   Long operations run as cancellable async jobs with progress.
 - **Shell & commands** — launch a shell in the current directory or run an arbitrary command.
 - **Preview** — text, rendered Markdown, images, and audio (with play/seek) in a side panel.
-- **Search & view** — grep through the tree, incremental search, directory jump, and a directory tree view.
+- **Search & view** — grep through the tree, incremental search, a list filter that hides non-matching files, directory jump, and a directory tree view.
 - **File info & attributes** — inspect size, type, permissions, and timestamps.
 - **Bookmarks** — save frequently used directories and jump to them quickly.
 - **Yank** — copy selected paths to the system clipboard.
@@ -70,6 +70,7 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | `.` | Toggle dotfiles visibility |
 | `s` | Sort files |
 | `f` | Search files |
+| `/` | Filter list (hide non-matches) |
 
 ### File operations
 

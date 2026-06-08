@@ -26,6 +26,10 @@ _Avoid_: target (ambiguous with Operation Targets), output path, folder.
 Read-only copy of the Operation Targets' absolute paths into the system clipboard, bound to `y`. Multiple paths are joined with `\n` and no trailing newline. Does not modify the filesystem or clear Checked Paths, so a `y` immediately followed by `c` / `m` can chain yank-then-copy/move on the same set.
 _Avoid_: copy (overloaded with the Copy file action), clipboard write, pull to clipboard.
 
+**List Filter**:
+An incremental, case-insensitive substring filter on file names, bound to `/`, that **hides** non-matching rows so the Filer shows only the matches. Distinct from Search (`f`), which leaves the list intact and only moves the cursor to a match. While a filter is active the displayed set *is* the matched subset, so the Cursor, **Operation Targets**, and select-all all act on the filtered files only; Checked Paths for hidden files are remembered (not dropped) and reappear when the filter is cleared. The filter is per-directory: it persists after the prompt closes (Enter) but is cleared by an empty query, by `Esc`, or by navigating to another directory.
+_Avoid_: search (that is the cursor-jump feature on `f`), grep (content search on `g`), hide.
+
 ### Async File Operations
 
 **Async Job**:

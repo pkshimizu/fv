@@ -227,6 +227,9 @@ impl App {
             Action::SearchUpdate(value) => {
                 self.ctx.filer.select_matching_file(&value);
             }
+            Action::FilterUpdate(value) => {
+                self.ctx.filer.set_name_filter(&value);
+            }
             Action::SearchNext(value) => {
                 self.ctx.filer.select_next_matching_file(&value);
             }

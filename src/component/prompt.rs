@@ -160,7 +160,14 @@ impl PromptComponent {
             KeyCode::Left => return self.input_cursor_left(),
             KeyCode::Right => return self.input_cursor_right(),
             KeyCode::Enter => return self.input_ok(),
-            KeyCode::Esc => return Ok(Action::CancelPrompt),
+            KeyCode::Esc => {
+                // Filter は Esc で絞り込みを解除（全件に戻す）してから閉じる。
+                if matches!(self.mode, PromptMode::Filter { .. }) {
+                    self.mode = PromptMode::None;
+                    return Ok(Action::FilterUpdate(String::new()));
+                }
+                return Ok(Action::CancelPrompt);
+            }
             _ => {}
         }
         // モード固有キー
@@ -181,7 +188,8 @@ impl PromptComponent {
         match &mut self.mode {
             PromptMode::Text { value, cursor, .. }
             | PromptMode::File { value, cursor, .. }
-            | PromptMode::Search { value, cursor, .. } => {
+            | PromptMode::Search { value, cursor, .. }
+            | PromptMode::Filter { value, cursor, .. } => {
                 let byte_pos = char_to_byte_pos(value, *cursor);
                 value.insert(byte_pos, c);
                 *cursor += 1;
@@ -196,6 +204,7 @@ impl PromptComponent {
             PromptMode::Text { value, cursor, .. }
             | PromptMode::File { value, cursor, .. }
             | PromptMode::Search { value, cursor, .. }
+            | PromptMode::Filter { value, cursor, .. }
                 if *cursor > 0 =>
             {
                 *cursor -= 1;
@@ -213,7 +222,8 @@ impl PromptComponent {
         match &mut self.mode {
             PromptMode::Text { cursor, .. }
             | PromptMode::File { cursor, .. }
-            | PromptMode::Search { cursor, .. } => {
+            | PromptMode::Search { cursor, .. }
+            | PromptMode::Filter { cursor, .. } => {
                 *cursor = cursor.saturating_sub(1);
             }
             _ => {}
@@ -225,7 +235,8 @@ impl PromptComponent {
         match &mut self.mode {
             PromptMode::Text { value, cursor, .. }
             | PromptMode::File { value, cursor, .. }
-            | PromptMode::Search { value, cursor, .. } => {
+            | PromptMode::Search { value, cursor, .. }
+            | PromptMode::Filter { value, cursor, .. } => {
                 let char_count = value.chars().count();
                 if *cursor < char_count {
                     *cursor += 1;
@@ -265,8 +276,12 @@ impl PromptComponent {
     }
 
     fn input_ok(&mut self) -> Result<Action> {
-        // Search モードでは Enter でモードを閉じるだけ
-        if matches!(self.mode, PromptMode::Search { .. }) {
+        // Search / Filter モードでは Enter でモードを閉じるだけ
+        // （Filter は閉じても絞り込みを保持する）。
+        if matches!(
+            self.mode,
+            PromptMode::Search { .. } | PromptMode::Filter { .. }
+        ) {
             self.mode = PromptMode::None;
             return Ok(Action::None);
         }
@@ -352,10 +367,10 @@ impl PromptComponent {
 
     fn after_input_value_changed(&mut self) -> Action {
         self.mode.reset_candidates();
-        if let PromptMode::Search { value, .. } = &self.mode {
-            Action::SearchUpdate(value.clone())
-        } else {
-            Action::None
+        match &self.mode {
+            PromptMode::Search { value, .. } => Action::SearchUpdate(value.clone()),
+            PromptMode::Filter { value, .. } => Action::FilterUpdate(value.clone()),
+            _ => Action::None,
         }
     }
 
@@ -371,7 +386,8 @@ impl PromptComponent {
             )),
             PromptMode::Text { title, value, .. }
             | PromptMode::File { title, value, .. }
-            | PromptMode::Search { title, value, .. } => {
+            | PromptMode::Search { title, value, .. }
+            | PromptMode::Filter { title, value, .. } => {
                 Paragraph::new(value.as_str()).block(build_focused_block(title.as_ref()))
             }
             PromptMode::Select {
@@ -433,9 +449,10 @@ impl PromptComponent {
 impl Component for PromptComponent {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match &self.mode {
-            PromptMode::Text { .. } | PromptMode::File { .. } | PromptMode::Search { .. } => {
-                self.handle_input_event(event)
-            }
+            PromptMode::Text { .. }
+            | PromptMode::File { .. }
+            | PromptMode::Search { .. }
+            | PromptMode::Filter { .. } => self.handle_input_event(event),
             PromptMode::Select { .. } => self.handle_select_event(event),
             PromptMode::Confirm { .. } => self.handle_confirm_event(event),
             PromptMode::Error { .. } => self.handle_error_event(event),
@@ -623,6 +640,7 @@ pub fn execute_prompt_action(
         PromptMode::None
         | PromptMode::Error { .. }
         | PromptMode::Search { .. }
+        | PromptMode::Filter { .. }
         | PromptMode::Progress { .. } => Ok(()),
     }?;
     if !skip_clear {
