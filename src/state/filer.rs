@@ -77,12 +77,16 @@ impl SortKey {
 #[derive(Debug)]
 struct FilerFilter {
     show_dot_file: bool,
+    /// 名前による絞り込みフィルタの問い合わせ文字列。空文字列はフィルタ無効。
+    /// 大文字小文字を無視した部分一致で評価する。
+    name: String,
 }
 
 impl FilerFilter {
     fn new() -> Self {
         Self {
             show_dot_file: false,
+            name: String::new(),
         }
     }
 
@@ -101,6 +105,16 @@ impl FilerFilter {
     /// should_include と start_async_load 内で共通利用される。
     fn is_visible_name(name: &str) -> bool {
         !name.starts_with('.')
+    }
+
+    /// 名前フィルタにマッチするか（大文字小文字無視の部分一致）。空フィルタは常にマッチ。
+    fn matches_name(&self, file: &VFile) -> bool {
+        if self.name.is_empty() {
+            return true;
+        }
+        let query = self.name.to_lowercase();
+        file.file_name()
+            .is_some_and(|name| name.to_lowercase().contains(&query))
     }
 }
 
@@ -137,7 +151,12 @@ impl OperationTargets {
 
 pub struct FilerState {
     pub current_dir: VFile,
+    /// 表示中（ドットファイル＋名前フィルタ適用後）のファイル一覧。描画・カーソル・
+    /// 選択・Operation Targets はすべてこれを参照する。
     pub current_dir_files: Vec<VFile>,
+    /// 名前フィルタ適用中のみ、ドットファイルフィルタ後の全件を退避しておく backing。
+    /// `filter.name` が空（フィルタ無効）のときは空で、`current_dir_files` が全件を兼ねる。
+    all_files: Vec<VFile>,
     pub file_table_state: TableState,
     checked_paths: HashSet<String>,
     pub sort_key: SortKey,
@@ -171,6 +190,7 @@ impl FilerState {
         Self {
             current_dir: VFile::new(""),
             current_dir_files: Vec::new(),
+            all_files: Vec::new(),
             file_table_state: TableState::default(),
             checked_paths: HashSet::new(),
             sort_key: SortKey::NameAsc,
@@ -333,6 +353,77 @@ impl FilerState {
         self.refresh_files();
     }
 
+    /// 現在の名前フィルタの問い合わせ文字列（空文字列はフィルタ無効）。
+    pub fn name_filter(&self) -> &str {
+        &self.filter.name
+    }
+
+    /// 名前フィルタが有効か。
+    pub fn is_filtering(&self) -> bool {
+        !self.filter.name.is_empty()
+    }
+
+    /// 名前フィルタを設定する（インクリメンタル）。空文字列で解除して全件に戻す。
+    /// ディスクは再読込せず、退避した全件（`all_files`）からメモリ内で表示集合を再計算する。
+    pub fn set_name_filter(&mut self, query: &str) {
+        let was_filtering = self.is_filtering();
+        if query.is_empty() {
+            if was_filtering {
+                // 解除: 退避していた全件を表示集合へ戻す。
+                self.current_dir_files = std::mem::take(&mut self.all_files);
+                self.filter.name.clear();
+                self.clamp_cursor();
+            }
+            return;
+        }
+        if !was_filtering {
+            // フィルタ開始: 現在の全件を backing へ退避する。
+            self.all_files = self.current_dir_files.clone();
+        }
+        self.filter.name = query.to_string();
+        self.rebuild_filtered_view();
+        self.clamp_cursor();
+    }
+
+    /// `all_files`（全件）から名前フィルタを適用して表示集合を再構築する。
+    /// フィルタ有効時のみ呼ぶ（`all_files` が backing を保持している前提）。
+    fn rebuild_filtered_view(&mut self) {
+        self.current_dir_files = self
+            .all_files
+            .iter()
+            .filter(|file| self.filter.matches_name(file))
+            .cloned()
+            .collect();
+    }
+
+    /// ロード結果（`current_dir_files` に入った全件）に対し、フィルタが有効なら
+    /// 全件を `all_files` へ退避して表示集合を絞り込む。フィルタ無効なら何もしない。
+    /// ディレクトリ移動以外（in-place refresh・同期ロード）の完了時に呼ぶ。
+    fn reapply_active_filter(&mut self) {
+        if !self.is_filtering() {
+            return;
+        }
+        self.all_files = std::mem::take(&mut self.current_dir_files);
+        self.rebuild_filtered_view();
+    }
+
+    /// 名前フィルタの状態を解除する（ディレクトリ移動時に内容が別物になるため）。
+    fn reset_name_filter(&mut self) {
+        self.filter.name.clear();
+        self.all_files = Vec::new();
+    }
+
+    /// 表示集合の件数にカーソルを収める。範囲外なら末尾へ、空なら未選択にする。
+    fn clamp_cursor(&mut self) {
+        let len = self.current_dir_files.len();
+        let index = if len == 0 {
+            None
+        } else {
+            Some(self.file_table_state.selected().unwrap_or(0).min(len - 1))
+        };
+        self.file_table_state.select(index);
+    }
+
     pub fn select_matching_file(&mut self, query: &str) {
         if let Some(i) = self.find_matching_index(query, 0, true) {
             self.file_table_state.select(Some(i));
@@ -393,6 +484,7 @@ impl FilerState {
         }
 
         self.current_dir_files = files;
+        self.reapply_active_filter();
         Ok(())
     }
 
@@ -413,6 +505,8 @@ impl FilerState {
         }
 
         if is_navigation {
+            // 移動先は内容が別物なので名前フィルタは解除する（フィルタはディレクトリ単位）。
+            self.reset_name_filter();
             self.current_dir_files.clear();
             self.file_table_state.select(None);
             self.loading_buffer = None;
@@ -628,13 +722,15 @@ impl FilerState {
         self.file_table_state.select(index);
     }
 
-    /// current_dir_files に存在しないパスを Checked Paths から取り除く。
+    /// 現存しないパスを Checked Paths から取り除く。フィルタ有効時は全件（`all_files`）を
+    /// 基準にして、絞り込みで一時的に隠れているだけのチェックを誤って消さないようにする。
     fn cleanup_checked_paths(&mut self) {
-        let file_paths: HashSet<&str> = self
-            .current_dir_files
-            .iter()
-            .map(|f| f.absolute_path())
-            .collect();
+        let source = if self.is_filtering() {
+            &self.all_files
+        } else {
+            &self.current_dir_files
+        };
+        let file_paths: HashSet<&str> = source.iter().map(|f| f.absolute_path()).collect();
         self.checked_paths
             .retain(|path| file_paths.contains(path.as_str()));
     }
@@ -655,6 +751,8 @@ impl FilerState {
         let old_index = self.file_table_state.selected();
 
         self.current_dir_files = files;
+        // in-place refresh では全件が入る。名前フィルタ有効なら表示集合を絞り直す。
+        self.reapply_active_filter();
         self.restore_cursor(name, old_index);
 
         self.cleanup_checked_paths();
@@ -816,6 +914,78 @@ mod tests {
         assert_eq!(
             state.operation_targets(),
             Some(OperationTargets::Cursor(VFile::new("/a/a.txt")))
+        );
+    }
+
+    /// current_dir_files の file_name 一覧を取り出すヘルパ。
+    fn displayed_names(state: &FilerState) -> Vec<&str> {
+        state
+            .current_dir_files
+            .iter()
+            .filter_map(|f| f.file_name())
+            .collect()
+    }
+
+    #[test]
+    fn set_name_filter_narrows_to_case_insensitive_matches() {
+        let mut state = state_with(&["/a/Foo.txt", "/a/bar.txt", "/a/foobar.md"], Some(0));
+
+        state.set_name_filter("foo");
+
+        assert!(state.is_filtering());
+        assert_eq!(displayed_names(&state), vec!["Foo.txt", "foobar.md"]);
+    }
+
+    #[test]
+    fn clearing_name_filter_restores_full_list() {
+        let mut state = state_with(&["/a/foo.txt", "/a/bar.txt"], Some(0));
+
+        state.set_name_filter("foo");
+        assert_eq!(displayed_names(&state), vec!["foo.txt"]);
+
+        state.set_name_filter("");
+        assert!(!state.is_filtering());
+        assert_eq!(displayed_names(&state), vec!["foo.txt", "bar.txt"]);
+    }
+
+    #[test]
+    fn filter_limits_operation_targets_but_keeps_hidden_checks() {
+        let mut state = state_with(&["/a/foo.txt", "/a/bar.txt"], Some(0));
+        // 全件チェックしてから foo で絞り込む。
+        state.toggle_check_all();
+        state.set_name_filter("foo");
+
+        // 操作対象は表示中（foo.txt）に限定される。bar.txt のチェックは保持される。
+        assert_eq!(
+            state.operation_targets(),
+            Some(OperationTargets::Checked(vec![VFile::new("/a/foo.txt")]))
+        );
+
+        // 解除すると隠れていた bar.txt のチェックも復活する。
+        state.set_name_filter("");
+        assert_eq!(
+            state.operation_targets(),
+            Some(OperationTargets::Checked(vec![
+                VFile::new("/a/foo.txt"),
+                VFile::new("/a/bar.txt"),
+            ]))
+        );
+    }
+
+    #[test]
+    fn toggle_check_all_selects_only_filtered_files() {
+        let mut state = state_with(&["/a/foo.txt", "/a/bar.txt", "/a/foobar.md"], Some(0));
+        state.set_name_filter("foo");
+
+        // 表示中（foo.txt, foobar.md）だけが全選択される。
+        state.toggle_check_all();
+
+        assert_eq!(
+            state.operation_targets(),
+            Some(OperationTargets::Checked(vec![
+                VFile::new("/a/foo.txt"),
+                VFile::new("/a/foobar.md"),
+            ]))
         );
     }
 

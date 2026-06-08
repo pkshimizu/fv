@@ -28,6 +28,7 @@ const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
             (".", "Toggle dotfiles visibility"),
             ("s", "Sort files"),
             ("f", "Search files"),
+            ("/", "Filter list (hide non-matches)"),
         ],
     ),
     (

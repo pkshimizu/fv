@@ -100,6 +100,10 @@ impl FilerComponent {
         self.state.clear_checked_paths();
     }
 
+    pub fn set_name_filter(&mut self, query: &str) {
+        self.state.set_name_filter(query);
+    }
+
     pub fn set_pending_select_name(&mut self, name: String) {
         self.state.set_pending_select_name(name);
     }
@@ -327,6 +331,18 @@ impl FilerComponent {
             value: String::new(),
             cursor: 0,
             action: Box::new(TextAction::Grep),
+        }))
+    }
+
+    /// 絞り込みフィルタのプロンプトを開く。現在のフィルタ文字列を初期値にして、
+    /// 既存の絞り込みをそのまま編集できるようにする。
+    fn prompt_filter(&self) -> Action {
+        let value = self.state.name_filter().to_string();
+        let cursor = value.chars().count();
+        Action::SetPromptMode(Box::new(PromptMode::Filter {
+            title: "Filter".to_string(),
+            value,
+            cursor,
         }))
     }
 
@@ -569,6 +585,7 @@ impl Component for FilerComponent {
             KeyCode::Char('r') => Ok(self.prompt_rename()),
             KeyCode::Char('s') => Ok(self.prompt_sort()),
             KeyCode::Char('f') => Ok(self.prompt_search()),
+            KeyCode::Char('/') => Ok(self.prompt_filter()),
             KeyCode::Char('g') => Ok(self.prompt_grep()),
             KeyCode::Char('j') => Ok(self.prompt_jump()),
             KeyCode::Char('h') => Ok(Action::LaunchShell),
@@ -630,6 +647,12 @@ impl FilerComponent {
             )
         } else {
             format!("{} ({})", self.state.current_dir.absolute_path(), list_size)
+        };
+        // 名前フィルタ適用中は何で絞り込んでいるかを表示する。
+        let title = if self.state.is_filtering() {
+            format!("{title} [filter: {}]", self.state.name_filter())
+        } else {
+            title
         };
         let focus = if self.focused {
             Focus::Focused

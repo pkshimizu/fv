@@ -75,6 +75,8 @@ pub enum Action {
     SearchPrev(String),
     /// インクリメンタル検索（入力値変更時）
     SearchUpdate(String),
+    /// 一覧の絞り込みフィルタ（入力値変更時）。空文字列で解除。
+    FilterUpdate(String),
     /// シェルでコマンドを実行する（コマンド文字列, 作業ディレクトリ）
     ExecuteCommand(String, String),
     /// ディレクトリ履歴を一つ戻る

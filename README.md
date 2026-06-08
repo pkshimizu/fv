@@ -70,6 +70,7 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | `.` | Toggle dotfiles visibility |
 | `s` | Sort files |
 | `f` | Search files |
+| `/` | Filter list (hide non-matches) |
 
 ### File operations
 

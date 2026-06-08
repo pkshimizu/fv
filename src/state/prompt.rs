@@ -121,6 +121,11 @@ pub enum PromptMode {
         cursor: usize,
         original_index: Option<usize>,
     },
+    Filter {
+        title: String,
+        value: String,
+        cursor: usize,
+    },
 }
 
 impl PromptMode {
@@ -133,7 +138,8 @@ impl PromptMode {
         match self {
             PromptMode::Text { cursor, value, .. }
             | PromptMode::File { cursor, value, .. }
-            | PromptMode::Search { cursor, value, .. } => Some((*cursor, value)),
+            | PromptMode::Search { cursor, value, .. }
+            | PromptMode::Filter { cursor, value, .. } => Some((*cursor, value)),
             _ => None,
         }
     }
