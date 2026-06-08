@@ -107,14 +107,15 @@ impl FilerFilter {
         !name.starts_with('.')
     }
 
-    /// 名前フィルタにマッチするか（大文字小文字無視の部分一致）。空フィルタは常にマッチ。
-    fn matches_name(&self, file: &VFile) -> bool {
-        if self.name.is_empty() {
+    /// 名前フィルタにマッチするか（大文字小文字無視の部分一致）。
+    /// `lower_query` は小文字化済みの問い合わせ文字列。空なら常にマッチ。
+    /// クエリの小文字化はループ外で 1 回だけ行う想定（find_matching_index と同じ流儀）。
+    fn matches_name(file: &VFile, lower_query: &str) -> bool {
+        if lower_query.is_empty() {
             return true;
         }
-        let query = self.name.to_lowercase();
         file.file_name()
-            .is_some_and(|name| name.to_lowercase().contains(&query))
+            .is_some_and(|name| name.to_lowercase().contains(lower_query))
     }
 }
 
@@ -377,8 +378,8 @@ impl FilerState {
             return;
         }
         if !was_filtering {
-            // フィルタ開始: 現在の全件を backing へ退避する。
-            self.all_files = self.current_dir_files.clone();
+            // フィルタ開始: 現在の全件を backing へ退避する（直後に表示集合を作り直す）。
+            self.all_files = std::mem::take(&mut self.current_dir_files);
         }
         self.filter.name = query.to_string();
         self.rebuild_filtered_view();
@@ -388,10 +389,11 @@ impl FilerState {
     /// `all_files`（全件）から名前フィルタを適用して表示集合を再構築する。
     /// フィルタ有効時のみ呼ぶ（`all_files` が backing を保持している前提）。
     fn rebuild_filtered_view(&mut self) {
+        let lower_query = self.filter.name.to_lowercase();
         self.current_dir_files = self
             .all_files
             .iter()
-            .filter(|file| self.filter.matches_name(file))
+            .filter(|file| FilerFilter::matches_name(file, &lower_query))
             .cloned()
             .collect();
     }
@@ -410,7 +412,7 @@ impl FilerState {
     /// 名前フィルタの状態を解除する（ディレクトリ移動時に内容が別物になるため）。
     fn reset_name_filter(&mut self) {
         self.filter.name.clear();
-        self.all_files = Vec::new();
+        self.all_files.clear();
     }
 
     /// 表示集合の件数にカーソルを収める。範囲外なら末尾へ、空なら未選択にする。
