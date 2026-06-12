@@ -1,4 +1,5 @@
 mod filer;
+mod list_search;
 mod path_list;
 mod prompt;
 mod side_panel;

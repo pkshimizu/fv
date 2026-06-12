@@ -3,7 +3,7 @@ pub mod async_job;
 use ratatui::DefaultTerminal;
 
 use crate::app_context::AppContext;
-use crate::component::{Action, Component, PreviewMove, prompt};
+use crate::component::{Action, Component, FilerComponent, PreviewMove, TreeComponent, prompt};
 use crate::event::{EventHandler, InputEvent};
 use crate::store::RootStore;
 use crate::ui;
@@ -29,6 +29,45 @@ fn expand_tilde(path: &str) -> std::path::PathBuf {
         return home.join(rest.trim_start_matches('/'));
     }
     std::path::PathBuf::from(path)
+}
+
+/// Search 系アクション（インクリメンタル検索・次/前・Esc 復元）の適用先。
+/// ツリーパネルが開いていればツリー、そうでなければ Filer。Filer の Search
+/// プロンプトはサイドパネルが閉じているときしか開かないため、検索中の対象は一意に定まる。
+enum SearchTarget<'a> {
+    Tree(&'a mut TreeComponent),
+    Filer(&'a mut FilerComponent),
+}
+
+impl SearchTarget<'_> {
+    fn select_matching(&mut self, query: &str) {
+        match self {
+            SearchTarget::Tree(tree) => tree.select_matching(query),
+            SearchTarget::Filer(filer) => filer.select_matching_file(query),
+        }
+    }
+
+    fn select_next(&mut self, query: &str) {
+        match self {
+            SearchTarget::Tree(tree) => tree.select_next_matching(query),
+            SearchTarget::Filer(filer) => filer.select_next_matching_file(query),
+        }
+    }
+
+    fn select_prev(&mut self, query: &str) {
+        match self {
+            SearchTarget::Tree(tree) => tree.select_prev_matching(query),
+            SearchTarget::Filer(filer) => filer.select_prev_matching_file(query),
+        }
+    }
+
+    /// Search の Esc 復元で、控えておいたカーソル位置へ戻す。
+    fn restore_index(&mut self, index: usize) {
+        match self {
+            SearchTarget::Tree(tree) => tree.select_index(Some(index)),
+            SearchTarget::Filer(filer) => filer.select_file_table(Some(index)),
+        }
+    }
 }
 
 pub struct App {
@@ -158,6 +197,15 @@ impl App {
         self.ctx.prompt.set_error(message);
     }
 
+    /// 現在の Search 系アクションの適用先を返す。ツリーパネルが開いていればツリー、
+    /// そうでなければ Filer。
+    fn search_target(&mut self) -> SearchTarget<'_> {
+        match self.ctx.side_panel.as_mut() {
+            Some(crate::state::SidePanel::Tree(tree)) => SearchTarget::Tree(tree),
+            _ => SearchTarget::Filer(&mut self.ctx.filer),
+        }
+    }
+
     /// プレビューの n/p 移動で生じた再生成を、スロットル/アイドルに応じて 1 回だけ反映する。
     /// 連打中はカーソル移動のみ蓄積し、ここで間引いて再生成することでフリーズを防ぐ。
     /// `idle` が true（入力が一定時間届かず `next_event` がタイムアウトした）のときは
@@ -221,20 +269,21 @@ impl App {
             }
             Action::CancelPrompt => {
                 if let Some(idx) = self.ctx.prompt.cancel() {
-                    self.ctx.filer.select_file_table(Some(idx));
+                    // Search の Esc 復元。ツリー検索ならツリー、そうでなければ Filer のカーソルへ戻す。
+                    self.search_target().restore_index(idx);
                 }
             }
             Action::SearchUpdate(value) => {
-                self.ctx.filer.select_matching_file(&value);
+                self.search_target().select_matching(&value);
             }
             Action::FilterUpdate(value) => {
                 self.ctx.filer.set_name_filter(&value);
             }
             Action::SearchNext(value) => {
-                self.ctx.filer.select_next_matching_file(&value);
+                self.search_target().select_next(&value);
             }
             Action::SearchPrev(value) => {
-                self.ctx.filer.select_prev_matching_file(&value);
+                self.search_target().select_prev(&value);
             }
             Action::SetPromptMode(mode) => {
                 self.ctx.prompt.set_mode(*mode);
