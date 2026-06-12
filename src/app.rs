@@ -158,6 +158,16 @@ impl App {
         self.ctx.prompt.set_error(message);
     }
 
+    /// ツリーパネルが開いていればその `TreeComponent` を返す。Search 系アクションの
+    /// 振り分けに使う。Filer の Search プロンプトはサイドパネルが閉じているときしか
+    /// 開かないため、検索中にツリーパネルが開いていれば対象はツリーで一意に定まる。
+    fn active_tree_mut(&mut self) -> Option<&mut crate::component::TreeComponent> {
+        match self.ctx.side_panel.as_mut() {
+            Some(crate::state::SidePanel::Tree(tree)) => Some(tree),
+            _ => None,
+        }
+    }
+
     /// プレビューの n/p 移動で生じた再生成を、スロットル/アイドルに応じて 1 回だけ反映する。
     /// 連打中はカーソル移動のみ蓄積し、ここで間引いて再生成することでフリーズを防ぐ。
     /// `idle` が true（入力が一定時間届かず `next_event` がタイムアウトした）のときは
@@ -221,20 +231,37 @@ impl App {
             }
             Action::CancelPrompt => {
                 if let Some(idx) = self.ctx.prompt.cancel() {
-                    self.ctx.filer.select_file_table(Some(idx));
+                    // Search の Esc 復元。ツリーパネルでの検索ならツリーのカーソルへ戻す。
+                    if let Some(tree) = self.active_tree_mut() {
+                        tree.select_index(Some(idx));
+                    } else {
+                        self.ctx.filer.select_file_table(Some(idx));
+                    }
                 }
             }
             Action::SearchUpdate(value) => {
-                self.ctx.filer.select_matching_file(&value);
+                if let Some(tree) = self.active_tree_mut() {
+                    tree.select_matching(&value);
+                } else {
+                    self.ctx.filer.select_matching_file(&value);
+                }
             }
             Action::FilterUpdate(value) => {
                 self.ctx.filer.set_name_filter(&value);
             }
             Action::SearchNext(value) => {
-                self.ctx.filer.select_next_matching_file(&value);
+                if let Some(tree) = self.active_tree_mut() {
+                    tree.select_next_matching(&value);
+                } else {
+                    self.ctx.filer.select_next_matching_file(&value);
+                }
             }
             Action::SearchPrev(value) => {
-                self.ctx.filer.select_prev_matching_file(&value);
+                if let Some(tree) = self.active_tree_mut() {
+                    tree.select_prev_matching(&value);
+                } else {
+                    self.ctx.filer.select_prev_matching_file(&value);
+                }
             }
             Action::SetPromptMode(mode) => {
                 self.ctx.prompt.set_mode(*mode);

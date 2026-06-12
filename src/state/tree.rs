@@ -185,6 +185,70 @@ impl TreeState {
             .and_then(|i| self.flat_nodes.get(i))
     }
 
+    /// 現在のカーソル位置（Search 開始時に控えて Esc で復元するために使う）。
+    pub fn selected_index(&self) -> Option<usize> {
+        self.table_state.selected()
+    }
+
+    /// カーソル位置を直接設定する（Search の Esc 復元で使う）。
+    pub fn select_index(&mut self, index: Option<usize>) {
+        self.table_state.select(index);
+    }
+
+    /// クエリにマッチする最初のエントリへカーソルを移動する（インクリメンタル検索）。
+    pub fn select_matching(&mut self, query: &str) {
+        if let Some(i) = self.find_matching_index(query, 0, true) {
+            self.table_state.select(Some(i));
+        }
+    }
+
+    /// 現在位置の次のマッチへ移動する。
+    pub fn select_next_matching(&mut self, query: &str) {
+        let current = self.table_state.selected().unwrap_or(0);
+        if let Some(i) = self.find_matching_index(query, current.wrapping_add(1), true) {
+            self.table_state.select(Some(i));
+        }
+    }
+
+    /// 現在位置の前のマッチへ移動する。
+    pub fn select_prev_matching(&mut self, query: &str) {
+        let current = self.table_state.selected().unwrap_or(0);
+        if let Some(i) = self.find_matching_index(query, current.wrapping_sub(1), false) {
+            self.table_state.select(Some(i));
+        }
+    }
+
+    /// 表示中のノード（flat_nodes）から名前がクエリに部分一致するものを探す。
+    /// 大文字小文字は無視する。展開していないノード配下は flat_nodes に含まれないため、
+    /// 検索対象は「ツリーパネルで表示しているエントリのみ」になる。
+    /// Filer の `find_matching_index` と同じ巡回ロジック。
+    fn find_matching_index(&self, query: &str, start: usize, forward: bool) -> Option<usize> {
+        if query.is_empty() {
+            return None;
+        }
+        let len = self.flat_nodes.len();
+        if len == 0 {
+            return None;
+        }
+        let start = start % len;
+        let query_lower = query.to_lowercase();
+        for step in 0..len {
+            let i = if forward {
+                (start + step) % len
+            } else {
+                (start + len - step) % len
+            };
+            if self.flat_nodes[i]
+                .name
+                .to_lowercase()
+                .contains(&query_lower)
+            {
+                return Some(i);
+            }
+        }
+        None
+    }
+
     /// 選択中のディレクトリを展開する（Right キー）
     pub fn expand_selected(&mut self) {
         const MAX_TREE_DEPTH: usize = 50;
@@ -240,5 +304,78 @@ impl TreeState {
             .position(|e| e.path == selected_path)
             .unwrap_or(0);
         self.table_state.select(Some(idx));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 表示中ノード（flat_nodes）を直接組み立てた TreeState を作る。
+    /// 検索は flat_nodes だけを対象とするため、ファイルシステムを介さずに検証できる。
+    fn state_with(names: &[&str], selected: usize) -> TreeState {
+        let flat_nodes = names
+            .iter()
+            .map(|n| FlatTreeEntry {
+                path: format!("/{n}"),
+                name: (*n).to_string(),
+                depth: 0,
+                is_dir: false,
+                expanded: false,
+            })
+            .collect();
+        let mut table_state = TableState::default();
+        table_state.select(Some(selected));
+        TreeState {
+            root: TreeNode::new("/".to_string(), "/".to_string(), true),
+            flat_nodes,
+            table_state,
+            show_dot_file: false,
+        }
+    }
+
+    #[test]
+    fn select_matching_jumps_to_first_case_insensitive_match() {
+        let mut state = state_with(&["alpha.rs", "Beta.rs", "gamma.rs"], 0);
+
+        state.select_matching("beta");
+
+        assert_eq!(state.selected_index(), Some(1));
+    }
+
+    #[test]
+    fn select_matching_only_targets_displayed_nodes() {
+        // flat_nodes は表示中（展開済み）のエントリのみ。含まれない名前にはマッチせず、
+        // カーソルは動かない（＝開いていないノード配下は検索対象にならない）。
+        let mut state = state_with(&["src", "README.md"], 0);
+
+        state.select_matching("not_displayed");
+
+        assert_eq!(state.selected_index(), Some(0));
+    }
+
+    #[test]
+    fn select_next_and_prev_cycle_through_matches() {
+        let mut state = state_with(&["foo1", "bar", "foo2", "foo3"], 0);
+
+        state.select_next_matching("foo");
+        assert_eq!(state.selected_index(), Some(2));
+        state.select_next_matching("foo");
+        assert_eq!(state.selected_index(), Some(3));
+        // 末尾の次は先頭の foo へ折り返す。
+        state.select_next_matching("foo");
+        assert_eq!(state.selected_index(), Some(0));
+        // 逆方向は末尾の foo へ。
+        state.select_prev_matching("foo");
+        assert_eq!(state.selected_index(), Some(3));
+    }
+
+    #[test]
+    fn select_index_restores_cursor() {
+        let mut state = state_with(&["a", "b", "c"], 2);
+
+        state.select_index(Some(0));
+
+        assert_eq!(state.selected_index(), Some(0));
     }
 }

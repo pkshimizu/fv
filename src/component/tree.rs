@@ -1,5 +1,5 @@
 use crate::component::{Action, Component};
-use crate::state::TreeState;
+use crate::state::{PromptMode, TreeState};
 use crate::ui::widgets::build_focused_block;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -21,16 +21,44 @@ impl TreeComponent {
             state: TreeState::new(current_path, show_dot_file),
         }
     }
+
+    /// 表示中のエントリからクエリにマッチする最初のものへカーソルを移動する。
+    pub fn select_matching(&mut self, query: &str) {
+        self.state.select_matching(query);
+    }
+
+    /// 次のマッチへ移動する。
+    pub fn select_next_matching(&mut self, query: &str) {
+        self.state.select_next_matching(query);
+    }
+
+    /// 前のマッチへ移動する。
+    pub fn select_prev_matching(&mut self, query: &str) {
+        self.state.select_prev_matching(query);
+    }
+
+    /// カーソル位置を直接設定する（Search の Esc 復元で使う）。
+    pub fn select_index(&mut self, index: Option<usize>) {
+        self.state.select_index(index);
+    }
 }
 
 impl Component for TreeComponent {
     fn keymap(&self) -> &'static str {
-        "↑↓: Move  →: Expand  ←: Collapse  Enter: Open  t/Esc: Close"
+        "↑↓: Move  →: Expand  ←: Collapse  f: Search  Enter: Open  t/Esc: Close"
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
         match event.code {
             KeyCode::Char('t') | KeyCode::Esc => Ok(Action::CloseSidePanel),
+            // f でファイル名検索を開始する。Filer の Search と同じ仕組み（PromptMode::Search）を
+            // 再利用し、App 側が「ツリーパネルが開いているか」で検索対象を振り分ける。
+            KeyCode::Char('f') => Ok(Action::SetPromptMode(Box::new(PromptMode::Search {
+                title: "Search".to_string(),
+                value: String::new(),
+                cursor: 0,
+                original_index: self.state.selected_index(),
+            }))),
             KeyCode::Up => {
                 self.state.prev();
                 Ok(Action::None)
