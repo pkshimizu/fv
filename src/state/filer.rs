@@ -447,28 +447,13 @@ impl FilerState {
     }
 
     fn find_matching_index(&self, query: &str, start: usize, forward: bool) -> Option<usize> {
-        if query.is_empty() {
-            return None;
-        }
-        let len = self.current_dir_files.len();
-        if len == 0 {
-            return None;
-        }
-        let start = start % len;
-        let query_lower = query.to_lowercase();
-        for step in 0..len {
-            let i = if forward {
-                (start + step) % len
-            } else {
-                (start + len - step) % len
-            };
-            if let Some(name) = self.current_dir_files[i].file_name()
-                && name.to_lowercase().contains(&query_lower)
-            {
-                return Some(i);
-            }
-        }
-        None
+        super::list_search::find_matching_index(
+            self.current_dir_files.len(),
+            start,
+            forward,
+            query,
+            |i| self.current_dir_files[i].file_name(),
+        )
     }
 
     /// 起動時の同期ロード（init 専用）

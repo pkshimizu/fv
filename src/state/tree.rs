@@ -219,34 +219,13 @@ impl TreeState {
     }
 
     /// 表示中のノード（flat_nodes）から名前がクエリに部分一致するものを探す。
-    /// 大文字小文字は無視する。展開していないノード配下は flat_nodes に含まれないため、
-    /// 検索対象は「ツリーパネルで表示しているエントリのみ」になる。
-    /// Filer の `find_matching_index` と同じ巡回ロジック。
+    /// 展開していないノード配下は flat_nodes に含まれないため、検索対象は
+    /// 「ツリーパネルで表示しているエントリのみ」になる。巡回ロジックは Filer と
+    /// 共通の `list_search::find_matching_index` に集約している。
     fn find_matching_index(&self, query: &str, start: usize, forward: bool) -> Option<usize> {
-        if query.is_empty() {
-            return None;
-        }
-        let len = self.flat_nodes.len();
-        if len == 0 {
-            return None;
-        }
-        let start = start % len;
-        let query_lower = query.to_lowercase();
-        for step in 0..len {
-            let i = if forward {
-                (start + step) % len
-            } else {
-                (start + len - step) % len
-            };
-            if self.flat_nodes[i]
-                .name
-                .to_lowercase()
-                .contains(&query_lower)
-            {
-                return Some(i);
-            }
-        }
-        None
+        super::list_search::find_matching_index(self.flat_nodes.len(), start, forward, query, |i| {
+            Some(self.flat_nodes[i].name.as_str())
+        })
     }
 
     /// 選択中のディレクトリを展開する（Right キー）
