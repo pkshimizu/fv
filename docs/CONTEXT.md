@@ -7,7 +7,7 @@
 ### Selection
 
 **Cursor File**:
-The file currently highlighted in the Filer (returned by `FilerState::selected_file()`). Single-file operations such as Rename, Unzip, and Jump act on this one file.
+The file currently highlighted in the Filer (returned by `FilerState::selected_file()`). Single-file operations such as Rename, Unzip, Jump, and Symlink create act on this one file.
 _Avoid_: selected file, current file, focused file.
 
 **Checked Paths**:

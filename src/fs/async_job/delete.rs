@@ -1,4 +1,5 @@
-//! Delete Job。Scan Phase で削除規模を再帰列挙し、Operation Phase で top-level を順次 trash へ送る。
+//! Delete Job。Scan Phase で削除規模を再帰列挙し、Operation Phase で top-level を順次削除する
+//! （通常はシステムのゴミ箱へ送り、Unix の symlink はリンク自体を直接削除する。`delete_path` 参照）。
 
 use super::checkpoint::{CollectStatus, SCAN_NOTIFY_BATCH, notify_scan_progress, process_items};
 use crate::fs::VFile;
@@ -8,29 +9,49 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Delete Job 本体。Scan Phase で削除対象を再帰列挙して件数をユーザに見せ、
-/// Operation Phase では top-level の VFile を順次 `trash::delete` で削除する。
+/// Operation Phase では top-level の VFile を順次 `delete_path` で削除する
+/// （通常は `trash::delete`、Unix の symlink は `remove_file`）。
 ///
 /// # Partial Result
-/// Operation Phase 中の cancel: 既に `trash::delete` 済みの root は trash 側に残り、
-/// 未着手の root は元の場所に残る。trash::delete は atomic per-item なので、
+/// Operation Phase 中の cancel: 既に削除済みの root（ゴミ箱送り、または symlink は
+/// リンク削除）は元に戻らず、未着手の root は元の場所に残る。削除は atomic per-item なので、
 /// 半端に削除されたディレクトリ等の grey state は発生しない。
 ///
 /// # 進捗 N の意味
 /// - Scanning: 再帰ファイル数 (情報提示)
-/// - Deleting: top-level VFile 件数 (`trash::delete` の単位)
+/// - Deleting: top-level VFile 件数 (`delete_path` の単位)
 ///
-/// 両 phase で N の意味が異なる点に注意 (trash::delete が atomic per-item のため)。
+/// 両 phase で N の意味が異なる点に注意 (削除が atomic per-item のため)。
 pub(super) fn run_delete(
     files: &[VFile],
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<()> {
-    run_delete_with(files, cancel, on_progress, &mut trash_delete)
+    run_delete_with(files, cancel, on_progress, &mut delete_path)
 }
 
-/// 本番経路で使う `trash::delete` のラッパ。`path` を含む context はここで終わらせて、
-/// 上位 (`run_delete_with`) では「delete 操作の責務」レベル (進捗 hint) のみ被せる役割分担にする。
-fn trash_delete(path: &Path) -> Result<()> {
+/// 本番経路で使う削除。通常ファイル/ディレクトリはシステムのゴミ箱へ送る。
+///
+/// Unix の symlink は、macOS の `trashItemAtURL` がリンクをゴミ箱へ送れず権限エラーに
+/// なるため、リンク自体を直接削除する（`remove_file` はリンクをたどらず本体のみ消すので、
+/// リンク先には影響しない）。Windows のディレクトリ symlink は `remove_file` では消せない
+/// （`remove_dir` が必要）ため、非 Unix は従来どおり `trash::delete` に委ねる。
+///
+/// `path` を含む context はここで終わらせて、上位 (`run_delete_with`) では「delete 操作の
+/// 責務」レベル (進捗 hint) のみ被せる役割分担にする。
+fn delete_path(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        // stat 失敗時は symlink でないとみなし通常削除へ委ねる（Scan Phase で stat 済みのため稀）。
+        let is_symlink = path
+            .symlink_metadata()
+            .map(|metadata| metadata.file_type().is_symlink())
+            .unwrap_or(false);
+        if is_symlink {
+            return std::fs::remove_file(path)
+                .with_context(|| format!("{}: Failed to remove symlink", path.display()));
+        }
+    }
     trash::delete(path).with_context(|| format!("{}: Failed to move to trash", path.display()))
 }
 
@@ -60,7 +81,7 @@ fn run_delete_with(
 }
 
 /// 削除対象のファイル数を再帰的にカウントし、`(Scanning, k, None)` を batch で発火する。
-/// トップレベル symlink はカウント 1 として扱う (trash::delete に follow を任せる)。
+/// トップレベル symlink はカウント 1 として扱う (Operation Phase でリンク自体を削除する)。
 ///
 /// `metadata()` (symlink follow) ではなく `symlink_metadata()` を使う。`metadata()` だと
 /// 例えば `~/Documents -> /` のような dir-symlink が選ばれていた場合、follow 先の巨大ツリーを
@@ -145,6 +166,62 @@ mod tests {
     use crate::fs::async_job::test_support::{vfile, write_file};
     use std::path::PathBuf;
     use tempfile::TempDir;
+
+    #[cfg(unix)]
+    #[test]
+    fn delete_path_removes_symlink_and_keeps_target() {
+        // symlink は trash::delete が macOS で権限エラーになるため、リンク自体を
+        // remove_file で直接削除する。リンクはたどらず、ターゲットは残す。
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("real.txt");
+        std::fs::write(&target, "data").unwrap();
+        let link = tmp.path().join("link.txt");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        delete_path(&link).unwrap();
+
+        assert!(link.symlink_metadata().is_err(), "リンクは削除される");
+        assert!(target.exists(), "リンク先（ターゲット）は残る");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn delete_path_removes_dir_symlink_and_keeps_target_dir() {
+        // ディレクトリを指す symlink でも remove_file はリンク自体を消すだけで、
+        // ターゲット dir とその中身はたどらない（消さない）。
+        let tmp = TempDir::new().unwrap();
+        let target_dir = tmp.path().join("real_dir");
+        std::fs::create_dir(&target_dir).unwrap();
+        std::fs::write(target_dir.join("inside.txt"), "x").unwrap();
+        let link = tmp.path().join("dir_link");
+        std::os::unix::fs::symlink(&target_dir, &link).unwrap();
+
+        delete_path(&link).unwrap();
+
+        assert!(link.symlink_metadata().is_err(), "dir-symlink は削除される");
+        assert!(target_dir.is_dir(), "ターゲット dir は残る");
+        assert!(
+            target_dir.join("inside.txt").exists(),
+            "ターゲット dir の中身も残る"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn delete_path_removes_broken_symlink() {
+        // ターゲットが存在しない壊れた symlink も、symlink_metadata は成功して
+        // symlink 型を返すため remove_file 経路で消せる。
+        let tmp = TempDir::new().unwrap();
+        let link = tmp.path().join("broken");
+        std::os::unix::fs::symlink(tmp.path().join("does-not-exist"), &link).unwrap();
+
+        delete_path(&link).unwrap();
+
+        assert!(
+            link.symlink_metadata().is_err(),
+            "broken symlink も削除される"
+        );
+    }
 
     #[test]
     fn delete_returns_err_when_source_is_missing() {

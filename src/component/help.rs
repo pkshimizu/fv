@@ -40,6 +40,7 @@ const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
             ("r", "Rename file"),
             ("k", "Create directory"),
             ("n", "Create file"),
+            ("l", "Create symlink pointing to cursor file"),
             ("p", "Zip files"),
             ("u", "Unzip file"),
             ("x", "Execute command"),

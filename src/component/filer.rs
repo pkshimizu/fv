@@ -203,6 +203,32 @@ impl FilerComponent {
         }
     }
 
+    /// Cursor File を指すシンボリックリンクをカレントディレクトリに作る。
+    /// リンク名はプロンプトで入力する（リンク先は Cursor File の絶対パス）。
+    fn prompt_symlink(&self) -> Action {
+        let Some(target) = self.state.selected_file() else {
+            return Action::None;
+        };
+        let Some(target_name) = target.file_name() else {
+            return Action::None;
+        };
+        let title = format!("Symlink to {target_name}");
+        // デフォルトのリンク名は Cursor File 名。編集の起点にする。同名のまま確定すると
+        // カレントの元ファイルと衝突して「File already exists」エラーになるため、利用者は
+        // サフィックス追加などで名前を変える想定。
+        let value = target_name.to_string();
+        let cursor = value.chars().count();
+        Action::SetPromptMode(Box::new(PromptMode::Text {
+            title,
+            value,
+            cursor,
+            action: Box::new(TextAction::Symlink {
+                dir: self.state.current_dir.clone(),
+                target: target.clone(),
+            }),
+        }))
+    }
+
     fn prompt_touch(&self) -> Action {
         let dir = self.state.current_dir.clone();
         if let Some(file_name) = dir.file_name() {
@@ -578,6 +604,7 @@ impl Component for FilerComponent {
             KeyCode::Char('d') => Ok(self.prompt_delete()),
             KeyCode::Char('k') => Ok(self.prompt_mkdir()),
             KeyCode::Char('n') => Ok(self.prompt_touch()),
+            KeyCode::Char('l') => Ok(self.prompt_symlink()),
             KeyCode::Char('p') => Ok(self.prompt_zip()),
             KeyCode::Char('u') => Ok(self.prompt_unzip()),
             KeyCode::Char('m') => Ok(self.prompt_move()),

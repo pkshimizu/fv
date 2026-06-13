@@ -683,6 +683,7 @@ fn execute_text_action(
     match action {
         TextAction::Mkdir { dir } => dir.create_dir(value),
         TextAction::Touch { dir } => dir.create_file(value),
+        TextAction::Symlink { dir, target } => dir.create_symlink(value, target.absolute_path()),
         TextAction::Rename { file } => {
             file.rename(value)?;
             ctx.filer.set_pending_select_name(value.to_string());
