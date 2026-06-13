@@ -25,13 +25,25 @@ pub(super) fn run_delete(
     cancel: &AtomicBool,
     on_progress: &mut dyn FnMut(Phase, usize, Option<usize>),
 ) -> Result<()> {
-    run_delete_with(files, cancel, on_progress, &mut trash_delete)
+    run_delete_with(files, cancel, on_progress, &mut delete_path)
 }
 
-/// 本番経路で使う `trash::delete` のラッパ。`path` を含む context はここで終わらせて、
-/// 上位 (`run_delete_with`) では「delete 操作の責務」レベル (進捗 hint) のみ被せる役割分担にする。
-fn trash_delete(path: &Path) -> Result<()> {
-    trash::delete(path).with_context(|| format!("{}: Failed to move to trash", path.display()))
+/// 本番経路で使う削除。通常ファイル/ディレクトリはシステムのゴミ箱へ送る。
+/// シンボリックリンクは macOS の `trashItemAtURL` がリンクをゴミ箱へ送れず権限エラーに
+/// なるため、リンク自体を直接削除する（`remove_file` はリンクをたどらず本体のみ消す）。
+/// `path` を含む context はここで終わらせて、上位 (`run_delete_with`) では「delete 操作の
+/// 責務」レベル (進捗 hint) のみ被せる役割分担にする。
+fn delete_path(path: &Path) -> Result<()> {
+    let is_symlink = path
+        .symlink_metadata()
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false);
+    if is_symlink {
+        std::fs::remove_file(path)
+            .with_context(|| format!("{}: Failed to remove symlink", path.display()))
+    } else {
+        trash::delete(path).with_context(|| format!("{}: Failed to move to trash", path.display()))
+    }
 }
 
 /// `delete_fn` 注入版。テストでは `std::fs::remove_*` 系を渡して
@@ -60,7 +72,7 @@ fn run_delete_with(
 }
 
 /// 削除対象のファイル数を再帰的にカウントし、`(Scanning, k, None)` を batch で発火する。
-/// トップレベル symlink はカウント 1 として扱う (trash::delete に follow を任せる)。
+/// トップレベル symlink はカウント 1 として扱う (Operation Phase でリンク自体を削除する)。
 ///
 /// `metadata()` (symlink follow) ではなく `symlink_metadata()` を使う。`metadata()` だと
 /// 例えば `~/Documents -> /` のような dir-symlink が選ばれていた場合、follow 先の巨大ツリーを
@@ -145,6 +157,23 @@ mod tests {
     use crate::fs::async_job::test_support::{vfile, write_file};
     use std::path::PathBuf;
     use tempfile::TempDir;
+
+    #[cfg(unix)]
+    #[test]
+    fn delete_path_removes_symlink_and_keeps_target() {
+        // symlink は trash::delete が macOS で権限エラーになるため、リンク自体を
+        // remove_file で直接削除する。リンクはたどらず、ターゲットは残す。
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("real.txt");
+        std::fs::write(&target, "data").unwrap();
+        let link = tmp.path().join("link.txt");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        delete_path(&link).unwrap();
+
+        assert!(link.symlink_metadata().is_err(), "リンクは削除される");
+        assert!(target.exists(), "リンク先（ターゲット）は残る");
+    }
 
     #[test]
     fn delete_returns_err_when_source_is_missing() {
