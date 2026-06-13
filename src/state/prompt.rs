@@ -46,13 +46,32 @@ pub enum ProgressMessage {
 
 #[derive(Debug)]
 pub enum TextAction {
-    Mkdir { dir: VFile },
-    Touch { dir: VFile },
-    Rename { file: VFile },
-    Zip { dir: VFile, files: Vec<VFile> },
-    Unzip { file: VFile, dir: VFile },
+    Mkdir {
+        dir: VFile,
+    },
+    Touch {
+        dir: VFile,
+    },
+    /// `dir` 内に、`target` の絶対パスを指すシンボリックリンクを作成する。
+    Symlink {
+        dir: VFile,
+        target: VFile,
+    },
+    Rename {
+        file: VFile,
+    },
+    Zip {
+        dir: VFile,
+        files: Vec<VFile>,
+    },
+    Unzip {
+        file: VFile,
+        dir: VFile,
+    },
     Grep,
-    Execute { dir: VFile },
+    Execute {
+        dir: VFile,
+    },
 }
 
 #[derive(Debug)]

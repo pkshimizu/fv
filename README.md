@@ -79,6 +79,7 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | `c` / `m` / `d` | Copy / move / delete files |
 | `r` | Rename file |
 | `k` / `n` | Create directory / file |
+| `l` | Create symlink to the cursor file |
 | `p` / `u` | Zip / unzip |
 | `x` | Execute command |
 | `y` | Yank paths to clipboard |
