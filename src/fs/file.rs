@@ -132,7 +132,7 @@ impl VFile {
         #[cfg(not(unix))]
         {
             let _ = target;
-            anyhow::bail!("シンボリックリンクの作成はこのプラットフォームでは未対応です");
+            anyhow::bail!("Creating symlinks is not supported on this platform");
         }
         Ok(())
     }

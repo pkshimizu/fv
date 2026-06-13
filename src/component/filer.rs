@@ -213,8 +213,9 @@ impl FilerComponent {
             return Action::None;
         };
         let title = format!("Symlink to {target_name}");
-        // デフォルトのリンク名は Cursor File 名。編集の起点にする（同名のままだと
-        // カレントの元ファイルと衝突するため、利用者はサフィックス追加などで変える想定）。
+        // デフォルトのリンク名は Cursor File 名。編集の起点にする。同名のまま確定すると
+        // カレントの元ファイルと衝突して「File already exists」エラーになるため、利用者は
+        // サフィックス追加などで名前を変える想定。
         let value = target_name.to_string();
         let cursor = value.chars().count();
         Action::SetPromptMode(Box::new(PromptMode::Text {
