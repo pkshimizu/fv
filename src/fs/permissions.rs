@@ -25,6 +25,20 @@ impl VPermissions {
         Self { permissions }
     }
 
+    /// mode（8 進パーミッションビット）から構築する。chmod 編集 UI が編集後の表示を
+    /// 組み立てるのに使う。
+    #[cfg(unix)]
+    pub fn from_mode(mode: u32) -> Self {
+        Self::new(Permissions::from_mode(mode))
+    }
+
+    /// rwx 9 ビットの (mask, char)。順序は user/group/other × r/w/x。
+    /// 編集 UI のカーソル↔ビット対応と、表示文字列の単一の真実源。
+    #[cfg(unix)]
+    pub fn rwx_bits() -> &'static [(u32, char); 9] {
+        &RWX_BITS
+    }
+
     #[cfg(unix)]
     pub fn to_rwx_string(&self) -> String {
         let mode = self.permissions.mode();

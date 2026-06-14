@@ -137,6 +137,23 @@ impl VFile {
         Ok(())
     }
 
+    /// パーミッション（mode）を設定する（chmod 相当）。`mode` は 8 進のパーミッションビット
+    /// （例: 0o755）。Unix 以外はパーミッションモデルが異なるため未対応。
+    pub fn set_permissions(&self, mode: u32) -> Result<()> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(mode))
+                .with_context(|| format!("{}: Failed to set permissions", self.path))?;
+            Ok(())
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = mode;
+            anyhow::bail!("Editing permissions is not supported on this platform")
+        }
+    }
+
     pub fn rename(&self, name: &str) -> Result<()> {
         if name.is_empty() {
             return Ok(());

@@ -10,3 +10,4 @@ pub mod text_preview;
 pub use file::VFile;
 pub use file_metadata::VFileMetadata;
 pub use file_time::VFileTime;
+pub use permissions::VPermissions;
