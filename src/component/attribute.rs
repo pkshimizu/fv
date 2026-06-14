@@ -20,6 +20,11 @@ use ratatui::widgets::{Cell, Row, Table, TableState};
 #[cfg(unix)]
 const PERM_MODE_MASK: u32 = 0o7777;
 
+/// rwx の 1 グループ（user / group / other）あたりのビット数（r/w/x の 3 列）。
+/// 編集カーソルのグループ間移動（↑↓）と編集 UI の行レイアウトで共有する。
+#[cfg(unix)]
+const RWX_GROUP_WIDTH: usize = 3;
+
 /// パーミッション編集（rwx トグル）の作業状態。`draft` は編集中の mode（0o7777）で、
 /// 編集 UI に出ない高位ビット（setuid/setgid/sticky）は初期値のまま保持され、適用時も
 /// 維持される（rwx 9 ビットのみトグルする）。`cursor` は 0..9 のビット位置。
@@ -149,20 +154,20 @@ impl AttributeComponent {
                 }
                 Ok(Action::None)
             }
-            // ↑↓ は user/group/other の行間移動（列＝r/w/x を保って 3 ビットずつ動く）。
+            // ↑↓ は user/group/other の行間移動（列＝r/w/x を保ってグループ幅ずつ動く）。
             KeyCode::Up => {
                 if let Some(editor) = self.editor.as_mut()
-                    && editor.cursor >= 3
+                    && editor.cursor >= RWX_GROUP_WIDTH
                 {
-                    editor.cursor -= 3;
+                    editor.cursor -= RWX_GROUP_WIDTH;
                 }
                 Ok(Action::None)
             }
             KeyCode::Down => {
                 if let Some(editor) = self.editor.as_mut()
-                    && editor.cursor + 3 < VPermissions::rwx_bits().len()
+                    && editor.cursor + RWX_GROUP_WIDTH < VPermissions::rwx_bits().len()
                 {
-                    editor.cursor += 3;
+                    editor.cursor += RWX_GROUP_WIDTH;
                 }
                 Ok(Action::None)
             }
@@ -221,8 +226,9 @@ impl AttributeComponent {
         let mut lines: Vec<Line> = Vec::new();
         for (g, group) in groups.iter().enumerate() {
             let mut spans = vec![Span::styled(format!("  {group}: "), label_style)];
-            for (c, &(mask, set_char)) in bits[g * 3..g * 3 + 3].iter().enumerate() {
-                let i = g * 3 + c;
+            let start = g * RWX_GROUP_WIDTH;
+            for (c, &(mask, set_char)) in bits[start..start + RWX_GROUP_WIDTH].iter().enumerate() {
+                let i = start + c;
                 let ch = if draft & mask != 0 { set_char } else { '-' };
                 let style = if i == cursor {
                     Style::default().add_modifier(Modifier::REVERSED)
@@ -246,7 +252,7 @@ impl Component for AttributeComponent {
         #[cfg(unix)]
         {
             if self.editor.is_some() {
-                return "←→: Bit  ↑↓: Group  Space: Toggle  Enter: Apply  Esc: Cancel";
+                return "←→: r/w/x  ↑↓: u/g/o  Space: Toggle  Enter: Apply  Esc: Cancel";
             }
             if self.is_permissions_row_selected() {
                 return "↑↓: Move  e: Edit permissions  a/Esc: Close";
@@ -462,6 +468,39 @@ mod tests {
 
         match action {
             Action::SetPermissions(_, mode) => assert_eq!(mode, 0o604),
+            _ => panic!("expected SetPermissions"),
+        }
+    }
+
+    #[test]
+    fn up_returns_to_previous_group_same_column() {
+        // 0o644。Down→Up で cursor が user-r(0) に戻り（列保持）、user-r をトグル → 0o244。
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+        c.handle_event(key(KeyCode::Down)).unwrap(); // group-r(3)
+        c.handle_event(key(KeyCode::Up)).unwrap(); // user-r(0)
+        c.handle_event(key(KeyCode::Char(' '))).unwrap();
+        let action = c.handle_event(key(KeyCode::Enter)).unwrap();
+
+        match action {
+            Action::SetPermissions(_, mode) => assert_eq!(mode, 0o244),
+            _ => panic!("expected SetPermissions"),
+        }
+    }
+
+    #[test]
+    fn up_at_top_group_is_noop() {
+        // cursor=0(user-r) で Up しても動かない。user-r をトグル → 0o244。
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+        c.handle_event(key(KeyCode::Up)).unwrap(); // no-op
+        c.handle_event(key(KeyCode::Char(' '))).unwrap();
+        let action = c.handle_event(key(KeyCode::Enter)).unwrap();
+
+        match action {
+            Action::SetPermissions(_, mode) => assert_eq!(mode, 0o244),
             _ => panic!("expected SetPermissions"),
         }
     }
