@@ -111,15 +111,19 @@ impl AttributeComponent {
         TableCursor::new(&mut self.table_state, self.entries.len())
     }
 
+    /// 選択中の行が "Permissions" か。編集開始の可否と keymap ヒントの出し分けに使う。
+    #[cfg(unix)]
+    fn is_permissions_row_selected(&self) -> bool {
+        self.table_state
+            .selected()
+            .and_then(|i| self.entries.get(i))
+            .is_some_and(|(label, _)| *label == "Permissions")
+    }
+
     /// 選択中の行が "Permissions" なら rwx 編集モードに入る。
     #[cfg(unix)]
     fn try_start_permission_edit(&mut self) {
-        let on_permissions_row = self
-            .table_state
-            .selected()
-            .and_then(|i| self.entries.get(i))
-            .is_some_and(|(label, _)| *label == "Permissions");
-        if on_permissions_row {
+        if self.is_permissions_row_selected() {
             self.editor = Some(PermissionEditor {
                 draft: self.current_mode,
                 cursor: 0,
@@ -142,6 +146,23 @@ impl AttributeComponent {
                     && editor.cursor + 1 < VPermissions::rwx_bits().len()
                 {
                     editor.cursor += 1;
+                }
+                Ok(Action::None)
+            }
+            // ↑↓ は user/group/other の行間移動（列＝r/w/x を保って 3 ビットずつ動く）。
+            KeyCode::Up => {
+                if let Some(editor) = self.editor.as_mut()
+                    && editor.cursor >= 3
+                {
+                    editor.cursor -= 3;
+                }
+                Ok(Action::None)
+            }
+            KeyCode::Down => {
+                if let Some(editor) = self.editor.as_mut()
+                    && editor.cursor + 3 < VPermissions::rwx_bits().len()
+                {
+                    editor.cursor += 3;
                 }
                 Ok(Action::None)
             }
@@ -225,9 +246,12 @@ impl Component for AttributeComponent {
         #[cfg(unix)]
         {
             if self.editor.is_some() {
-                return "←→: Move  Space: Toggle  Enter: Apply  Esc: Cancel";
+                return "←→: Bit  ↑↓: Group  Space: Toggle  Enter: Apply  Esc: Cancel";
             }
-            "↑↓: Move  e: Edit permissions  a/Esc: Close"
+            if self.is_permissions_row_selected() {
+                return "↑↓: Move  e: Edit permissions  a/Esc: Close";
+            }
+            "↑↓: Move  a/Esc: Close"
         }
         #[cfg(not(unix))]
         {
@@ -424,5 +448,31 @@ mod tests {
             Action::SetPermissions(_, mode) => assert_eq!(mode, 0o744),
             _ => panic!("expected SetPermissions"),
         }
+    }
+
+    #[test]
+    fn down_moves_cursor_to_next_group_same_column() {
+        // cursor=0(user-r) から Down で group-r(index 3) へ。0o644 の group-r をトグルすると 0o604。
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+        c.handle_event(key(KeyCode::Down)).unwrap();
+        c.handle_event(key(KeyCode::Char(' '))).unwrap();
+        let action = c.handle_event(key(KeyCode::Enter)).unwrap();
+
+        match action {
+            Action::SetPermissions(_, mode) => assert_eq!(mode, 0o604),
+            _ => panic!("expected SetPermissions"),
+        }
+    }
+
+    #[test]
+    fn edit_hint_shown_only_on_permissions_row() {
+        let (_tmp, mut c) = component_with_mode(0o644);
+        c.table_state.select(Some(0)); // "File Type" 行
+        assert!(!c.keymap().contains("Edit permissions"));
+
+        select_permissions_row(&mut c);
+        assert!(c.keymap().contains("Edit permissions"));
     }
 }
