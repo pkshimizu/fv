@@ -320,8 +320,9 @@ impl App {
                 }
             }
             Action::SetPermissions(path, mode) => {
-                if let Err(e) = VFile::new(path.as_str()).set_permissions(mode) {
-                    self.set_error(format!("{e}"));
+                if let Err(e) = VFile::new(path).set_permissions(mode) {
+                    // context チェーンまで表示する（権限不足・読み取り専用 FS 等の原因提示）。
+                    self.set_error(format!("{e:#}"));
                 } else {
                     // 一覧の rwx 表示を更新するため再読み込みする。
                     self.ctx.filer.refresh_files();

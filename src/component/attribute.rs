@@ -1,6 +1,8 @@
 use crate::component::{Action, Component};
 use crate::fs::VFile;
 use crate::fs::VFileMetadata;
+#[cfg(unix)]
+use crate::fs::VPermissions;
 use crate::state::table_cursor::TableCursor;
 use crate::ui::widgets::build_focused_block;
 use anyhow::Result;
@@ -14,16 +16,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::{Cell, Row, Table, TableState};
 
-/// rwx 9 ビットのマスク（user/group/other × r/w/x の順）。
+/// パーミッションビットのマスク（setuid/setgid/sticky を含む 4 桁）。
 #[cfg(unix)]
-const PERM_MASKS: [u32; 9] = [
-    0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001,
-];
-#[cfg(unix)]
-const PERM_CHARS: [char; 3] = ['r', 'w', 'x'];
+const PERM_MODE_MASK: u32 = 0o7777;
 
-/// パーミッション編集（rwx トグル）の作業状態。`draft` は編集中の mode（0o7777）、
-/// `cursor` は 0..9 のビット位置。`Enter` で確定、`Esc` で破棄する。
+/// パーミッション編集（rwx トグル）の作業状態。`draft` は編集中の mode（0o7777）で、
+/// 編集 UI に出ない高位ビット（setuid/setgid/sticky）は初期値のまま保持され、適用時も
+/// 維持される（rwx 9 ビットのみトグルする）。`cursor` は 0..9 のビット位置。
+/// `Enter` で確定、`Esc` で破棄する。
 #[cfg(unix)]
 struct PermissionEditor {
     draft: u32,
@@ -53,7 +53,7 @@ impl AttributeComponent {
         Ok(Self {
             table_state,
             #[cfg(unix)]
-            current_mode: metadata.mode() & 0o7777,
+            current_mode: metadata.mode() & PERM_MODE_MASK,
             file: file.clone(),
             entries,
             #[cfg(unix)]
@@ -71,7 +71,7 @@ impl AttributeComponent {
 
         #[cfg(unix)]
         entries.extend([
-            ("Mode", format!("{:04o}", metadata.mode() & 0o7777)),
+            ("Mode", format!("{:04o}", metadata.mode() & PERM_MODE_MASK)),
             ("Owner (UID)", metadata.uid().to_string()),
             ("Group (GID)", metadata.gid().to_string()),
             ("Hard Links", metadata.nlink().to_string()),
@@ -139,7 +139,7 @@ impl AttributeComponent {
             }
             KeyCode::Right => {
                 if let Some(editor) = self.editor.as_mut()
-                    && editor.cursor + 1 < PERM_MASKS.len()
+                    && editor.cursor + 1 < VPermissions::rwx_bits().len()
                 {
                     editor.cursor += 1;
                 }
@@ -147,7 +147,7 @@ impl AttributeComponent {
             }
             KeyCode::Char(' ') => {
                 if let Some(editor) = self.editor.as_mut() {
-                    editor.draft ^= PERM_MASKS[editor.cursor];
+                    editor.draft ^= VPermissions::rwx_bits()[editor.cursor].0;
                 }
                 Ok(Action::None)
             }
@@ -173,30 +173,17 @@ impl AttributeComponent {
     }
 
     /// 適用後の mode に合わせて Permissions / Mode 行の表示を更新する。
+    /// rwx 文字列は VPermissions に集約された表記を使う（fs 層と単一の真実源）。
     #[cfg(unix)]
     fn refresh_permission_entries(&mut self, mode: u32) {
-        let rwx = Self::rwx_string(mode);
+        let rwx = VPermissions::from_mode(mode).to_rwx_string();
         for entry in &mut self.entries {
             match entry.0 {
                 "Permissions" => entry.1 = rwx.clone(),
-                "Mode" => entry.1 = format!("{:04o}", mode & 0o7777),
+                "Mode" => entry.1 = format!("{:04o}", mode & PERM_MODE_MASK),
                 _ => {}
             }
         }
-    }
-
-    /// mode から rwx 文字列（9 文字）を組み立てる（VPermissions::to_rwx_string と同形式）。
-    #[cfg(unix)]
-    fn rwx_string(mode: u32) -> String {
-        (0..PERM_MASKS.len())
-            .map(|i| {
-                if mode & PERM_MASKS[i] != 0 {
-                    PERM_CHARS[i % 3]
-                } else {
-                    '-'
-                }
-            })
-            .collect()
     }
 
     /// rwx 編集モードの描画。
@@ -209,16 +196,13 @@ impl AttributeComponent {
 
         let label_style = Style::default().fg(Color::Yellow);
         let groups = ["user ", "group", "other"];
+        let bits = VPermissions::rwx_bits();
         let mut lines: Vec<Line> = Vec::new();
         for (g, group) in groups.iter().enumerate() {
             let mut spans = vec![Span::styled(format!("  {group}: "), label_style)];
-            for (c, &perm_char) in PERM_CHARS.iter().enumerate() {
+            for (c, &(mask, set_char)) in bits[g * 3..g * 3 + 3].iter().enumerate() {
                 let i = g * 3 + c;
-                let ch = if draft & PERM_MASKS[i] != 0 {
-                    perm_char
-                } else {
-                    '-'
-                };
+                let ch = if draft & mask != 0 { set_char } else { '-' };
                 let style = if i == cursor {
                     Style::default().add_modifier(Modifier::REVERSED)
                 } else {
@@ -228,7 +212,10 @@ impl AttributeComponent {
             }
             lines.push(Line::from(spans));
         }
-        lines.push(Line::from(format!("  Mode: {:04o}", draft & 0o7777)));
+        lines.push(Line::from(format!(
+            "  Mode: {:04o}",
+            draft & PERM_MODE_MASK
+        )));
         frame.render_widget(Paragraph::new(lines), inner);
     }
 }
@@ -397,5 +384,45 @@ mod tests {
         assert!(c.editor.is_none(), "編集モードを抜ける");
         let mode_entry = c.entries.iter().find(|(l, _)| *l == "Mode").unwrap();
         assert_eq!(mode_entry.1, "0644");
+    }
+
+    #[test]
+    fn high_bits_setuid_are_preserved_when_toggling_rwx() {
+        // setuid 付き 0o4755。user-x（index 2）をトグルして外しても高位ビットは保持される。
+        let (_tmp, mut c) = component_with_mode(0o4755);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+
+        c.handle_event(key(KeyCode::Right)).unwrap();
+        c.handle_event(key(KeyCode::Right)).unwrap();
+        c.handle_event(key(KeyCode::Char(' '))).unwrap(); // user-x off
+        let action = c.handle_event(key(KeyCode::Enter)).unwrap();
+
+        match action {
+            Action::SetPermissions(_, mode) => {
+                assert_eq!(mode, 0o4655, "setuid ビットが保持される")
+            }
+            _ => panic!("expected SetPermissions"),
+        }
+    }
+
+    #[test]
+    fn consecutive_edits_start_from_updated_mode() {
+        // 1 回目の編集で 0o644 → 0o744。2 回目の編集はその更新後の値から始まる。
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+        c.handle_event(key(KeyCode::Right)).unwrap();
+        c.handle_event(key(KeyCode::Right)).unwrap();
+        c.handle_event(key(KeyCode::Char(' '))).unwrap(); // user-x on → 0o744
+        c.handle_event(key(KeyCode::Enter)).unwrap();
+
+        // 2 回目: 何も変えずに Enter すると、更新後の 0o744 がそのまま適用される。
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+        let action = c.handle_event(key(KeyCode::Enter)).unwrap();
+        match action {
+            Action::SetPermissions(_, mode) => assert_eq!(mode, 0o744),
+            _ => panic!("expected SetPermissions"),
+        }
     }
 }
