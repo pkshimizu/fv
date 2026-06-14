@@ -55,6 +55,8 @@ pub enum Action {
     OpenInFileManager(String),
     /// Operation Targets の絶対パスをクリップボードへ書き出す（Yank）
     Yank(Vec<String>),
+    /// パーミッションを設定する（chmod）。(対象パス, mode)。
+    SetPermissions(String, u32),
     /// ブックマーク一覧を表示する
     ShowBookmark,
     /// 設定画面を表示する

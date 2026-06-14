@@ -5,6 +5,7 @@ use ratatui::DefaultTerminal;
 use crate::app_context::AppContext;
 use crate::component::{Action, Component, FilerComponent, PreviewMove, TreeComponent, prompt};
 use crate::event::{EventHandler, InputEvent};
+use crate::fs::VFile;
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -316,6 +317,14 @@ impl App {
                 if let Err(e) = crate::os::clipboard::write_paths(&paths) {
                     tracing::warn!("yank failed: {e:#}");
                     self.set_error(format!("{e:#}"));
+                }
+            }
+            Action::SetPermissions(path, mode) => {
+                if let Err(e) = VFile::new(path.as_str()).set_permissions(mode) {
+                    self.set_error(format!("{e}"));
+                } else {
+                    // 一覧の rwx 表示を更新するため再読み込みする。
+                    self.ctx.filer.refresh_files();
                 }
             }
             Action::ShowBookmark => {

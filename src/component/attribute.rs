@@ -8,18 +8,43 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
+#[cfg(unix)]
+use ratatui::text::{Line, Span};
+#[cfg(unix)]
+use ratatui::widgets::Paragraph;
 use ratatui::widgets::{Cell, Row, Table, TableState};
+
+/// rwx 9 ビットのマスク（user/group/other × r/w/x の順）。
+#[cfg(unix)]
+const PERM_MASKS: [u32; 9] = [
+    0o400, 0o200, 0o100, 0o040, 0o020, 0o010, 0o004, 0o002, 0o001,
+];
+#[cfg(unix)]
+const PERM_CHARS: [char; 3] = ['r', 'w', 'x'];
+
+/// パーミッション編集（rwx トグル）の作業状態。`draft` は編集中の mode（0o7777）、
+/// `cursor` は 0..9 のビット位置。`Enter` で確定、`Esc` で破棄する。
+#[cfg(unix)]
+struct PermissionEditor {
+    draft: u32,
+    cursor: usize,
+}
 
 pub struct AttributeComponent {
     table_state: TableState,
-    file_name: String,
+    file: VFile,
     entries: Vec<(&'static str, String)>,
+    /// 編集中のみ `Some`。`None` のときは属性の閲覧モード。
+    #[cfg(unix)]
+    editor: Option<PermissionEditor>,
+    /// パネルが把握している現在の mode（0o7777）。chmod 適用ごとに更新し、再編集時の初期値にする。
+    #[cfg(unix)]
+    current_mode: u32,
 }
 
 impl AttributeComponent {
     pub fn new(file: &VFile) -> Result<Self> {
         let metadata = file.metadata()?;
-        let file_name = file.file_name().unwrap_or("(unknown)").to_string();
         let entries = Self::build_entries(metadata);
 
         let mut table_state = TableState::default();
@@ -27,8 +52,12 @@ impl AttributeComponent {
 
         Ok(Self {
             table_state,
-            file_name,
+            #[cfg(unix)]
+            current_mode: metadata.mode() & 0o7777,
+            file: file.clone(),
             entries,
+            #[cfg(unix)]
+            editor: None,
         })
     }
 
@@ -81,14 +110,149 @@ impl AttributeComponent {
     fn cursor(&mut self) -> TableCursor<'_> {
         TableCursor::new(&mut self.table_state, self.entries.len())
     }
+
+    /// 選択中の行が "Permissions" なら rwx 編集モードに入る。
+    #[cfg(unix)]
+    fn try_start_permission_edit(&mut self) {
+        let on_permissions_row = self
+            .table_state
+            .selected()
+            .and_then(|i| self.entries.get(i))
+            .is_some_and(|(label, _)| *label == "Permissions");
+        if on_permissions_row {
+            self.editor = Some(PermissionEditor {
+                draft: self.current_mode,
+                cursor: 0,
+            });
+        }
+    }
+
+    /// 編集モードのキー処理。Enter で chmod を適用（Action を返す）、Esc で破棄する。
+    #[cfg(unix)]
+    fn handle_edit_event(&mut self, event: KeyEvent) -> Result<Action> {
+        match event.code {
+            KeyCode::Left => {
+                if let Some(editor) = self.editor.as_mut() {
+                    editor.cursor = editor.cursor.saturating_sub(1);
+                }
+                Ok(Action::None)
+            }
+            KeyCode::Right => {
+                if let Some(editor) = self.editor.as_mut()
+                    && editor.cursor + 1 < PERM_MASKS.len()
+                {
+                    editor.cursor += 1;
+                }
+                Ok(Action::None)
+            }
+            KeyCode::Char(' ') => {
+                if let Some(editor) = self.editor.as_mut() {
+                    editor.draft ^= PERM_MASKS[editor.cursor];
+                }
+                Ok(Action::None)
+            }
+            KeyCode::Enter => {
+                let Some(editor) = self.editor.take() else {
+                    return Ok(Action::None);
+                };
+                let mode = editor.draft;
+                self.current_mode = mode;
+                self.refresh_permission_entries(mode);
+                Ok(Action::SetPermissions(
+                    self.file.absolute_path().to_string(),
+                    mode,
+                ))
+            }
+            KeyCode::Esc => {
+                // 変更を破棄して閲覧モードへ戻る。
+                self.editor = None;
+                Ok(Action::None)
+            }
+            _ => Ok(Action::None),
+        }
+    }
+
+    /// 適用後の mode に合わせて Permissions / Mode 行の表示を更新する。
+    #[cfg(unix)]
+    fn refresh_permission_entries(&mut self, mode: u32) {
+        let rwx = Self::rwx_string(mode);
+        for entry in &mut self.entries {
+            match entry.0 {
+                "Permissions" => entry.1 = rwx.clone(),
+                "Mode" => entry.1 = format!("{:04o}", mode & 0o7777),
+                _ => {}
+            }
+        }
+    }
+
+    /// mode から rwx 文字列（9 文字）を組み立てる（VPermissions::to_rwx_string と同形式）。
+    #[cfg(unix)]
+    fn rwx_string(mode: u32) -> String {
+        (0..PERM_MASKS.len())
+            .map(|i| {
+                if mode & PERM_MASKS[i] != 0 {
+                    PERM_CHARS[i % 3]
+                } else {
+                    '-'
+                }
+            })
+            .collect()
+    }
+
+    /// rwx 編集モードの描画。
+    #[cfg(unix)]
+    fn render_editor(&self, frame: &mut Frame, area: Rect, draft: u32, cursor: usize) {
+        let name = self.file.file_name().unwrap_or("(unknown)");
+        let block = build_focused_block(&format!("Edit Permissions - {name}"));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let label_style = Style::default().fg(Color::Yellow);
+        let groups = ["user ", "group", "other"];
+        let mut lines: Vec<Line> = Vec::new();
+        for (g, group) in groups.iter().enumerate() {
+            let mut spans = vec![Span::styled(format!("  {group}: "), label_style)];
+            for (c, &perm_char) in PERM_CHARS.iter().enumerate() {
+                let i = g * 3 + c;
+                let ch = if draft & PERM_MASKS[i] != 0 {
+                    perm_char
+                } else {
+                    '-'
+                };
+                let style = if i == cursor {
+                    Style::default().add_modifier(Modifier::REVERSED)
+                } else {
+                    Style::default()
+                };
+                spans.push(Span::styled(ch.to_string(), style));
+            }
+            lines.push(Line::from(spans));
+        }
+        lines.push(Line::from(format!("  Mode: {:04o}", draft & 0o7777)));
+        frame.render_widget(Paragraph::new(lines), inner);
+    }
 }
 
 impl Component for AttributeComponent {
     fn keymap(&self) -> &'static str {
-        "↑↓: Move  a/Esc: Close"
+        #[cfg(unix)]
+        {
+            if self.editor.is_some() {
+                return "←→: Move  Space: Toggle  Enter: Apply  Esc: Cancel";
+            }
+            "↑↓: Move  e: Edit permissions  a/Esc: Close"
+        }
+        #[cfg(not(unix))]
+        {
+            "↑↓: Move  a/Esc: Close"
+        }
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
+        #[cfg(unix)]
+        if self.editor.is_some() {
+            return self.handle_edit_event(event);
+        }
         match event.code {
             KeyCode::Char('a') | KeyCode::Esc => Ok(Action::CloseSidePanel),
             KeyCode::Up => {
@@ -99,12 +263,27 @@ impl Component for AttributeComponent {
                 self.cursor().next();
                 Ok(Action::None)
             }
+            #[cfg(unix)]
+            KeyCode::Char('e') => {
+                self.try_start_permission_edit();
+                Ok(Action::None)
+            }
             _ => Ok(Action::None),
         }
     }
 
     fn render(&mut self, frame: &mut Frame, area: Rect) {
-        let title = format!("Attribute - {}", self.file_name);
+        #[cfg(unix)]
+        if let Some(editor) = self.editor.as_ref() {
+            let (draft, cursor) = (editor.draft, editor.cursor);
+            self.render_editor(frame, area, draft, cursor);
+            return;
+        }
+
+        let title = format!(
+            "Attribute - {}",
+            self.file.file_name().unwrap_or("(unknown)")
+        );
         let block = build_focused_block(&title);
         let label_style = Style::default().fg(Color::Yellow);
         let rows: Vec<Row> = self
@@ -122,5 +301,101 @@ impl Component for AttributeComponent {
             .highlight_symbol("> ")
             .row_highlight_style(Style::default().add_modifier(Modifier::UNDERLINED));
         frame.render_stateful_widget(table, area, &mut self.table_state);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crossterm::event::KeyModifiers;
+    use std::os::unix::fs::PermissionsExt;
+    use tempfile::TempDir;
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    /// 指定 mode のファイルを作り、その AttributeComponent を返す。
+    fn component_with_mode(mode: u32) -> (TempDir, AttributeComponent) {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("f.txt");
+        std::fs::write(&path, "x").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+        let file = VFile::new(path.to_str().unwrap());
+        let component = AttributeComponent::new(&file).unwrap();
+        (tmp, component)
+    }
+
+    fn select_permissions_row(c: &mut AttributeComponent) {
+        let idx = c
+            .entries
+            .iter()
+            .position(|(l, _)| *l == "Permissions")
+            .unwrap();
+        c.table_state.select(Some(idx));
+    }
+
+    #[test]
+    fn e_on_permissions_row_enters_edit_mode() {
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+
+        assert!(
+            c.editor.is_some(),
+            "Permissions 行で e を押すと編集モードに入る"
+        );
+    }
+
+    #[test]
+    fn e_on_other_row_does_not_enter_edit_mode() {
+        let (_tmp, mut c) = component_with_mode(0o644);
+        c.table_state.select(Some(0)); // "File Type" 行
+
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+
+        assert!(
+            c.editor.is_none(),
+            "Permissions 以外の行では編集モードに入らない"
+        );
+    }
+
+    #[test]
+    fn toggle_then_apply_returns_set_permissions_and_updates_display() {
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+
+        // cursor=0 は user-r。user-x（index 2）へ移動してトグル → 0o744。
+        c.handle_event(key(KeyCode::Right)).unwrap();
+        c.handle_event(key(KeyCode::Right)).unwrap();
+        c.handle_event(key(KeyCode::Char(' '))).unwrap();
+        let action = c.handle_event(key(KeyCode::Enter)).unwrap();
+
+        match action {
+            Action::SetPermissions(_, mode) => assert_eq!(mode, 0o744),
+            _ => panic!("expected SetPermissions"),
+        }
+        assert!(c.editor.is_none(), "適用後は閲覧モードへ戻る");
+        let mode_entry = c.entries.iter().find(|(l, _)| *l == "Mode").unwrap();
+        assert_eq!(mode_entry.1, "0744");
+        let perm_entry = c.entries.iter().find(|(l, _)| *l == "Permissions").unwrap();
+        assert_eq!(perm_entry.1, "rwxr--r--");
+    }
+
+    #[test]
+    fn esc_discards_edit() {
+        let (_tmp, mut c) = component_with_mode(0o644);
+        select_permissions_row(&mut c);
+        c.handle_event(key(KeyCode::Char('e'))).unwrap();
+        c.handle_event(key(KeyCode::Char(' '))).unwrap(); // user-r をトグル
+
+        let action = c.handle_event(key(KeyCode::Esc)).unwrap();
+
+        assert!(matches!(action, Action::None), "Esc は Action を出さない");
+        assert!(c.editor.is_none(), "編集モードを抜ける");
+        let mode_entry = c.entries.iter().find(|(l, _)| *l == "Mode").unwrap();
+        assert_eq!(mode_entry.1, "0644");
     }
 }
