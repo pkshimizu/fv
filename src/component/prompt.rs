@@ -661,17 +661,20 @@ fn execute_confirm_action(ctx: &mut AppContext, action: ConfirmAction) -> Result
 /// Async Job を起動して PromptComponent に進捗ハンドルを渡す共通ヘルパ。
 /// 既に別の Async Job が走っていれば `PromptMode::Error` を表示する (Filer Lock により
 /// 通常は到達しないパスだが、不変条件破壊の早期検知のため tracing にも残す)。
-pub(crate) fn start_file_job(ctx: &mut AppContext, job: FileJob, initial_phase: Phase) {
+/// 起動できたら `true`、別ジョブ実行中で起動しなかったら `false` を返す
+/// （呼び出し側が「起動成功時のみ」状態を消費できるように）。
+pub(crate) fn start_file_job(ctx: &mut AppContext, job: FileJob, initial_phase: Phase) -> bool {
     if ctx.prompt.is_job_running() {
         tracing::warn!(
             "start_file_job called while another async job is running (Filer Lock invariant?)"
         );
         ctx.prompt
             .set_error("Another async job is already running".to_string());
-        return;
+        return false;
     }
     let handle = spawn_async_job(move |cancel, on_progress| job.run(cancel, on_progress));
     ctx.prompt.start_async_job(handle, initial_phase);
+    true
 }
 
 fn execute_text_action(

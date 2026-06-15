@@ -347,30 +347,27 @@ impl App {
                 }
             }
             Action::Paste => {
-                if let Some(buffer) = self.ctx.paste_buffer.clone() {
-                    let dest = std::path::PathBuf::from(self.ctx.filer.current_dir_path());
+                // バッファから (mode, files) を取り出す。paths を clone せず、借用を
+                // ここで閉じてから可変借用（start_file_job）へ進む。
+                let prepared = self.ctx.paste_buffer.as_ref().map(|buffer| {
                     let files: Vec<VFile> = buffer
                         .paths
                         .iter()
                         .map(|p| VFile::new(p.as_str()))
                         .collect();
-                    match buffer.mode {
-                        PasteMode::Copy => {
-                            prompt::start_file_job(
-                                &mut self.ctx,
-                                FileJob::Copy { files, dest },
-                                Phase::Scanning,
-                            );
-                        }
-                        PasteMode::Cut => {
-                            prompt::start_file_job(
-                                &mut self.ctx,
-                                FileJob::Move { files, dest },
-                                Phase::Moving,
-                            );
-                            // Cut は paste で消費するためバッファをクリアする。
-                            self.ctx.paste_buffer = None;
-                        }
+                    (buffer.mode, files)
+                });
+                if let Some((mode, files)) = prepared {
+                    let dest = std::path::PathBuf::from(self.ctx.filer.current_dir_path());
+                    let (job, phase) = match mode {
+                        PasteMode::Copy => (FileJob::Copy { files, dest }, Phase::Scanning),
+                        PasteMode::Cut => (FileJob::Move { files, dest }, Phase::Moving),
+                    };
+                    let started = prompt::start_file_job(&mut self.ctx, job, phase);
+                    // Cut は paste で消費するためクリアするが、起動できたときだけ
+                    // （別ジョブ実行中で起動しなかった場合は対象を失わない）。
+                    if started && mode == PasteMode::Cut {
+                        self.ctx.paste_buffer = None;
                     }
                 }
             }

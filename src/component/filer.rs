@@ -190,18 +190,18 @@ impl FilerComponent {
 
     /// Operation Targets を Copy モードで Paste Buffer に取り込む（Ctrl+C）。
     fn copy_to_paste_buffer(&self) -> Action {
-        match self.state.operation_targets() {
-            Some(targets) => Action::CopyToPasteBuffer(targets.into_absolute_paths()),
-            None => Action::None,
-        }
+        let Some(targets) = self.state.operation_targets() else {
+            return Action::None;
+        };
+        Action::CopyToPasteBuffer(targets.into_absolute_paths())
     }
 
     /// Operation Targets を Cut モードで Paste Buffer に取り込む（Ctrl+X）。
     fn cut_to_paste_buffer(&self) -> Action {
-        match self.state.operation_targets() {
-            Some(targets) => Action::CutToPasteBuffer(targets.into_absolute_paths()),
-            None => Action::None,
-        }
+        let Some(targets) = self.state.operation_targets() else {
+            return Action::None;
+        };
+        Action::CutToPasteBuffer(targets.into_absolute_paths())
     }
 
     fn prompt_mkdir(&self) -> Action {
@@ -723,4 +723,69 @@ fn format_time(time: Result<VFileTime>) -> String {
         return time.to_string();
     }
     "____-__-__ --:--:--".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui_image::picker::Picker;
+
+    /// Cursor File を 1 件持つ FilerComponent を作る（Picker::halfblocks は IO 不要）。
+    fn component_with_cursor_file(path: &str) -> FilerComponent {
+        let mut component = FilerComponent::new(Picker::halfblocks());
+        component.state.current_dir_files = vec![VFile::new(path)];
+        component.state.file_table_state.select(Some(0));
+        component
+    }
+
+    fn ctrl(c: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL)
+    }
+
+    #[test]
+    fn ctrl_c_copies_targets_to_paste_buffer() {
+        let mut component = component_with_cursor_file("/a/x.txt");
+        match component.handle_event(ctrl('c')).unwrap() {
+            Action::CopyToPasteBuffer(paths) => assert_eq!(paths, vec!["/a/x.txt".to_string()]),
+            _ => panic!("expected CopyToPasteBuffer"),
+        }
+    }
+
+    #[test]
+    fn ctrl_x_cuts_targets_to_paste_buffer() {
+        let mut component = component_with_cursor_file("/a/x.txt");
+        match component.handle_event(ctrl('x')).unwrap() {
+            Action::CutToPasteBuffer(paths) => assert_eq!(paths, vec!["/a/x.txt".to_string()]),
+            _ => panic!("expected CutToPasteBuffer"),
+        }
+    }
+
+    #[test]
+    fn ctrl_v_emits_paste() {
+        let mut component = component_with_cursor_file("/a/x.txt");
+        assert!(matches!(
+            component.handle_event(ctrl('v')).unwrap(),
+            Action::Paste
+        ));
+    }
+
+    #[test]
+    fn plain_c_is_not_a_paste_buffer_op() {
+        // 修飾なしの c は既存の Copy（宛先入力）であり Paste Buffer 操作にならない。
+        let mut component = component_with_cursor_file("/a/x.txt");
+        let action = component
+            .handle_event(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE))
+            .unwrap();
+        assert!(!matches!(action, Action::CopyToPasteBuffer(_)));
+    }
+
+    #[test]
+    fn ctrl_c_with_no_targets_is_none() {
+        // 対象（Cursor File / Checked Paths）が無ければ Paste Buffer を空で上書きしない。
+        let mut component = FilerComponent::new(Picker::halfblocks());
+        assert!(matches!(
+            component.handle_event(ctrl('c')).unwrap(),
+            Action::None
+        ));
+    }
 }
