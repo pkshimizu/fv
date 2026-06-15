@@ -83,6 +83,8 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | `p` / `u` | Zip / unzip |
 | `x` | Execute command |
 | `y` | Yank paths to clipboard |
+| `Ctrl`+`C` / `Ctrl`+`X` | Copy / cut to the paste buffer |
+| `Ctrl`+`V` | Paste the buffer into the current directory |
 
 ### Panels & views
 

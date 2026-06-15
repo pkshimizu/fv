@@ -26,6 +26,10 @@ _Avoid_: target (ambiguous with Operation Targets), output path, folder.
 Read-only copy of the Operation Targets' absolute paths into the system clipboard, bound to `y`. Multiple paths are joined with `\n` and no trailing newline. Does not modify the filesystem or clear Checked Paths, so a `y` immediately followed by `c` / `m` can chain yank-then-copy/move on the same set.
 _Avoid_: copy (overloaded with the Copy file action), clipboard write, pull to clipboard.
 
+**Paste Buffer**:
+A held snapshot of the Operation Targets' absolute paths plus a mode — **Copy** (`Ctrl`+`C`, keep the originals) or **Cut** (`Ctrl`+`X`, move). `Ctrl`+`V` pastes the buffer into the Filer's current directory, running the actual copy/move as an **Async Job** with the same collision avoidance as a Copy/Move **Destination** (`_1`, `_2`, … suffixes). Copy keeps the buffer (paste into several places); Cut clears it after one paste. A single buffer; re-marking replaces it. This is the "mark → move → paste" idiom (ranger `yy`/`dd`/`pp`) and is the no-destination-prompt counterpart to the `c` / `m` Destination flow. Distinct from **Yank**: Yank writes paths to the *system* clipboard read-only; the Paste Buffer is an in-app file operation.
+_Avoid_: clipboard (overloaded with Yank's system clipboard), copy/cut (reserve for the operations), stash.
+
 **List Filter**:
 An incremental, case-insensitive substring filter on file names, bound to `/`, that **hides** non-matching rows so the Filer shows only the matches. Distinct from Search (`f`), which leaves the list intact and only moves the cursor to a match. While a filter is active the displayed set *is* the matched subset, so the Cursor, **Operation Targets**, and select-all all act on the filtered files only; Checked Paths for hidden files are remembered (not dropped) and reappear when the filter is cleared. The filter is per-directory: it persists after the prompt closes (Enter) but is cleared by an empty query, by `Esc`, or by navigating to another directory.
 _Avoid_: search (that is the cursor-jump feature on `f`), grep (content search on `g`), hide.

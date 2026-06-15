@@ -11,7 +11,7 @@ use crate::state::{
 use crate::store::RootStore;
 use crate::ui::widgets::{BorderState, Focus, Spinner, build_bordered_block};
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -186,6 +186,22 @@ impl FilerComponent {
             return Action::None;
         };
         Action::Yank(targets.into_absolute_paths())
+    }
+
+    /// Operation Targets を Copy モードで Paste Buffer に取り込む（Ctrl+C）。
+    fn copy_to_paste_buffer(&self) -> Action {
+        match self.state.operation_targets() {
+            Some(targets) => Action::CopyToPasteBuffer(targets.into_absolute_paths()),
+            None => Action::None,
+        }
+    }
+
+    /// Operation Targets を Cut モードで Paste Buffer に取り込む（Ctrl+X）。
+    fn cut_to_paste_buffer(&self) -> Action {
+        match self.state.operation_targets() {
+            Some(targets) => Action::CutToPasteBuffer(targets.into_absolute_paths()),
+            None => Action::None,
+        }
     }
 
     fn prompt_mkdir(&self) -> Action {
@@ -571,6 +587,16 @@ impl Component for FilerComponent {
 
     // キーバインドを変更した場合は help.rs の KEY_BINDINGS も更新すること。
     fn handle_event(&mut self, event: KeyEvent) -> Result<Action> {
+        // Ctrl+C/X/V は Paste Buffer 操作。修飾キー無しの c/x/v（既存の Copy 等）と
+        // 取り違えないよう、CONTROL 付きのときだけ先に拾う（その他の Ctrl 併用は従来どおり素通し）。
+        if event.modifiers.contains(KeyModifiers::CONTROL) {
+            match event.code {
+                KeyCode::Char('c') => return Ok(self.copy_to_paste_buffer()),
+                KeyCode::Char('x') => return Ok(self.cut_to_paste_buffer()),
+                KeyCode::Char('v') => return Ok(Action::Paste),
+                _ => {}
+            }
+        }
         match event.code {
             KeyCode::Up => {
                 self.state.prev();

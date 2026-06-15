@@ -6,6 +6,8 @@ use crate::app_context::AppContext;
 use crate::component::{Action, Component, FilerComponent, PreviewMove, TreeComponent, prompt};
 use crate::event::{EventHandler, InputEvent};
 use crate::fs::VFile;
+use crate::fs::async_job::FileJob;
+use crate::state::{PasteBuffer, PasteMode, Phase};
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -326,6 +328,50 @@ impl App {
                 } else {
                     // 一覧の rwx 表示を更新するため再読み込みする。
                     self.ctx.filer.refresh_files();
+                }
+            }
+            Action::CopyToPasteBuffer(paths) => {
+                if !paths.is_empty() {
+                    self.ctx.paste_buffer = Some(PasteBuffer {
+                        paths,
+                        mode: PasteMode::Copy,
+                    });
+                }
+            }
+            Action::CutToPasteBuffer(paths) => {
+                if !paths.is_empty() {
+                    self.ctx.paste_buffer = Some(PasteBuffer {
+                        paths,
+                        mode: PasteMode::Cut,
+                    });
+                }
+            }
+            Action::Paste => {
+                if let Some(buffer) = self.ctx.paste_buffer.clone() {
+                    let dest = std::path::PathBuf::from(self.ctx.filer.current_dir_path());
+                    let files: Vec<VFile> = buffer
+                        .paths
+                        .iter()
+                        .map(|p| VFile::new(p.as_str()))
+                        .collect();
+                    match buffer.mode {
+                        PasteMode::Copy => {
+                            prompt::start_file_job(
+                                &mut self.ctx,
+                                FileJob::Copy { files, dest },
+                                Phase::Scanning,
+                            );
+                        }
+                        PasteMode::Cut => {
+                            prompt::start_file_job(
+                                &mut self.ctx,
+                                FileJob::Move { files, dest },
+                                Phase::Moving,
+                            );
+                            // Cut は paste で消費するためバッファをクリアする。
+                            self.ctx.paste_buffer = None;
+                        }
+                    }
                 }
             }
             Action::ShowBookmark => {

@@ -57,6 +57,12 @@ pub enum Action {
     Yank(Vec<String>),
     /// パーミッションを設定する（chmod）。(対象パス, mode)。
     SetPermissions(String, u32),
+    /// Operation Targets を Paste Buffer に取り込む（Copy=原本を残す）。
+    CopyToPasteBuffer(Vec<String>),
+    /// Operation Targets を Paste Buffer に取り込む（Cut=移動）。
+    CutToPasteBuffer(Vec<String>),
+    /// Paste Buffer の対象を現在表示中のディレクトリへ貼り付ける。
+    Paste,
     /// ブックマーク一覧を表示する
     ShowBookmark,
     /// 設定画面を表示する

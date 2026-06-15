@@ -1,5 +1,6 @@
 mod filer;
 mod list_search;
+mod paste_buffer;
 mod path_list;
 mod prompt;
 mod side_panel;
@@ -8,6 +9,7 @@ mod text_output;
 mod tree;
 
 pub use filer::{FilerState, OperationTargets, SortKey};
+pub use paste_buffer::{PasteBuffer, PasteMode};
 pub use path_list::PathListState;
 pub use prompt::{
     ConfirmAction, FileAction, FileActionCandidateType, Phase, ProgressMessage, PromptMode,
