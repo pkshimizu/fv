@@ -6,6 +6,8 @@ use crate::app_context::AppContext;
 use crate::component::{Action, Component, FilerComponent, PreviewMove, TreeComponent, prompt};
 use crate::event::{EventHandler, InputEvent};
 use crate::fs::VFile;
+use crate::fs::async_job::FileJob;
+use crate::state::{PasteBuffer, PasteMode, Phase};
 use crate::store::RootStore;
 use crate::ui;
 use anyhow::{Context, Result};
@@ -326,6 +328,47 @@ impl App {
                 } else {
                     // 一覧の rwx 表示を更新するため再読み込みする。
                     self.ctx.filer.refresh_files();
+                }
+            }
+            Action::CopyToPasteBuffer(paths) => {
+                if !paths.is_empty() {
+                    self.ctx.paste_buffer = Some(PasteBuffer {
+                        paths,
+                        mode: PasteMode::Copy,
+                    });
+                }
+            }
+            Action::CutToPasteBuffer(paths) => {
+                if !paths.is_empty() {
+                    self.ctx.paste_buffer = Some(PasteBuffer {
+                        paths,
+                        mode: PasteMode::Cut,
+                    });
+                }
+            }
+            Action::Paste => {
+                // バッファから (mode, files) を取り出す。paths を clone せず、借用を
+                // ここで閉じてから可変借用（start_file_job）へ進む。
+                let prepared = self.ctx.paste_buffer.as_ref().map(|buffer| {
+                    let files: Vec<VFile> = buffer
+                        .paths
+                        .iter()
+                        .map(|p| VFile::new(p.as_str()))
+                        .collect();
+                    (buffer.mode, files)
+                });
+                if let Some((mode, files)) = prepared {
+                    let dest = std::path::PathBuf::from(self.ctx.filer.current_dir_path());
+                    let (job, phase) = match mode {
+                        PasteMode::Copy => (FileJob::Copy { files, dest }, Phase::Scanning),
+                        PasteMode::Cut => (FileJob::Move { files, dest }, Phase::Moving),
+                    };
+                    let started = prompt::start_file_job(&mut self.ctx, job, phase);
+                    // Cut は paste で消費するためクリアするが、起動できたときだけ
+                    // （別ジョブ実行中で起動しなかった場合は対象を失わない）。
+                    if started && mode == PasteMode::Cut {
+                        self.ctx.paste_buffer = None;
+                    }
                 }
             }
             Action::ShowBookmark => {

@@ -1,7 +1,7 @@
 use crate::component::{Component, FilerComponent, PromptComponent};
 use crate::os::disk_usage::DiskUsageReader;
 use crate::os::system_info::SystemInfoReader;
-use crate::state::SidePanel;
+use crate::state::{PasteBuffer, SidePanel};
 use anyhow::Result;
 use ratatui_image::picker::Picker;
 
@@ -12,6 +12,8 @@ pub struct AppContext {
     pub side_panel: Option<SidePanel>,
     pub system_info: SystemInfoReader,
     pub disk_usage: DiskUsageReader,
+    /// Copy/Cut で mark した対象（Ctrl+V で現在ディレクトリへ paste する）。
+    pub paste_buffer: Option<PasteBuffer>,
 }
 
 impl AppContext {
@@ -23,6 +25,7 @@ impl AppContext {
             side_panel: None,
             system_info: SystemInfoReader::new(),
             disk_usage: DiskUsageReader::new(),
+            paste_buffer: None,
         }
     }
 

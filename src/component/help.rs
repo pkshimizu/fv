@@ -45,6 +45,9 @@ const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
             ("u", "Unzip file"),
             ("x", "Execute command"),
             ("y", "Yank paths to clipboard"),
+            ("Ctrl+C", "Copy to paste buffer"),
+            ("Ctrl+X", "Cut to paste buffer"),
+            ("Ctrl+V", "Paste into current directory"),
         ],
     ),
     (
