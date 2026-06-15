@@ -389,8 +389,9 @@ impl App {
                 }
             }
             Action::SaveSettings(startup_dir) => {
+                // 永続化のみ。パネルは閉じない（保存後は Settings の項目メニューへ戻る）。
+                // 閉じる操作は CloseSidePanel に一本化している。
                 self.store.settings.set_startup_directory(*startup_dir)?;
-                self.ctx.side_panel = None;
             }
             Action::NavigateBack => {
                 if let Some(path) = self.store.history.back().map(String::from) {

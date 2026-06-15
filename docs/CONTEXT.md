@@ -115,6 +115,12 @@ _Avoid_: timer, time, clock widget.
 Handing the Filer's **current directory** off to the host OS's default graphical file manager (Finder, Explorer, …) so the user can continue in the GUI — for drag-and-drop or app integration the TUI doesn't offer. It always targets the current directory, never the **Cursor File** (revealing a specific file in the GUI is a separate, future capability). Distinct from the other two "leave for an external tool" gestures: opening the Cursor File *with its associated application* (the Enter key on a file), and launching an interactive **shell** in the current directory. The GUI app is launched and fv keeps running — unlike the shell handoff, the TUI is not suspended.
 _Avoid_: open (ambiguous — Enter on a file opens it with its associated app, and Enter on a directory navigates into it), reveal (that is the future per-file capability, not this), explorer (OS-specific).
 
+### Settings
+
+**Settings**:
+The `o` side panel for viewing and changing app preferences. It is a **two-tier flow**: opening it first shows an **item menu** (currently just "Startup Directory"); choosing an item switches the same panel to that item's **editor**, and finishing the edit returns to the menu. Each item is saved **independently and immediately** — the editor's Enter persists the change and goes back to the menu, Esc discards and goes back; the panel is only closed from the menu (`o`/Esc). Adding a new preference means adding a menu item plus its editor, not a new panel. The panel stays `SidePanel::Settings` throughout; the menu/editor distinction is internal view state.
+_Avoid_: options, preferences dialog (the term is Settings), config screen.
+
 ### Preview
 
 **Syntax Highlighting**:
