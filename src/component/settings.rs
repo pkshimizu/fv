@@ -154,7 +154,8 @@ impl SettingsComponent {
 
     /// メニューで選択中の項目の編集 View へ遷移する。
     fn enter_editor(&mut self) {
-        // 項目が増えたら menu_index で分岐する。今は Startup Directory のみ。
+        // 今は項目が Startup Directory のみなので menu_index は参照しない。
+        // 項目が増えたら、ここで menu_index により生成するエディタを分岐する。
         self.view = SettingsView::StartupDirectory(StartupDirectoryEditor::new(
             &self.startup_dir,
             &self.current_dir,
@@ -325,7 +326,7 @@ mod tests {
     fn o_while_editing_specific_path_is_typed_not_close() {
         let mut c = component();
         c.handle_event(key(KeyCode::Enter)).unwrap(); // メニュー → エディタ
-        // Specific を選択（Current(0) → Specific(3) まで Right 3 回）。
+        // Specific を選択（Current(0) → Specific(3) まで Down 3 回）。
         for _ in 0..StartupDirectory::SPECIFIC_INDEX {
             c.handle_event(key(KeyCode::Down)).unwrap();
         }
