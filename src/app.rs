@@ -163,7 +163,7 @@ impl App {
         event_handler: &EventHandler,
     ) -> Result<()> {
         let shell = Self::default_shell();
-        let dir = ctx.filer.current_dir_path().to_string();
+        let dir = ctx.active_filer().current_dir_path().to_string();
 
         Self::run_in_shell_mode(terminal, event_handler, || {
             std::process::Command::new(&shell)
@@ -203,10 +203,17 @@ impl App {
     /// 現在の Search 系アクションの適用先を返す。ツリーパネルが開いていればツリー、
     /// そうでなければ Filer。
     fn search_target(&mut self) -> SearchTarget<'_> {
-        match self.ctx.side_panel.as_mut() {
-            Some(crate::state::SidePanel::Tree(tree)) => SearchTarget::Tree(tree),
-            _ => SearchTarget::Filer(&mut self.ctx.filer),
+        // active_filer_mut() は ctx 全体を可変借用するため、side_panel の借用と両立しない。
+        // 先に Tree かどうかを判定して借用を閉じてから、対象を可変借用し直す。
+        // （単一 match や早期 return で書くと side_panel の借用が末尾まで延び E0499 になる。）
+        let is_tree = matches!(self.ctx.side_panel, Some(crate::state::SidePanel::Tree(_)));
+        if is_tree {
+            if let Some(crate::state::SidePanel::Tree(tree)) = self.ctx.side_panel.as_mut() {
+                return SearchTarget::Tree(tree);
+            }
+            unreachable!("is_tree で Tree を確認済み");
         }
+        SearchTarget::Filer(self.ctx.active_filer_mut())
     }
 
     /// プレビューの n/p 移動で生じた再生成を、スロットル/アイドルに応じて 1 回だけ反映する。
@@ -229,7 +236,7 @@ impl App {
             .as_ref()
             .is_some_and(|panel| panel.is_preview())
         {
-            self.ctx.side_panel = self.ctx.filer.build_preview_panel();
+            self.ctx.side_panel = self.ctx.active_filer().build_preview_panel();
         }
     }
 
@@ -252,7 +259,7 @@ impl App {
             }
             Action::NavigateTo(path) => {
                 self.ctx.side_panel = None;
-                self.ctx.filer.jump_to(&path)?;
+                self.ctx.active_filer_mut().jump_to(&path)?;
             }
             Action::RemoveBookmark(path) => {
                 self.store.bookmark.remove(&path)?;
@@ -280,7 +287,7 @@ impl App {
                 self.search_target().select_matching(&value);
             }
             Action::FilterUpdate(value) => {
-                self.ctx.filer.set_name_filter(&value);
+                self.ctx.active_filer_mut().set_name_filter(&value);
             }
             Action::SearchNext(value) => {
                 self.search_target().select_next(&value);
@@ -299,12 +306,20 @@ impl App {
             Action::PreviewNext => {
                 // カーソルを動かすのみ。実際のパネル再生成は run ループで
                 // スロットル/アイドルに応じてまとめて行う（連打時のフリーズ緩和）。
-                if self.ctx.filer.move_preview_cursor(PreviewMove::Next) {
+                if self
+                    .ctx
+                    .active_filer_mut()
+                    .move_preview_cursor(PreviewMove::Next)
+                {
                     self.preview_dirty = true;
                 }
             }
             Action::PreviewPrev => {
-                if self.ctx.filer.move_preview_cursor(PreviewMove::Prev) {
+                if self
+                    .ctx
+                    .active_filer_mut()
+                    .move_preview_cursor(PreviewMove::Prev)
+                {
                     self.preview_dirty = true;
                 }
             }
@@ -327,7 +342,7 @@ impl App {
                     self.set_error(format!("{e:#}"));
                 } else {
                     // 一覧の rwx 表示を更新するため再読み込みする。
-                    self.ctx.filer.refresh_files();
+                    self.ctx.active_filer_mut().refresh_files();
                 }
             }
             Action::CopyToPasteBuffer(paths) => {
@@ -358,7 +373,7 @@ impl App {
                     (buffer.mode, files)
                 });
                 if let Some((mode, files)) = prepared {
-                    let dest = std::path::PathBuf::from(self.ctx.filer.current_dir_path());
+                    let dest = std::path::PathBuf::from(self.ctx.active_filer().current_dir_path());
                     let (job, phase) = match mode {
                         PasteMode::Copy => (FileJob::Copy { files, dest }, Phase::Scanning),
                         PasteMode::Cut => (FileJob::Move { files, dest }, Phase::Moving),
@@ -382,7 +397,7 @@ impl App {
             Action::ShowSettings => {
                 if self.ctx.side_panel.is_none() {
                     let startup_dir = self.store.settings.startup_directory().clone();
-                    let current_dir = self.ctx.filer.current_dir_path().to_string();
+                    let current_dir = self.ctx.active_filer().current_dir_path().to_string();
                     self.ctx.side_panel = Some(crate::state::SidePanel::Settings(
                         crate::component::SettingsComponent::new(&startup_dir, &current_dir),
                     ));
@@ -395,13 +410,13 @@ impl App {
             }
             Action::NavigateBack => {
                 if let Some(path) = self.store.history.back().map(String::from) {
-                    self.ctx.filer.change_to(&path);
+                    self.ctx.active_filer_mut().change_to(&path);
                     self.skip_history_add = true;
                 }
             }
             Action::NavigateForward => {
                 if let Some(path) = self.store.history.forward().map(String::from) {
-                    self.ctx.filer.change_to(&path);
+                    self.ctx.active_filer_mut().change_to(&path);
                     self.skip_history_add = true;
                 }
             }
@@ -410,7 +425,7 @@ impl App {
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut watching_dir_path = self.ctx.filer.current_dir_path().to_string();
+        let mut watching_dir_path = self.ctx.active_filer().current_dir_path().to_string();
         // 起動直後の初期ディレクトリにも監視を張る。ループ内の watch_directory は
         // ナビゲートで current_dir が変わったときしか呼ばれないため、ここで一度設定する。
         // 監視は自動更新のための付加機能なので、失敗してもアプリ起動は止めず警告に留める。
@@ -432,15 +447,15 @@ impl App {
                     } else if let Some(panel) = self.ctx.side_panel.as_mut() {
                         panel.handle_event(key)?
                     } else {
-                        self.ctx.filer.handle_event(key)?
+                        self.ctx.active_filer_mut().handle_event(key)?
                     };
                     if let Err(e) = self.handle_action(action, terminal) {
                         self.set_error(format!("{e}"));
                     }
                 }
                 InputEvent::FileChange => {
-                    if !self.ctx.filer.is_loading() {
-                        self.ctx.filer.refresh_files();
+                    if !self.ctx.active_filer().is_loading() {
+                        self.ctx.active_filer_mut().refresh_files();
                     }
                 }
                 InputEvent::None => {}
@@ -454,17 +469,16 @@ impl App {
             self.ctx.tick();
 
             // 非同期ロードのエラーを検知して表示
-            if let Some(error) = self.ctx.filer.take_error() {
+            if let Some(error) = self.ctx.active_filer_mut().take_error() {
                 self.set_error(error);
             }
 
             // Filer のフォーカス状態を更新（Focused View は同時に1つ）
-            self.ctx
-                .filer
-                .set_focused(self.ctx.side_panel.is_none() && !self.ctx.prompt.is_active());
+            let focused = self.ctx.side_panel.is_none() && !self.ctx.prompt.is_active();
+            self.ctx.active_filer_mut().set_focused(focused);
 
             // カレントディレクトリの監視と履歴保存
-            let current_dir_path = self.ctx.filer.current_dir_path();
+            let current_dir_path = self.ctx.active_filer().current_dir_path();
             if current_dir_path != watching_dir_path {
                 // 監視失敗は致命ではないため警告に留める（起動時と同方針）。
                 if let Err(e) = self.event_handler.watch_directory(current_dir_path) {

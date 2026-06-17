@@ -1,3 +1,4 @@
+mod context;
 mod filer;
 mod list_search;
 mod paste_buffer;
@@ -8,6 +9,7 @@ pub(crate) mod table_cursor;
 mod text_output;
 mod tree;
 
+pub use context::FilerContext;
 pub use filer::{FilerState, OperationTargets, SortKey};
 pub use paste_buffer::{PasteBuffer, PasteMode};
 pub use path_list::PathListState;
