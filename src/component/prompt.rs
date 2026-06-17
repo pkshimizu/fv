@@ -689,7 +689,8 @@ fn execute_text_action(
         TextAction::Symlink { dir, target } => dir.create_symlink(value, target.absolute_path()),
         TextAction::Rename { file } => {
             file.rename(value)?;
-            ctx.active_filer_mut().set_pending_select_name(value.to_string());
+            ctx.active_filer_mut()
+                .set_pending_select_name(value.to_string());
             Ok(())
         }
         TextAction::Zip { dir, files } => {
