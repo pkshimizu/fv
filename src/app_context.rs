@@ -53,7 +53,8 @@ impl AppContext {
     }
 
     pub fn tick(&mut self) {
-        // 全 Context を tick する（非アクティブ Context もディレクトリ読み込み等を進める）。
+        // 全 Context を tick する。将来 Context が増えたとき、非アクティブ Context の
+        // ディレクトリ読み込み等も進めるため（現状は要素 1 で旧 filer.tick() と等価）。
         for context in &mut self.contexts {
             context.filer_mut().tick();
         }

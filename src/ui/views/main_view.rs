@@ -61,14 +61,17 @@ pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootSto
         let [filer_area, panel_area] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .areas(content_area);
-        ctx.active_filer_mut().render_with_store(frame, filer_area, store);
+        ctx.active_filer_mut()
+            .render_with_store(frame, filer_area, store);
         Some(panel_area)
     } else {
         ctx.active_filer_mut()
             .render_with_store(frame, content_area, store);
         None
     };
-    if let (Some(panel), Some(panel_area)) = (ctx.side_panel.as_mut(), panel_area) {
+    if let Some(panel_area) = panel_area
+        && let Some(panel) = ctx.side_panel.as_mut()
+    {
         panel.render(frame, panel_area);
     }
     // アイドル時に表示するキーマップは、アクティブなコンポーネント自身が提供する。

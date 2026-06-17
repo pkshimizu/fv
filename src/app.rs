@@ -205,10 +205,8 @@ impl App {
     fn search_target(&mut self) -> SearchTarget<'_> {
         // active_filer_mut() は ctx 全体を可変借用するため、side_panel の借用と両立しない。
         // 先に Tree かどうかを判定して借用を閉じてから、対象を可変借用し直す。
-        let is_tree = matches!(
-            self.ctx.side_panel,
-            Some(crate::state::SidePanel::Tree(_))
-        );
+        // （単一 match や早期 return で書くと side_panel の借用が末尾まで延び E0499 になる。）
+        let is_tree = matches!(self.ctx.side_panel, Some(crate::state::SidePanel::Tree(_)));
         if is_tree {
             if let Some(crate::state::SidePanel::Tree(tree)) = self.ctx.side_panel.as_mut() {
                 return SearchTarget::Tree(tree);
@@ -308,12 +306,20 @@ impl App {
             Action::PreviewNext => {
                 // カーソルを動かすのみ。実際のパネル再生成は run ループで
                 // スロットル/アイドルに応じてまとめて行う（連打時のフリーズ緩和）。
-                if self.ctx.active_filer_mut().move_preview_cursor(PreviewMove::Next) {
+                if self
+                    .ctx
+                    .active_filer_mut()
+                    .move_preview_cursor(PreviewMove::Next)
+                {
                     self.preview_dirty = true;
                 }
             }
             Action::PreviewPrev => {
-                if self.ctx.active_filer_mut().move_preview_cursor(PreviewMove::Prev) {
+                if self
+                    .ctx
+                    .active_filer_mut()
+                    .move_preview_cursor(PreviewMove::Prev)
+                {
                     self.preview_dirty = true;
                 }
             }
