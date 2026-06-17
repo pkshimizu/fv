@@ -42,7 +42,7 @@ pub fn render_header(frame: &mut Frame, ctx: &AppContext, area: Rect) {
     } else {
         (inner, None)
     };
-    let current_dir = Path::new(ctx.filer.current_dir_path());
+    let current_dir = Path::new(ctx.active_filer().current_dir_path());
     let disk_field = format_disk_field(ctx.disk_usage.usage_for(current_dir));
     let status_line = format!("{}  {disk_field}", info.status_line());
     frame.render_widget(Paragraph::new(status_line), left);

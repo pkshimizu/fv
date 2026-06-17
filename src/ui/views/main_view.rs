@@ -54,23 +54,28 @@ pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootSto
     .areas(area);
 
     render_header(frame, ctx, header_area);
-    match &mut ctx.side_panel {
-        Some(panel) => {
-            let [filer_area, panel_area] =
-                Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-                    .areas(content_area);
-            ctx.filer.render_with_store(frame, filer_area, store);
-            panel.render(frame, panel_area);
-        }
-        None => {
-            ctx.filer.render_with_store(frame, content_area, store);
-        }
+    // サイドパネルがあれば content を左右に分割し、左に Filer・右にパネルを描く。
+    // active_filer_mut() は ctx 全体を可変借用するため、パネル描画とは順に分けて行う
+    // （Filer を先に描いて借用を閉じてから、パネルを描く）。
+    let panel_area = if ctx.side_panel.is_some() {
+        let [filer_area, panel_area] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas(content_area);
+        ctx.active_filer_mut().render_with_store(frame, filer_area, store);
+        Some(panel_area)
+    } else {
+        ctx.active_filer_mut()
+            .render_with_store(frame, content_area, store);
+        None
+    };
+    if let (Some(panel), Some(panel_area)) = (ctx.side_panel.as_mut(), panel_area) {
+        panel.render(frame, panel_area);
     }
     // アイドル時に表示するキーマップは、アクティブなコンポーネント自身が提供する。
     // サイドパネル表示中はそのパネル、さもなくば Filer のキーマップ。
     let keymap = match &ctx.side_panel {
         Some(panel) => panel.keymap(),
-        None => ctx.filer.keymap(),
+        None => ctx.active_filer().keymap(),
     };
     ctx.prompt.render_with_keymap(frame, prompt_area, keymap);
 }
