@@ -49,4 +49,34 @@ mod tests {
         // ルートは末尾要素が取れないのでパスそのもの。
         assert_eq!(tab_name("/"), "/");
     }
+
+    #[test]
+    fn renders_numbered_tabs_and_highlights_active() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui_image::picker::Picker;
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let mut ctx = AppContext::new(Picker::halfblocks());
+        ctx.init(Some(dir.path().to_path_buf())).unwrap();
+        ctx.new_context().unwrap(); // Context 2 つ、アクティブは index 1
+
+        let mut terminal = Terminal::new(TestBackend::new(60, 1)).unwrap();
+        terminal
+            .draw(|frame| render_tab_bar(frame, &ctx, frame.area()))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+
+        let text: String = buffer.content().iter().map(|c| c.symbol()).collect();
+        assert!(text.contains("1:"), "1 番タブが見当たらない: {text:?}");
+        assert!(text.contains("2:"), "2 番タブが見当たらない: {text:?}");
+
+        // アクティブ Context がどこかで反転表示されている。
+        let has_reversed = buffer
+            .content()
+            .iter()
+            .any(|c| c.modifier.contains(Modifier::REVERSED));
+        assert!(has_reversed, "アクティブタブが強調されていない");
+    }
 }

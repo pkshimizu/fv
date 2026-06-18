@@ -431,29 +431,35 @@ impl App {
             }
             Action::NextContext => {
                 self.ctx.next_context();
-                // 非アクティブ中のディスク変更を反映し、新しい dir を監視し直す。
-                self.ctx.active_filer_mut().refresh_files();
-                self.resync_active_dir_watch();
+                self.after_switch_active();
             }
             Action::PrevContext => {
                 self.ctx.prev_context();
-                self.ctx.active_filer_mut().refresh_files();
-                self.resync_active_dir_watch();
+                self.after_switch_active();
             }
             Action::NewContext => {
                 if let Err(e) = self.ctx.new_context() {
                     self.set_error(format!("{e:#}"));
                 } else {
+                    // 新規 Context は init でロード済みなので refresh は不要。dir を監視し直す
+                    // （失敗時はアクティブ Context が変わらないので監視はそのまま）。
                     self.resync_active_dir_watch();
                 }
             }
             Action::CloseContext => {
                 self.ctx.close_context();
-                self.ctx.active_filer_mut().refresh_files();
-                self.resync_active_dir_watch();
+                self.after_switch_active();
             }
         }
         Ok(())
+    }
+
+    /// Context 切替/クローズ後の共通後処理。アクティブ Context を（非アクティブ中の
+    /// ディスク変更を反映するため）再読込し、監視ディレクトリを張り替える。
+    /// 新規 Context（`new_context`）は `init` でフレッシュにロード済みのため別扱い。
+    fn after_switch_active(&mut self) {
+        self.ctx.active_filer_mut().refresh_files();
+        self.resync_active_dir_watch();
     }
 
     /// Context 切替/生成/クローズ後に、アクティブ Context のディレクトリを監視し直す。

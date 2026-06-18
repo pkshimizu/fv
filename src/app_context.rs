@@ -179,4 +179,47 @@ mod tests {
         ctx.close_context();
         assert_eq!(ctx.context_count(), 1);
     }
+
+    #[test]
+    fn each_context_keeps_its_own_current_directory() {
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        let mut ctx = context_in(&dir_a);
+        let a = ctx.active_filer().current_dir_path().to_string();
+        ctx.new_context().unwrap(); // B は A の dir を複製してアクティブ
+        ctx.active_filer_mut()
+            .change_to(dir_b.path().to_str().unwrap());
+        let b = ctx.active_filer().current_dir_path().to_string();
+        assert_ne!(a, b, "A と B は別ディレクトリを指す");
+        // context_dirs は両 Context の dir を表示順に返す。
+        assert_eq!(ctx.context_dirs(), vec![a.as_str(), b.as_str()]);
+        // A に戻ると A の dir が保持されている（B の変更が漏れていない）。
+        ctx.prev_context();
+        assert_eq!(ctx.active_filer().current_dir_path(), a);
+    }
+
+    #[test]
+    fn closing_middle_context_activates_right_neighbor() {
+        let d0 = TempDir::new().unwrap();
+        let d1 = TempDir::new().unwrap();
+        let d2 = TempDir::new().unwrap();
+        let mut ctx = context_in(&d0);
+        ctx.new_context().unwrap();
+        ctx.active_filer_mut()
+            .change_to(d1.path().to_str().unwrap());
+        let p1 = ctx.active_filer().current_dir_path().to_string();
+        ctx.new_context().unwrap();
+        ctx.active_filer_mut()
+            .change_to(d2.path().to_str().unwrap());
+        let p2 = ctx.active_filer().current_dir_path().to_string();
+        assert_eq!(ctx.context_count(), 3);
+        // 中央（index 1）をアクティブにして閉じる。
+        ctx.prev_context();
+        assert_eq!(ctx.active_filer().current_dir_path(), p1);
+        ctx.close_context();
+        // 右隣（旧 index 2）が同じ index 1 に詰まってアクティブになる。
+        assert_eq!(ctx.context_count(), 2);
+        assert_eq!(ctx.active_index(), 1);
+        assert_eq!(ctx.active_filer().current_dir_path(), p2);
+    }
 }
