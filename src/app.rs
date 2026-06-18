@@ -102,6 +102,11 @@ impl App {
         }
         let startup_dir = self.resolve_startup_directory();
         self.ctx.init(startup_dir)?;
+        // 最初の Context の戻る/進む履歴に永続履歴を引き継ぎ、従来どおり過去の
+        // 訪問先へ `<`/`>` で戻れるようにする。
+        self.ctx
+            .active_history_mut()
+            .reset_with(self.store.history.entries_snapshot());
         Ok(())
     }
 
@@ -409,13 +414,13 @@ impl App {
                 self.store.settings.set_startup_directory(*startup_dir)?;
             }
             Action::NavigateBack => {
-                if let Some(path) = self.store.history.back().map(String::from) {
+                if let Some(path) = self.ctx.active_history_mut().back().map(String::from) {
                     self.ctx.active_filer_mut().change_to(&path);
                     self.skip_history_add = true;
                 }
             }
             Action::NavigateForward => {
-                if let Some(path) = self.store.history.forward().map(String::from) {
+                if let Some(path) = self.ctx.active_history_mut().forward().map(String::from) {
                     self.ctx.active_filer_mut().change_to(&path);
                     self.skip_history_add = true;
                 }
@@ -478,18 +483,25 @@ impl App {
             self.ctx.active_filer_mut().set_focused(focused);
 
             // カレントディレクトリの監視と履歴保存
-            let current_dir_path = self.ctx.active_filer().current_dir_path();
-            if current_dir_path != watching_dir_path {
+            let dir_changed = self.ctx.active_filer().current_dir_path() != watching_dir_path;
+            if dir_changed {
+                // active_history_mut()/store.history は ctx・store を可変借用するため、
+                // カレントパスは先に所有文字列として取り出してから扱う。
+                let current = self.ctx.active_filer().current_dir_path().to_string();
                 // 監視失敗は致命ではないため警告に留める（起動時と同方針）。
-                if let Err(e) = self.event_handler.watch_directory(current_dir_path) {
+                if let Err(e) = self.event_handler.watch_directory(&current) {
                     tracing::warn!("Failed to watch directory: {e}");
                 }
                 if self.skip_history_add {
                     self.skip_history_add = false;
-                } else if let Err(e) = self.store.history.add(current_dir_path) {
-                    tracing::warn!("Failed to save history: {e}");
+                } else {
+                    // 戻る/進むは Context ごと（DirHistory）、永続ログは global（HistoryStore）。
+                    self.ctx.active_history_mut().push(&current);
+                    if let Err(e) = self.store.history.add(&current) {
+                        tracing::warn!("Failed to save history: {e}");
+                    }
                 }
-                watching_dir_path = current_dir_path.to_string();
+                watching_dir_path = current;
             }
         }
         Ok(())

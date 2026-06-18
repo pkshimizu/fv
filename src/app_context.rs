@@ -1,7 +1,7 @@
 use crate::component::{Component, FilerComponent, PromptComponent};
 use crate::os::disk_usage::DiskUsageReader;
 use crate::os::system_info::SystemInfoReader;
-use crate::state::{FilerContext, PasteBuffer, SidePanel};
+use crate::state::{DirHistory, FilerContext, PasteBuffer, SidePanel};
 use anyhow::Result;
 use ratatui_image::picker::Picker;
 
@@ -42,6 +42,11 @@ impl AppContext {
     /// アクティブ Context の Filer を可変参照する。
     pub fn active_filer_mut(&mut self) -> &mut FilerComponent {
         self.contexts[self.active].filer_mut()
+    }
+
+    /// アクティブ Context の戻る/進む履歴を可変参照する。
+    pub fn active_history_mut(&mut self) -> &mut DirHistory {
+        self.contexts[self.active].history_mut()
     }
 
     pub fn init(&mut self, startup_dir: Option<std::path::PathBuf>) -> Result<()> {
