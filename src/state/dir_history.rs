@@ -139,4 +139,36 @@ mod tests {
         assert_eq!(h.back(), None);
         assert_eq!(h.forward(), None);
     }
+
+    #[test]
+    fn forward_right_after_seed_is_none() {
+        // seed 直後はカーソルが末尾にあるので進む先は無い。
+        let mut h = DirHistory::new();
+        h.reset_with(vec!["/x".to_string(), "/y".to_string()]);
+        assert_eq!(h.forward(), None);
+    }
+
+    #[test]
+    fn push_after_seed_appends_as_continuation() {
+        // 起動時 seed → ユーザー操作で push、という app.rs の経路を模す。
+        let mut h = DirHistory::new();
+        h.reset_with(vec!["/x".to_string(), "/y".to_string()]);
+        h.push("/z");
+        // /z の一つ前は seed 末尾の /y。
+        assert_eq!(h.back(), Some("/y"));
+        assert_eq!(h.back(), Some("/x"));
+        assert_eq!(h.back(), None);
+    }
+
+    #[test]
+    fn forward_works_after_back_hits_start() {
+        let mut h = DirHistory::new();
+        h.push("/a");
+        h.push("/b");
+        assert_eq!(h.back(), Some("/a")); // 先頭まで戻る
+        assert_eq!(h.back(), None); // 下限に張り付く
+        // 下限張り付き後も forward は正しく効く。
+        assert_eq!(h.forward(), Some("/b"));
+        assert_eq!(h.forward(), None);
+    }
 }

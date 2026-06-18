@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
+/// 永続ログの保持上限。これを超えた分は古い方から捨てる。
+/// 起動時に seed で読み込む `state::DirHistory` の上限と揃えておくこと。
 const MAX_HISTORY: usize = 1000;
 
 /// 訪問したディレクトリの永続ログ。セッションを跨いで保存され、Startup の Last Directory
@@ -83,18 +85,23 @@ impl HistoryStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
-    /// テスト用に一時ファイルパスを指すストアを作る（実設定ディレクトリを汚さない）。
-    fn store(name: &str) -> HistoryStore {
-        HistoryStore {
-            json_path: std::env::temp_dir().join(format!("fv-history-test-{name}.json")),
+    /// テスト用に、固有の一時ディレクトリ内の history.json を指すストアを作る。
+    /// `TempDir` を返して呼び出し側で生存させ、Drop で自動削除させる
+    /// （プロセス間で固定パスを共有せず、クリーンアップ漏れも防ぐ）。
+    fn store() -> (HistoryStore, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let store = HistoryStore {
+            json_path: dir.path().join("history.json"),
             entries: VecDeque::new(),
-        }
+        };
+        (store, dir)
     }
 
     #[test]
     fn add_appends_and_last_entry_tracks_latest() {
-        let mut s = store("append");
+        let (mut s, _dir) = store();
         s.add("/a").unwrap();
         s.add("/b").unwrap();
         assert_eq!(s.last_entry(), Some("/b"));
@@ -106,19 +113,35 @@ mod tests {
 
     #[test]
     fn add_ignores_consecutive_duplicate() {
-        let mut s = store("dedup");
+        let (mut s, _dir) = store();
         s.add("/a").unwrap();
         s.add("/a").unwrap();
         assert_eq!(s.entries_snapshot(), vec!["/a".to_string()]);
     }
 
     #[test]
+    fn add_drops_oldest_when_over_capacity() {
+        let (mut s, _dir) = store();
+        for i in 0..(MAX_HISTORY + 5) {
+            s.add(&format!("/dir{i}")).unwrap();
+        }
+        let entries = s.entries_snapshot();
+        assert_eq!(entries.len(), MAX_HISTORY);
+        // 古い方（/dir0..=/dir4）が落ち、先頭は /dir5。
+        assert_eq!(entries.first().map(String::as_str), Some("/dir5"));
+        assert_eq!(s.last_entry(), Some("/dir1004"));
+    }
+
+    #[test]
     fn add_then_load_round_trips_through_disk() {
-        let mut s = store("roundtrip");
+        let (mut s, dir) = store();
         s.add("/p").unwrap();
         s.add("/q").unwrap();
         // 同じパスを指す別ストアで読み直すと内容が一致する。
-        let mut reloaded = store("roundtrip");
+        let mut reloaded = HistoryStore {
+            json_path: dir.path().join("history.json"),
+            entries: VecDeque::new(),
+        };
         reloaded.load().unwrap();
         assert_eq!(
             reloaded.entries_snapshot(),
@@ -129,9 +152,8 @@ mod tests {
 
     #[test]
     fn missing_file_loads_as_empty() {
-        let mut s = store("missing-file-unique");
-        // 念のため事前に消しておく。
-        let _ = std::fs::remove_file(&s.json_path);
+        // 新規 TempDir 内に history.json はまだ無い。
+        let (mut s, _dir) = store();
         s.load().unwrap();
         assert!(s.entries_snapshot().is_empty());
         assert_eq!(s.last_entry(), None);
