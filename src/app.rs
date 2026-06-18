@@ -78,6 +78,9 @@ pub struct App {
     store: RootStore,
     event_handler: EventHandler,
     skip_history_add: bool,
+    /// 現在ファイル変更を監視しているディレクトリ。アクティブ Context のカレント
+    /// ディレクトリが変わった（ナビゲーション or Context 切替）ときに張り替える。
+    watching_dir_path: String,
     /// プレビューのカーソルが動いたが、まだパネルを再生成していない。
     preview_dirty: bool,
     /// 直近でプレビューパネルを再生成した時刻（スロットル判定用）。
@@ -91,6 +94,7 @@ impl App {
             store: RootStore::new()?,
             event_handler: EventHandler::default(),
             skip_history_add: false,
+            watching_dir_path: String::new(),
             preview_dirty: false,
             last_preview_build: Instant::now(),
         })
@@ -425,16 +429,51 @@ impl App {
                     self.skip_history_add = true;
                 }
             }
+            Action::NextContext => {
+                self.ctx.next_context();
+                // 非アクティブ中のディスク変更を反映し、新しい dir を監視し直す。
+                self.ctx.active_filer_mut().refresh_files();
+                self.resync_active_dir_watch();
+            }
+            Action::PrevContext => {
+                self.ctx.prev_context();
+                self.ctx.active_filer_mut().refresh_files();
+                self.resync_active_dir_watch();
+            }
+            Action::NewContext => {
+                if let Err(e) = self.ctx.new_context() {
+                    self.set_error(format!("{e:#}"));
+                } else {
+                    self.resync_active_dir_watch();
+                }
+            }
+            Action::CloseContext => {
+                self.ctx.close_context();
+                self.ctx.active_filer_mut().refresh_files();
+                self.resync_active_dir_watch();
+            }
         }
         Ok(())
     }
 
+    /// Context 切替/生成/クローズ後に、アクティブ Context のディレクトリを監視し直す。
+    /// 切替はナビゲーションではないため、履歴（DirHistory / history.json）には記録しない。
+    fn resync_active_dir_watch(&mut self) {
+        let dir = self.ctx.active_filer().current_dir_path().to_string();
+        if dir != self.watching_dir_path {
+            if let Err(e) = self.event_handler.watch_directory(&dir) {
+                tracing::warn!("Failed to watch directory: {e}");
+            }
+            self.watching_dir_path = dir;
+        }
+    }
+
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut watching_dir_path = self.ctx.active_filer().current_dir_path().to_string();
+        self.watching_dir_path = self.ctx.active_filer().current_dir_path().to_string();
         // 起動直後の初期ディレクトリにも監視を張る。ループ内の watch_directory は
         // ナビゲートで current_dir が変わったときしか呼ばれないため、ここで一度設定する。
         // 監視は自動更新のための付加機能なので、失敗してもアプリ起動は止めず警告に留める。
-        if let Err(e) = self.event_handler.watch_directory(&watching_dir_path) {
+        if let Err(e) = self.event_handler.watch_directory(&self.watching_dir_path) {
             tracing::warn!("Failed to watch startup directory: {e}");
         }
 
@@ -483,7 +522,7 @@ impl App {
             self.ctx.active_filer_mut().set_focused(focused);
 
             // カレントディレクトリの監視と履歴保存
-            let dir_changed = self.ctx.active_filer().current_dir_path() != watching_dir_path;
+            let dir_changed = self.ctx.active_filer().current_dir_path() != self.watching_dir_path;
             if dir_changed {
                 // active_history_mut()/store.history は ctx・store を可変借用するため、
                 // カレントパスは先に所有文字列として取り出してから扱う。
@@ -501,7 +540,7 @@ impl App {
                         tracing::warn!("Failed to save history: {e}");
                     }
                 }
-                watching_dir_path = current;
+                self.watching_dir_path = current;
             }
         }
         Ok(())

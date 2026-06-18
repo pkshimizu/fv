@@ -1,5 +1,6 @@
 use crate::component::FilerComponent;
 use crate::state::DirHistory;
+use anyhow::Result;
 use ratatui_image::picker::Picker;
 
 /// 1 つの作業 Context（CONTEXT.md 用語）。独立したカレントディレクトリ・カーソル・
@@ -31,5 +32,15 @@ impl FilerContext {
 
     pub fn history_mut(&mut self) -> &mut DirHistory {
         &mut self.history
+    }
+
+    /// この Context と同じ描画資源（Picker）で、指定ディレクトリを開いた新しい Context を作る。
+    /// 新規 Context 作成（`w`）で現在ディレクトリを複製するために使う。戻る/進む履歴は
+    /// 開いたディレクトリを基点に初期化する。
+    pub fn duplicate_at(&self, dir: &str) -> Result<Self> {
+        let mut context = Self::new(self.filer.clone_picker());
+        context.filer.init(Some(std::path::PathBuf::from(dir)))?;
+        context.history.push(dir);
+        Ok(context)
     }
 }

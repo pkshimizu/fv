@@ -22,6 +22,7 @@ browsing, file operations, preview, search, and more on a single, clean screen �
 - **Search & view** — grep through the tree, incremental search, a list filter that hides non-matching files, directory jump, and a directory tree view.
 - **File info & attributes** — inspect size, type, permissions, and timestamps.
 - **Bookmarks** — save frequently used directories and jump to them quickly.
+- **Contexts (tabs)** — keep several independent working directories and switch between them; the paste buffer is shared so you can copy in one and paste in another.
 - **Yank** — copy selected paths to the system clipboard.
 
 ## Installation
@@ -101,6 +102,14 @@ Press `?` inside fv to open the help panel. The main key bindings in the file li
 | --- | --- |
 | `b` | Show bookmarks |
 | `+` / `-` | Add / remove bookmark |
+
+### Contexts
+
+| Key | Action |
+| --- | --- |
+| `Tab` / `Shift`+`Tab` | Switch to next / previous context |
+| `w` | New context (duplicate current directory) |
+| `Shift`+`W` | Close current context |
 
 ### App
 

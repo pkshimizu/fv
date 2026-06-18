@@ -64,6 +64,12 @@ impl FilerComponent {
         self.state.current_dir.absolute_path()
     }
 
+    /// 画像描画用の Picker を複製する。新しい Context の Filer を作るときに使う
+    /// （Picker は font size 等の小さな値型で複製は安価）。
+    pub fn clone_picker(&self) -> Picker {
+        self.picker.clone()
+    }
+
     pub fn jump_to(&mut self, path: &str) -> Result<()> {
         self.state.jump_to(path)
     }
@@ -682,6 +688,11 @@ impl Component for FilerComponent {
             KeyCode::Char('?') => Ok(Action::ShowSidePanel(Box::new(SidePanel::Help(
                 HelpComponent::new(),
             )))),
+            // Context（タブ）操作。Filer フォーカス時のみ届く（Prompt/Side Panel 表示中は無効）。
+            KeyCode::Tab => Ok(Action::NextContext),
+            KeyCode::BackTab => Ok(Action::PrevContext),
+            KeyCode::Char('w') => Ok(Action::NewContext),
+            KeyCode::Char('W') => Ok(Action::CloseContext),
             _ => Ok(Action::None),
         }
     }

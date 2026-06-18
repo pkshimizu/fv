@@ -49,6 +49,55 @@ impl AppContext {
         self.contexts[self.active].history_mut()
     }
 
+    /// 保持している Context 数。
+    pub fn context_count(&self) -> usize {
+        self.contexts.len()
+    }
+
+    /// アクティブ Context の位置（タブバー表示用）。
+    pub fn active_index(&self) -> usize {
+        self.active
+    }
+
+    /// 各 Context のカレントディレクトリ（タブバー表示用、表示順）。
+    pub fn context_dirs(&self) -> Vec<&str> {
+        self.contexts
+            .iter()
+            .map(|c| c.filer().current_dir_path())
+            .collect()
+    }
+
+    /// 現在ディレクトリを複製した新しい Context を、アクティブの直後に作りアクティブにする。
+    pub fn new_context(&mut self) -> Result<()> {
+        let dir = self.active_filer().current_dir_path().to_string();
+        let context = self.contexts[self.active].duplicate_at(&dir)?;
+        self.active += 1;
+        self.contexts.insert(self.active, context);
+        Ok(())
+    }
+
+    /// 次の Context へ切り替える（巡回）。
+    pub fn next_context(&mut self) {
+        self.active = (self.active + 1) % self.contexts.len();
+    }
+
+    /// 前の Context へ切り替える（巡回）。
+    pub fn prev_context(&mut self) {
+        self.active = (self.active + self.contexts.len() - 1) % self.contexts.len();
+    }
+
+    /// アクティブ Context をクローズする。最後の 1 つは閉じない（誤終了防止）。
+    /// 閉じたら、同じ位置（末尾なら一つ前）の Context をアクティブにする。
+    pub fn close_context(&mut self) {
+        if self.contexts.len() <= 1 {
+            return;
+        }
+        self.contexts.remove(self.active);
+        if self.active >= self.contexts.len() {
+            self.active = self.contexts.len() - 1;
+        }
+    }
+
     pub fn init(&mut self, startup_dir: Option<std::path::PathBuf>) -> Result<()> {
         self.active_filer_mut().init(startup_dir)
     }
@@ -69,5 +118,65 @@ impl AppContext {
         if let Some(panel) = &mut self.side_panel {
             panel.tick();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui_image::picker::Picker;
+    use tempfile::TempDir;
+
+    /// 既知の一時ディレクトリで初期化した AppContext を作る。
+    fn context_in(dir: &TempDir) -> AppContext {
+        let mut ctx = AppContext::new(Picker::halfblocks());
+        ctx.init(Some(dir.path().to_path_buf())).unwrap();
+        ctx
+    }
+
+    #[test]
+    fn new_context_duplicates_dir_and_activates_it() {
+        let dir = TempDir::new().unwrap();
+        let mut ctx = context_in(&dir);
+        let base = ctx.active_filer().current_dir_path().to_string();
+        ctx.new_context().unwrap();
+        assert_eq!(ctx.context_count(), 2);
+        // 新規 Context はアクティブの直後に入りアクティブになる。
+        assert_eq!(ctx.active_index(), 1);
+        // 現在ディレクトリを複製している。
+        assert_eq!(ctx.active_filer().current_dir_path(), base);
+    }
+
+    #[test]
+    fn next_and_prev_cycle_through_contexts() {
+        let dir = TempDir::new().unwrap();
+        let mut ctx = context_in(&dir);
+        ctx.new_context().unwrap(); // active=1, count=2
+        ctx.next_context(); // 末尾の次は先頭へ巡回
+        assert_eq!(ctx.active_index(), 0);
+        ctx.next_context();
+        assert_eq!(ctx.active_index(), 1);
+        ctx.prev_context();
+        assert_eq!(ctx.active_index(), 0);
+        ctx.prev_context(); // 先頭の前は末尾へ巡回
+        assert_eq!(ctx.active_index(), 1);
+    }
+
+    #[test]
+    fn close_context_removes_and_clamps_active() {
+        let dir = TempDir::new().unwrap();
+        let mut ctx = context_in(&dir);
+        ctx.new_context().unwrap(); // active=1, count=2
+        ctx.close_context(); // 末尾を閉じ、active は一つ前へ
+        assert_eq!(ctx.context_count(), 1);
+        assert_eq!(ctx.active_index(), 0);
+    }
+
+    #[test]
+    fn last_context_cannot_be_closed() {
+        let dir = TempDir::new().unwrap();
+        let mut ctx = context_in(&dir);
+        ctx.close_context();
+        assert_eq!(ctx.context_count(), 1);
     }
 }
