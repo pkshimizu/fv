@@ -115,6 +115,12 @@ _Avoid_: timer, time, clock widget.
 Handing the Filer's **current directory** off to the host OS's default graphical file manager (Finder, Explorer, …) so the user can continue in the GUI — for drag-and-drop or app integration the TUI doesn't offer. It always targets the current directory, never the **Cursor File** (revealing a specific file in the GUI is a separate, future capability). Distinct from the other two "leave for an external tool" gestures: opening the Cursor File *with its associated application* (the Enter key on a file), and launching an interactive **shell** in the current directory. The GUI app is launched and fv keeps running — unlike the shell handoff, the TUI is not suspended.
 _Avoid_: open (ambiguous — Enter on a file opens it with its associated app, and Enter on a directory navigates into it), reveal (that is the future per-file capability, not this), explorer (OS-specific).
 
+### Contexts
+
+**Context**:
+One independent working state, presented as a tab. Each Context owns its own current directory, **Cursor File** position, **Checked Paths**, sort order, **List Filter**, dotfile visibility, and back/forward directory history — switching between Contexts swaps all of these at once. Exactly one Context is active (shown in the Filer) at a time; the rest are retained in the background. `Tab` / `Shift`+`Tab` cycle to the next / previous Context, `w` opens a new Context cloning the active one's current directory, and `Shift`+`W` closes the active Context (the last remaining one cannot be closed). These keys act only while the Filer is focused (not while a Prompt or side panel is open). What is **not** per-Context is deliberately shared (global): the **Paste Buffer** (so `Ctrl`+`C`/`X` in one Context and `Ctrl`+`V` in another moves files across Contexts), bookmarks, the open side panel, the Prompt, Settings, and the header's **System Info** / **Disk Usage** / **Clock**. A tab bar between the header and the Filer lists the Contexts (number + directory name) and marks the active one; it appears only when more than one Context exists.
+_Avoid_: tab (that is only the visual representation — the concept is Context), window, pane (implies simultaneous split view, which this is not), workspace.
+
 ### Settings
 
 **Settings**:

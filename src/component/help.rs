@@ -70,6 +70,15 @@ const KEY_BINDINGS: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     (
+        "Contexts",
+        &[
+            ("Tab", "Next context"),
+            ("shift + tab", "Previous context"),
+            ("w", "New context (duplicate directory)"),
+            ("shift + w", "Close context"),
+        ],
+    ),
+    (
         "App",
         &[("o", "Settings"), ("?", "Show this help"), ("q", "Quit")],
     ),

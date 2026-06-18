@@ -95,6 +95,14 @@ pub enum Action {
     PreviewNext,
     /// プレビュー表示中に前のエントリへ移動する
     PreviewPrev,
+    /// 次の Context へ切り替える（Tab、巡回）
+    NextContext,
+    /// 前の Context へ切り替える（Shift+Tab、巡回）
+    PrevContext,
+    /// 現在ディレクトリを複製した新しい Context を作成しアクティブにする（w）
+    NewContext,
+    /// 現在の Context をクローズする（Shift+W、最後の 1 つは閉じない）
+    CloseContext,
 }
 
 /// 全プレビュー系サイドパネル（テキスト/画像/音声/メッセージ）で共通のキー操作を解決する。

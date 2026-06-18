@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::component::Component;
 use crate::store::RootStore;
-use crate::ui::features::render_header;
+use crate::ui::features::{render_header, render_tab_bar};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::text::Line;
@@ -46,14 +46,22 @@ pub fn render_main_view(frame: &mut Frame, ctx: &mut AppContext, store: &RootSto
         return;
     }
 
-    let [header_area, content_area, prompt_area] = Layout::vertical([
+    // Context が複数あるときだけ、header と content の間にタブバー（高さ 1）を挟む。
+    // 単一 Context のときは従来どおりタブバーを出さない（高さ 0）。
+    let show_tabs = ctx.context_count() > 1;
+    let tab_height = if show_tabs { 1 } else { 0 };
+    let [header_area, tab_area, content_area, prompt_area] = Layout::vertical([
         Constraint::Length(3),
+        Constraint::Length(tab_height),
         Constraint::Fill(1),
         Constraint::Length(3),
     ])
     .areas(area);
 
     render_header(frame, ctx, header_area);
+    if show_tabs {
+        render_tab_bar(frame, ctx, tab_area);
+    }
     // サイドパネルがあれば content を左右に分割し、左に Filer・右にパネルを描く。
     // active_filer_mut() は ctx 全体を可変借用するため、パネル描画とは順に分けて行う
     // （Filer を先に描いて借用を閉じてから、パネルを描く）。
