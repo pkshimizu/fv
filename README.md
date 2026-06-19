@@ -29,8 +29,11 @@ browsing, file operations, preview, search, and more on a single, clean screen â
 
 ### Homebrew (macOS Apple Silicon / Linux x86_64)
 
+Since Homebrew 6.0.0, third-party taps must be trusted explicitly before their formulae load, so `brew trust` is required before installing.
+
 ```sh
 brew tap pkshimizu/tap
+brew trust --formula pkshimizu/tap/fv
 brew install fv
 ```
 
