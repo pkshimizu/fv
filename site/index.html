@@ -135,12 +135,13 @@
               <h3>Homebrew</h3>
               <span class="ic-tag">macOS · Linux</span>
             </div>
-            <p data-en="macOS (Apple Silicon) and Linux (x86_64). The macOS build is signed &amp; notarized."
-               data-ja="macOS（Apple Silicon）と Linux（x86_64）に対応。macOS ビルドは署名・公証済みです。">macOS (Apple Silicon) and Linux (x86_64). The macOS build is signed &amp; notarized.</p>
+            <p data-en="macOS (Apple Silicon) and Linux (x86_64). The macOS build is signed &amp; notarized. Homebrew 6.0.0+ requires trusting the tap before install."
+               data-ja="macOS（Apple Silicon）と Linux（x86_64）に対応。macOS ビルドは署名・公証済みです。Homebrew 6.0.0 以降はインストール前に tap の信頼が必要です。">macOS (Apple Silicon) and Linux (x86_64). The macOS build is signed &amp; notarized. Homebrew 6.0.0+ requires trusting the tap before install.</p>
             <div class="grow"></div>
-            <div class="code-block" data-copy="brew tap pkshimizu/tap&#10;brew install fv">
+            <div class="code-block" data-copy="brew tap pkshimizu/tap&#10;brew trust --formula pkshimizu/tap/fv&#10;brew install fv">
               <button class="copy-btn" type="button" data-en="Copy" data-ja="コピー">Copy</button>
 <pre><span class="pmt">$ </span>brew tap pkshimizu/tap
+<span class="pmt">$ </span>brew trust --formula pkshimizu/tap/fv
 <span class="pmt">$ </span>brew install fv</pre>
             </div>
           </div>
