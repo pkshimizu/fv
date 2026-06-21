@@ -5,6 +5,13 @@ edition = "2024"
 license = "MIT"
 description = "A fast, keyboard-driven TUI file manager for your terminal"
 repository = "https://github.com/pkshimizu/fv"
+homepage = "https://pkshimizu.github.io/fv/"
+readme = "README.md"
+keywords = ["tui", "file-manager", "terminal", "ratatui", "cli"]
+categories = ["command-line-utilities", "filesystem"]
+# crates.io に同梱しない開発・配布専用の資産（ランディングページ画像や docs 等）を除き、
+# パッケージサイズを実行に必要なソースだけに絞る。
+exclude = ["site/", "docs/", ".github/", "fv.iml", "CLAUDE.md", "release-plz.toml"]
 
 [dependencies]
 anyhow = "1.0.102"

@@ -45,6 +45,8 @@ jobs:
         uses: MarcoIeni/release-plz-action@v0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # crates.io への cargo publish 用トークン（release-plz.toml の publish = true と対）。
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # リリースが作成されたときだけ、各プラットフォームのバイナリをビルドして Release 資産に添付する。
   # GITHUB_TOKEN で作成した Release はワークフローを連鎖起動しないため、同一ワークフロー内の
