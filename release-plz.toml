@@ -9,11 +9,9 @@
 # Cargo.toml 側で false にするとパッケージ自体が release-plz の処理対象外になり、
 # リリース PR もリリースも作られなくなる。
 publish = true
-# git タグからバージョンを判定する（cargo レジストリを参照しない）。
-# これが無いと、未公開パッケージでは初回リリース後に「最後のリリース版」を
-# レジストリから取得できず、コミットからの bump を計算できないため
-# 2 回目以降のリリース PR が作成されない。
-git_only = true
+# 以前は git_only = true で「git タグからバージョンを判定」していたが、git_only は
+# publish と併用できない（true にすると cargo publish がスキップされる）。publish を
+# 有効化した今は crates.io の公開版を最新版の起点にできるため git_only は不要。
 # リリースの起点はリリース PR のマージ。push のたびに自動リリースしない。
 release_always = false
 # GitHub Release を作成する。

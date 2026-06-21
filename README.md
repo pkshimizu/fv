@@ -9,7 +9,7 @@ A fast, keyboard-driven TUI file manager that lives in your terminal.
 `fv` is a Rust-based terminal file manager built on a Component Architecture. It keeps file
 browsing, file operations, preview, search, and more on a single, clean screen — no GUI required.
 
-![fv demo](site/images/hero-demo.gif)
+![fv demo](https://raw.githubusercontent.com/pkshimizu/fv/main/site/images/hero-demo.gif)
 
 **Landing page: <https://pkshimizu.github.io/fv/>** — features, screenshots, and details.
 
