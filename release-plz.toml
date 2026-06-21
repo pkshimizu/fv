@@ -2,11 +2,13 @@
 # main への push 時に「リリース PR」（Cargo.toml のバージョン bump + CHANGELOG 生成）を
 # 自動作成・更新し、その PR をマージするとタグ + GitHub Release を作成する。
 [workspace]
-# crates.io への publish（cargo publish）は行わない。
-# 注意: Cargo.toml の [package] publish = false はパッケージ自体を release-plz の
-# 処理対象外にしてしまう（リリース PR もリリースも作られない）。crates.io 公開だけを
-# 止めて GitHub Release は出すには、Cargo.toml ではなくこちら（release-plz.toml）で設定する。
-publish = false
+# crates.io への publish（cargo publish）を行う。
+# 認証は release.yml の release-plz ステップに渡す CARGO_REGISTRY_TOKEN を使う
+# （未設定だと publish が失敗するため、Secrets への登録が前提）。
+# 注意: 公開可否は Cargo.toml の [package] publish ではなくこちらで制御する。
+# Cargo.toml 側で false にするとパッケージ自体が release-plz の処理対象外になり、
+# リリース PR もリリースも作られなくなる。
+publish = true
 # git タグからバージョンを判定する（cargo レジストリを参照しない）。
 # これが無いと、未公開パッケージでは初回リリース後に「最後のリリース版」を
 # レジストリから取得できず、コミットからの bump を計算できないため
