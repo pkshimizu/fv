@@ -1,0 +1,29 @@
+# Linux 上での開発・動作確認用。
+#
+#   docker compose run --rm fv                 # cargo run で TUI を起動
+#   docker compose run --rm fv cargo build     # ビルドのみ
+#   docker compose run --rm fv cargo test      # テスト実行
+#
+# TUI のため tty/stdin を有効化している。`up` ではなく `run --rm` を使うこと
+# （run は端末の TTY を引き継ぐため、画面描画とキー入力が成立する）。
+services:
+  fv:
+    build: .
+    working_dir: /work
+    # TUI の描画とキー入力に必要な TTY を確保する。
+    tty: true
+    stdin_open: true
+    volumes:
+      # ソースをマウントしてコード編集を即反映する。
+      - .:/work
+      # target/ はホスト（macOS）の成果物と衝突するため named volume に分離する。
+      - fv-target:/work/target
+      # cargo レジストリ／git キャッシュを永続化して再ビルドを速くする。
+      - fv-cargo-registry:/usr/local/cargo/registry
+      - fv-cargo-git:/usr/local/cargo/git
+    command: cargo run
+
+volumes:
+  fv-target:
+  fv-cargo-registry:
+  fv-cargo-git:

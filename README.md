@@ -134,6 +134,33 @@ Some terminals (e.g. ttyd / xterm.js-based ones) report graphics protocols they 
 FV_IMAGE_PROTOCOL=halfblocks fv
 ```
 
+## Development
+
+### Linux check with Docker
+
+To build and run `fv` on Linux during development, use the provided Docker setup.
+It ships a Rust stable toolchain plus the only system dependency Linux builds need
+(`libasound2-dev`, for audio), bind-mounts your working tree, and gives the TUI a TTY.
+
+```sh
+# Build the image
+docker compose build
+
+# Run the TUI (default command is `cargo run`)
+docker compose run --rm fv
+
+# Build only / run the tests inside the container
+docker compose run --rm fv cargo build
+docker compose run --rm fv cargo test
+```
+
+Use `docker compose run --rm` (not `up`) so the container inherits your terminal's
+TTY and the TUI renders and accepts keys. Press `q` to quit.
+
+The container's `target/` and the cargo registry live in named volumes, so Linux
+build artifacts never collide with the host's (e.g. macOS) `target/`, and rebuilds
+stay fast across runs.
+
 ## License
 
 Licensed under the [MIT License](LICENSE).
